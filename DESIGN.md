@@ -245,6 +245,28 @@ than the cost of reconstructing history later.
 If a reviewer rejects a proposed change, the next run must not re-propose the same change.
 Exact semantics to be worked through when the review step is built.
 
+### 6.9 Model-year rollover is always a human decision (resolves open question 1)
+
+**Decision:** the pipeline never bumps `year` on its own — it stays a carry-through field
+exactly as the guide says ("PLEASE Leave as is!"). A 2027 model updating the 2026 row's
+`year` happens only when a human triggers it, one of two ways:
+
+1. **Globally**, for every product of a manufacturer, as a parameter given when a run is
+   triggered (Phase 8's CLI).
+2. **Per product, at review time** (Phase 6's UI), via a checkbox offered only when a
+   change was actually detected *and* the run fell within the window manufacturers
+   typically publish next year's models, **June–September**. This is a plausibility
+   signal, not a determination — ticking it is still the reviewer's call.
+
+**Why:** `year` drives which model-year row a change lands on, so getting it wrong is
+worse than leaving it for a human — consistent with §6.3's per-field accept/reject/correct
+and with never letting the pipeline silently reinterpret a carry-through field.
+
+Implemented in `diff/year_rollover.py`: `bump_year` is the shared primitive both routes
+call; `in_rollover_window` is the seasonal check, computed as part of Phase 5's diff logic
+and exposed as `ProductDiff.year_rollover_eligible` for the review app to render. Neither
+the CLI flag (route 1) nor the review checkbox UI (route 2) is built yet.
+
 ---
 
 ## 7. Storage
@@ -294,7 +316,7 @@ Target is **under £5/month, £20 ceiling**. Three mechanisms, in order of impac
 
 | # | Question | Blocks |
 |---|---|---|
-| 1 | The field guide marks `year` "PLEASE Leave as is!", but a 2027 model is said to update the 2026 row with year fields changing. Does the website bump `year` itself, or do we write the new year? | Model-year rollover handling |
+| ~~1~~ | ~~The field guide marks `year` "PLEASE Leave as is!", but a 2027 model is said to update the 2026 row with year fields changing. Does the website bump `year` itself, or do we write the new year?~~ **Resolved — see §6.9**: we write it, and only ever on explicit human instruction. | Model-year rollover handling |
 | 2 | Does the NCC site expose an export/import API, or is headless browser automation the only route? | Could replace §6.2 |
 | 3 | What validation does the upload run, and does one bad row reject the whole file? | Upload CSV strategy |
 | 4 | Do we have standing to crawl manufacturer sites, and could any manufacturer supply a feed directly instead? | Politeness policy; could remove work entirely for cooperative brands |

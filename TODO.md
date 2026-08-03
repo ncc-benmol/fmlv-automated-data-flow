@@ -58,14 +58,29 @@ verifiable against the real Adria export.
 
 ## Phase 3 — Fetch and snapshot
 
-- [ ] **[P]** HTTP fetcher with sane timeouts, retries and a descriptive user-agent
-- [ ] **[P]** Snapshot every response to `data/snapshots/<manufacturer>/<run>/`
-- [ ] **[P]** Content hashing + skip-if-unchanged, recording "verified unchanged"
-- [ ] **[P]** Rate limiting / politeness between requests
-- [ ] **[P]** Playwright fetcher for JS-rendered sites
-- [ ] **[P]** PDF download and text extraction
+- [x] **[P]** HTTP fetcher with sane timeouts, retries and a descriptive user-agent
+      (`fetch/http.py` — retries 5xx/429 with backoff, honours `Retry-After`, doesn't
+      retry a plain 404)
+- [x] **[P]** Snapshot every response to `data/snapshots/<manufacturer>/<run>/`
+      (`paths.snapshot_dir`; `Fetcher`/`BrowserFetcher` write into whatever directory
+      they're given)
+- [x] **[P]** Content hashing + skip-if-unchanged — `FetchResult.unchanged` compares
+      against a `previous_hash` the caller supplies. **Not yet wired up**: recording
+      "verified unchanged" against the `verification` table is product-level and
+      belongs with Phase 5's diff logic, once there's a product to attach it to
+- [x] **[P]** Rate limiting / politeness between requests (`politeness_delay_seconds`)
+- [x] **[P]** Playwright fetcher for JS-rendered sites (`fetch/browser.py`, tested
+      against a real headless Chromium — see the one-time setup note below)
+- [x] **[P]** PDF download and text extraction (download is just `Fetcher.fetch()`
+      with an `application/pdf` response; `fetch/pdf.py` extracts the text)
 - [ ] **[F]** `robots.txt` handling and a documented crawl policy
 - [ ] **[F]** Re-diff a past run from snapshots without re-fetching
+- [ ] **[F]** Conditional GET (`If-None-Match`/`ETag`) to skip re-downloading large
+      unchanged PDFs — today every fetch re-downloads; fine at prototype scale
+
+> **One-time local setup:** `BrowserFetcher` needs Chromium installed once per
+> machine — run `uv run playwright install chromium` (~115 MB download). Already done
+> on this dev machine; the Dockerfile (Phase 8) needs the same step baked in.
 
 ## Phase 4 — Exploration spike and the first adapter
 
@@ -119,7 +134,9 @@ Do this **before** committing to an adapter interface — the sites decide the s
 
 ## Phase 8 — Packaging and operations
 
-- [ ] **[P]** Dockerfile including Playwright browsers
+- [ ] **[P]** Dockerfile including Playwright browsers (`playwright install chromium`
+      needs to run at image-build time — see the note under Phase 3; locally it's a
+      ~115 MB one-time download)
 - [ ] **[P]** `data/` volume for exports, snapshots, SQLite and generated uploads
 - [ ] **[P]** CLI: `run <manufacturer>` and `sweep`
 - [ ] **[P]** Cron-scheduled sweep

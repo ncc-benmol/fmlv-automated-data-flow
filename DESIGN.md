@@ -213,6 +213,14 @@ real bottleneck. The app puts the source snippet and a link to the live manufact
 directly beside each proposed change, which is where a reviewer's time actually goes.
 Accept / reject / correct is **per field**, and the reviewer can type a corrected value.
 
+Implemented in `review/app.py` (Phase 6): `create_app(db_path)` builds the app against
+one SQLite file, so tests point it at a throwaway one rather than needing a running
+server. `store/changes.py` is where a run's diff (Phase 5's `diff_products`) becomes the
+`proposed_change`/`verification` rows the app reads and writes — including the §6.9
+year-rollover suggestion, which is deliberately just another field proposal rather than a
+separate UI mechanism. Not yet built: the container itself (Phase 8), authentication, and
+concurrent reviewers — all already scoped as non-goals/[F] in TODO.md.
+
 ### 6.4 Change detection: everything, no thresholds
 
 Any difference from the baseline is surfaced — no materiality threshold, no tolerance.

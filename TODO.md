@@ -131,27 +131,46 @@ Do this **before** committing to an adapter interface — the sites decide the s
       both future routes a shared primitive (`bump_year`) and a seasonal plausibility
       check (`in_rollover_window`, June-September); `ProductDiff.year_rollover_eligible`
       is set for a `CHANGED_FIELD` product seen in that window. Two things still to
-      build on top of this, in later phases:
+      build on top of this:
       - [ ] **[P]** Phase 8 CLI: a run-trigger parameter to bump `year` for every
             product of a manufacturer (scenario 1 — user-supplied, not automatic)
-      - [ ] **[P]** Phase 6 review UI: a per-product checkbox, shown only when
+      - [x] **[P]** Phase 6 review UI: a per-product checkbox, shown only when
             `year_rollover_eligible` is true, that calls `bump_year` on accept
-            (scenario 2)
+            (scenario 2) — done as **another `proposed_change` row** (`field="year"`),
+            not a separate mechanism: `store/changes.py:persist_diff` proposes it with
+            `source_url=None` and an explanatory snippet, so accepting it goes through
+            the exact same accept/reject/correct plumbing as every other field. Shown
+            with a "possible rollover" badge (`review/templates/partials/change_row.html`)
 - [ ] **[F]** Propose `archived = Yes` for products that vanish from a manufacturer's site
 - [ ] **[F]** Materiality thresholds
-- [ ] **[F]** Wire `diff_products` results into `proposed_change`/`verification` rows —
-      deliberately left for Phase 6, since the review app shapes what "confidence" and
-      source display need to look like. `store/products.py` only persists the identity
-      mapping so far, not the changes themselves.
+- [x] **[P]** Wire `diff_products` results into `proposed_change`/`verification` rows
+      — done in Phase 6: `store/changes.py:persist_diff`. `DISAPPEARED` products are
+      still not persisted (no actionable proposal exists for them yet — see the
+      `archived = Yes` item above).
 
 ## Phase 6 — Review app
 
-- [ ] **[P]** FastAPI + HTMX app in the same container
-- [ ] **[P]** Run list, then per-manufacturer change queue
-- [ ] **[P]** Per-field accept / reject / correct, with a free-text corrected value
-- [ ] **[P]** Source snippet and a link to the live manufacturer page beside each change
-- [ ] **[P]** Persist every decision with who and when
-- [ ] **[P]** Remember rejections so the next run doesn't re-propose them
+- [x] **[P]** FastAPI + HTMX app in the same container — `review/app.py:create_app`;
+      the container itself is Phase 8, not built yet, but the app has no other
+      runtime dependency beyond the SQLite file it's pointed at
+- [x] **[P]** Run list, then per-manufacturer change queue — `GET /`, `GET /runs/{id}`
+      (`review/templates/runs.html`, `run_detail.html`), grouped by product via
+      `store.list_change_queue`
+- [x] **[P]** Per-field accept / reject / correct, with a free-text corrected value —
+      `POST /runs/{id}/changes/{id}/decide`; a blank value on "correct" is rejected
+      with an inline error rather than recorded (`review/app.py:decide`)
+- [x] **[P]** Source snippet and a link to the live manufacturer page beside each
+      change — `proposed_change.source_url`/`source_snippet`, carried straight from
+      the adapter's `Provenance` through `persist_diff`, rendered in
+      `partials/change_row.html`
+- [x] **[P]** Persist every decision with who and when — `decision.decided_by`/
+      `decided_at` (`store/decisions.py:record_decision`); a decision is never
+      edited in place, a later one just supersedes it (`latest_decision`), so the
+      full history survives (DESIGN.md §6.7)
+- [x] **[P]** Remember rejections so the next run doesn't re-propose them —
+      `store/changes.py:was_previously_rejected`, matched on the exact
+      (product, field, new_value) triple; a *different* corrected figure from the
+      manufacturer is still proposed (DESIGN.md §6.8)
 - [ ] **[F]** Bulk accept for a whole product or a whole field across products
 - [ ] **[F]** Authentication — currently a trusted internal network
 - [ ] **[F]** Concurrent reviewers

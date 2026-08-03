@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FMLV review{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --border: #d0d0d0;
+      --muted: #666;
+      --accept: #1a7f37;
+      --reject: #b42318;
+      --correct: #9a6700;
+      --bg-subtle: #f6f6f6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --border: #444;
+        --muted: #aaa;
+        --bg-subtle: #1c1c1c;
+      }
+    }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      max-width: 60rem;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 4rem;
+      line-height: 1.4;
+    }
+    a { color: inherit; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.15rem; margin-top: 2rem; }
+    h3 { font-size: 1rem; margin-bottom: 0.4rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    .muted { color: var(--muted); font-size: 0.9em; }
+    .badge {
+      display: inline-block;
+      font-size: 0.75em;
+      padding: 0.1em 0.5em;
+      border-radius: 0.3em;
+      border: 1px solid var(--border);
+      margin-left: 0.4em;
+    }
+    .badge.new { border-color: var(--accept); color: var(--accept); }
+    .badge.high-suspicion { border-color: var(--correct); color: var(--correct); }
+    .badge.running { border-color: var(--correct); color: var(--correct); }
+    .badge.failed { border-color: var(--reject); color: var(--reject); }
+    .badge.succeeded { border-color: var(--accept); color: var(--accept); }
+    .product-group {
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 0.8rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .change-row {
+      display: grid;
+      grid-template-columns: 10rem 1fr auto;
+      gap: 0.6rem;
+      align-items: start;
+      padding: 0.5rem 0;
+      border-top: 1px solid var(--border);
+    }
+    .change-row:first-of-type { border-top: none; }
+    .field-name { font-weight: 600; }
+    .value-diff .old { text-decoration: line-through; color: var(--muted); }
+    .value-diff .new { font-weight: 600; }
+    .provenance { font-size: 0.85em; color: var(--muted); margin-top: 0.2rem; }
+    .provenance blockquote { margin: 0.2rem 0 0; padding-left: 0.6rem; border-left: 2px solid var(--border); }
+    .decision-form { display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap; }
+    .decision-form input[type="text"] { width: 8rem; }
+    .decision { font-size: 0.9em; }
+    .decision-accept { color: var(--accept); }
+    .decision-reject { color: var(--reject); }
+    .decision-correct { color: var(--correct); }
+    .form-error { color: var(--reject); font-size: 0.85em; }
+    #reviewer-bar { margin-bottom: 1.5rem; }
+    #reviewer-bar label { font-size: 0.9em; color: var(--muted); }
+  </style>
+</head>
+<body>
+  {% block content %}{% endblock %}
+</body>
+</html>

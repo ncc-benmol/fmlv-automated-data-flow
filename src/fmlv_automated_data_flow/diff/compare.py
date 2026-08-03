@@ -69,7 +69,13 @@ def _priority(field_path: str) -> Priority:
     return "other"
 
 
-def _get_value(motorhome: Motorhome, field_path: str) -> Any:
+def field_value(motorhome: Motorhome, field_path: str) -> Any:
+    """Read a `Motorhome` field by name, or a nested one by dotted path.
+
+    Shared with `store.changes.persist_diff`, which needs the same lookup for a
+    `NEW_PRODUCT`'s extracted fields (there's no baseline to diff against, but the
+    value still has to come from somewhere other than a hardcoded field list).
+    """
     value: Any = motorhome
     for part in field_path.split("."):
         if value is None:
@@ -103,8 +109,8 @@ def compare_fields(
     confirmed: list[str] = []
 
     for field_path in extracted.provenance:
-        old_value = _get_value(baseline, field_path)
-        new_value = _get_value(extracted.motorhome, field_path)
+        old_value = field_value(baseline, field_path)
+        new_value = field_value(extracted.motorhome, field_path)
         if old_value == new_value:
             confirmed.append(field_path)
             continue

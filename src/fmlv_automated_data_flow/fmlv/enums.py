@@ -17,7 +17,7 @@ from __future__ import annotations
 from enum import Enum
 
 
-class _ColumnEnum(Enum):
+class ColumnEnum(Enum):
     """An enum whose values are FMLV column names."""
 
     @classmethod
@@ -25,7 +25,7 @@ class _ColumnEnum(Enum):
         return [member.value for member in cls]
 
 
-class BodyType(_ColumnEnum):
+class BodyType(ColumnEnum):
     """Guide: SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION."""
 
     MICRO = "type_micro"
@@ -38,7 +38,7 @@ class BodyType(_ColumnEnum):
     A_CLASS = "type_a_class"
 
 
-class SleepingArea(_ColumnEnum):
+class SleepingArea(ColumnEnum):
     """Guide: SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION."""
 
     FRONT = "sleeping_area_front"
@@ -47,7 +47,7 @@ class SleepingArea(_ColumnEnum):
     SEPARATE_CHILDRENS_AREA = "sleeping_area_separate_childrens_area"
 
 
-class BedType(_ColumnEnum):
+class BedType(ColumnEnum):
     """Guide: SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY.
 
     The only multi-select group in the schema.
@@ -62,7 +62,7 @@ class BedType(_ColumnEnum):
     DROP_DOWN = "drop_down_bed"
 
 
-class KitchenLocation(_ColumnEnum):
+class KitchenLocation(ColumnEnum):
     """Guide: SELECT 'YES' AGAINST ONE KITCHEN LOCATION."""
 
     REAR = "rear_kitchen"
@@ -70,7 +70,7 @@ class KitchenLocation(_ColumnEnum):
     CORNER = "corner_kitchen"
 
 
-class BathroomLayout(_ColumnEnum):
+class BathroomLayout(ColumnEnum):
     """Guide: SELECT 'YES' AGAINST ONE BATHROOM LAYOUT."""
 
     NO_TOILET = "no_toilet"
@@ -82,7 +82,7 @@ class BathroomLayout(_ColumnEnum):
     SEPARATE_SHOWER_TOILET = "separate_shower_toilet"
 
 
-class LoungeLocation(_ColumnEnum):
+class LoungeLocation(ColumnEnum):
     """Guide: SELECT 'YES' AGAINST ONE LOUNGE LOCATION."""
 
     FRONT = "front_lounge"
@@ -90,7 +90,7 @@ class LoungeLocation(_ColumnEnum):
     TWIN = "twin_lounge"
 
 
-class Heating(_ColumnEnum):
+class Heating(ColumnEnum):
     """Guide: SELECT 'YES' AGAINST ONE HEATING TYPE."""
 
     BLOWN_AIR = "blown_air_heating"
@@ -98,7 +98,7 @@ class Heating(_ColumnEnum):
     NONE = "no_heating"
 
 
-class Refrigeration(_ColumnEnum):
+class Refrigeration(ColumnEnum):
     """Guide: do not put 'YES' in both columns."""
 
     FRIDGE = "fridge"
@@ -106,7 +106,7 @@ class Refrigeration(_ColumnEnum):
 
 
 #: Every single-select group, for validation and round-tripping.
-SINGLE_SELECT_GROUPS: tuple[type[_ColumnEnum], ...] = (
+SINGLE_SELECT_GROUPS: tuple[type[ColumnEnum], ...] = (
     BodyType,
     SleepingArea,
     KitchenLocation,

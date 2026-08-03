@@ -18,9 +18,10 @@ deferred.
 - [x] **[P]** Decide scope: motorhomes only, caravans deferred
 - [x] **[P]** Manufacturer registry template (`data/manufacturers.csv` + README)
 - [x] **[P]** Project design document
-- [ ] **[P]** Ben: populate `data/manufacturers.csv` with the pilot manufacturers
-- [ ] **[P]** Add dependencies: `pydantic`, `openpyxl`, `httpx`, `pytest` (drop unused `numpy`)
-- [ ] **[P]** Set up `pytest` and a `just`/`make` task for the common commands
+- [x] **[P]** Ben: populate `data/manufacturers.csv` with the pilot manufacturers
+- [x] **[P]** Add dependencies: `pydantic`, `openpyxl`, `httpx`, `pypdf`, `playwright`, `pytest` (drop unused `numpy`)
+- [x] **[P]** Set up `pytest` (`uv run pytest`; `testpaths` configured in `pyproject.toml`)
+- [ ] **[P]** A `just`/`make` task for the common commands (run, sweep, test)
 - [ ] **[F]** Ruff + type checking in CI
 
 ## Phase 1 — Canonical model and FMLV read/write
@@ -31,25 +32,29 @@ verifiable against the real Adria export.
 - [x] **[P]** Layout enums for the 8 constrained groups (`fmlv/enums.py`)
 - [x] **[P]** Column order and field classes — carry-through / required / layout / dealer (`fmlv/schema.py`)
 - [x] **[P]** `Motorhome` canonical model (`fmlv/model.py`)
-- [ ] **[P]** Reader: `.xlsx` and `.csv` export → `list[Motorhome]`
-- [ ] **[P]** Writer: `list[Motorhome]` → upload CSV in exact column order
-- [ ] **[P]** Validation rules, reported as data not exceptions:
-  - [ ] exactly-one per single-select group; many allowed for bed types
-  - [ ] `fridge` and `fridge_freezer` not both set
-  - [ ] `payload == mtplm - mro` reconciles
-  - [ ] all required fields present
-  - [ ] `automatic_*` is all-or-nothing
-- [ ] **[P]** Round-trip test: read Adria export → write → read, assert models are identical
-- [ ] **[P]** Run validation across the whole Adria export and eyeball the failures
+- [x] **[P]** Reader: `.xlsx` and `.csv` export → `list[Motorhome]` (`fmlv/io.py`)
+- [x] **[P]** Writer: `list[Motorhome]` → upload CSV in exact column order (`fmlv/io.py`)
+- [x] **[P]** Validation rules, reported as data not exceptions (`fmlv/validation.py`):
+  - [x] exactly-one per single-select group, flagged if ambiguous rather than raised; many allowed for bed types
+  - [x] `fridge` and `fridge_freezer` not both set (enforced by the `Refrigeration` enum's shape — a field can only hold one value)
+  - [x] `payload == mtplm - mro` reconciles
+  - [x] all required fields present
+  - [x] `automatic_*` is all-or-nothing
+- [x] **[P]** Round-trip test: read Adria export → write → read, assert models are identical (`tests/fmlv/test_io.py`)
+- [x] **[P]** Run validation across the whole Adria export and eyeball the failures — see the data-quality note below
 - [ ] **[F]** Same treatment for the touring caravan schema
 
 ## Phase 2 — Registry and run store
 
-- [ ] **[P]** Load and validate `data/manufacturers.csv`; skip `caravan`-only rows for now
-- [ ] **[P]** SQLite schema + migrations: `run`, `source_snapshot`, `product`,
-      `proposed_change`, `decision`, `verification`
-- [ ] **[P]** Run lifecycle: start / finish / fail, with the manufacturer and trigger recorded
+- [x] **[P]** Load and validate `data/manufacturers.csv`; skip `caravan`-only rows for now
+      (`registry/loader.py` — a blank `categories` defaults to *included*, with a warning)
+- [x] **[P]** SQLite schema + migrations: `run`, `source_snapshot`, `product`,
+      `proposed_change`, `decision`, `verification` (`store/schema.sql`)
+- [x] **[P]** Run lifecycle: start / finish / fail, with the manufacturer and trigger recorded
+      (`store/runs.py`)
 - [ ] **[F]** Retention policy for old snapshots and runs
+- [ ] **[F]** Proper migrations once real run history exists — `schema.sql` is currently
+      applied idempotently with `CREATE TABLE IF NOT EXISTS` and has no versioning
 
 ## Phase 3 — Fetch and snapshot
 
@@ -125,6 +130,39 @@ Do this **before** committing to an adapter interface — the sites decide the s
 
 ---
 
+## For Ben — things found while building Phases 1–3
+
+Nothing here blocked the work (everything degrades to a warning, never a crash), but
+each needs a human decision or a data fix.
+
+- [ ] **Confirm what `manufacturer_id` actually is.** `data/manufacturers.csv` now has
+      real values (`3` for Adria Mobil, `125` for Sunlight, `46` for Morelo, `26` for
+      Swift, `75` for Rimor, `61` for Auto-Trail) instead of the slug the README
+      originally described. These look like NCC-side IDs — please confirm the source
+      system and whether they're guaranteed stable, then I'll finish updating the
+      README's wording (already adjusted provisionally).
+- [ ] **Sunlight and Morelo share the same `website_url`**
+      (`https://www.morelo-reisemobile.de/en/`) in the registry — the loader catches
+      this automatically as a `duplicate_website_url` warning (see
+      `tests/registry/test_loader.py`), but it looks like a copy-paste slip between
+      the two rows rather than something intentional. Please fix whichever one is wrong.
+- [ ] **`categories` is blank for every row** in the current registry. The loader
+      defaults a blank row to "included in motorhome runs" (the prototype's only scope
+      anyway) so this doesn't block anything, but it'll matter the moment caravans are
+      switched on — worth filling in when convenient rather than urgently.
+- [ ] **`country` uses "UK"** for the British manufacturers; the README asks for
+      ISO 3166-1 alpha-2 (`GB`). Not used for anything yet, so harmless today — flagging
+      so it doesn't propagate if the field starts driving logic (e.g. language/currency
+      handling) later.
+- [ ] **Data quality in the sample export itself**, found by running validation across
+      all 41 Adria products (`fmlv.validation.validate_all`): 5 products where the
+      published payload doesn't reconcile with `mtplm - mro`, and 2 products with both
+      "blown air" and "wet central" heating ticked (only one should be). These are
+      pre-existing in the NCC's own current export, not introduced by anything here.
+      Worth deciding whether the pipeline should ever propose a correction to the
+      *baseline* itself when the manufacturer's own site reconciles cleanly, or leave
+      that out of scope — noted as open question **8** below.
+
 ## Open questions to chase
 
 Tracked in [DESIGN.md §9](DESIGN.md). The ones that block work:
@@ -136,6 +174,9 @@ Tracked in [DESIGN.md §9](DESIGN.md). The ones that block work:
 - [ ] **5** — European brands: always English and GBP via the UK importer?
 - [ ] **6** — PDF vs HTML precedence, per manufacturer *(Phase 4 spike should answer)*
 - [ ] **7** — controlled vocabularies beyond the enum groups
+- [ ] **8** — should the pipeline ever propose fixing the *baseline* export when it
+      disagrees with a manufacturer's own site, or only ever propose changes sourced
+      from the manufacturer? *(shapes Phase 5's diff logic; see the data-quality note above)*
 
 ---
 

@@ -301,6 +301,7 @@ Target is **under £5/month, £20 ceiling**. Three mechanisms, in order of impac
 | 5 | For European brands, is UK-market data always published in English and GBP by the UK importer? | Language/currency handling |
 | 6 | Where HTML and PDF disagree, PDF is assumed authoritative — to be confirmed per manufacturer during the exploration spike. | Source precedence |
 | 7 | Are there controlled vocabularies we must map manufacturer terminology onto beyond the enum groups in §4.3? | Extraction mapping |
+| 8 | Should the pipeline ever propose fixing the *baseline* export itself when it disagrees with a manufacturer's own site, or only ever propose changes sourced from the manufacturer? Raised by running validation against the real Adria export, which surfaced 5 pre-existing payload mismatches and 2 rows with two heating options both ticked (see TODO.md). | Phase 5 diff logic |
 
 ---
 

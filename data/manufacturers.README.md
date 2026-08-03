@@ -8,17 +8,20 @@
 Fill in what you know; leave the rest blank or `unknown` — the exploration spike will
 populate the source-shape columns.
 
-Only `manufacturer_key`, `fmlv_manufacturer`, `categories` and `website_url` are needed
-to start work on a manufacturer. Everything else can be discovered.
+Only `manufacturer_id`, `fmlv_manufacturer` and `website_url` are needed to start work
+on a manufacturer. Everything else can be discovered. `categories` is technically
+optional too — a blank value is treated as "include in motorhome runs" by default
+(see below) — but fill it in when known, since a blank value also emits a loader
+warning every time.
 
 ## Columns
 
 | Column | Required | Values | Notes |
 |---|---|---|---|
-| `manufacturer_key` | yes | lowercase slug, no spaces | Our stable internal ID, e.g. `adria`, `swift`, `bailey`. Never changes, even if the brand renames. Used for folder names and DB keys. |
+| `manufacturer_id` | yes | integer | The manufacturer's identifier. Used as the stable key for folder names, DB rows and matching runs across time — never changes, even if the brand renames. **Open question:** confirm what system this ID actually comes from and whether it's guaranteed stable (see TODO.md) — it's currently populated with NCC-side numeric IDs (e.g. `3` for Adria Mobil) rather than a slug we invented. |
 | `fmlv_manufacturer` | yes | free text | **Must match the `manufacturer` column in the FMLV export exactly** (e.g. `Adria Mobil`). This is how we join scraped data back to existing product IDs. |
 | `fmlv_display_name` | | free text | Matches the FMLV `manufacturer_display_name` column (e.g. `Adria`). |
-| `categories` | yes | `motorhome`, `caravan`, or both comma-separated | Which FMLV export schema(s) this manufacturer appears in. Motorhome and caravan exports have different columns, so this decides which extraction schema we use. |
+| `categories` | | `motorhome`, `caravan`, or both comma-separated | Which FMLV export schema(s) this manufacturer appears in. Blank is treated as "motorhome" by default (the prototype's only scope right now) — the loader raises a `categories_unset` warning so the gap gets noticed rather than silently assumed forever. |
 | `status` | | `active` / `paused` / `retired` | `paused` = skip in scheduled sweeps but still runnable manually. `retired` = brand no longer trading. |
 | `pilot_priority` | | integer, 1 = first | Ordering for the prototype. Leave blank for anything not in the pilot set. |
 | `country` | | ISO 2-letter | `GB`, `DE`, `SI`, `IT`… Flags where we may hit non-English pages or EUR pricing. |
@@ -45,3 +48,18 @@ to start work on a manufacturer. Everything else can be discovered.
 - If a manufacturer publishes motorhomes and caravans on separate sites, put the primary
   in `models_index_url` and note the second URL in `notes` — we'll split the row if it
   turns out to be a recurring pattern.
+
+## Loading and validation
+
+`fmlv_automated_data_flow.registry.load(path)` reads this file and never raises on a
+single bad row — problems come back as a list of `Issue`s alongside whatever did parse
+successfully. It also checks two things across rows that are easy to get wrong by hand:
+
+- **Duplicate `manufacturer_id`** — flagged as an error; both rows are still loaded.
+- **Duplicate `website_url`** — flagged as a warning. This is usually a copy-paste
+  mistake between adjacent rows (two different brands pointing at the same site) —
+  see the open to-do about Sunlight/Morelo in TODO.md.
+
+The five blank rows at the bottom of the template (with only `status=active` filled
+in) are placeholders for the next manufacturer and are silently skipped, not reported
+as broken.

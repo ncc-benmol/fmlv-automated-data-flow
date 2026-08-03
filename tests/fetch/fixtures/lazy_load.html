@@ -1,0 +1,18 @@
+<html>
+<body>
+<div style="height: 4000px;">spacer, so the target starts off-screen</div>
+<div id="target">not yet loaded</div>
+<script>
+  const target = document.getElementById('target');
+  const observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      fetch('/data.json').then((r) => r.json()).then((data) => {
+        target.textContent = 'loaded: ' + data.hello;
+      });
+      observer.disconnect();
+    }
+  });
+  observer.observe(target);
+</script>
+</body>
+</html>

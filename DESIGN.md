@@ -66,7 +66,7 @@ and the NCC's own field guide (`csv-examples/field_guide_motorhome.csv`).
 ### 4.1 Grain and identity
 
 One row = one product = one vehicle at a particular specification, layout and price.
-The primary key is **`product_id`, assigned by the NCC website**, not by us.
+The primary key is **`product_id`, assigned by the NCC website**, not by this application.
 
 - An existing product keeps its `product_id` across model years. A 2027 model is an
   **update to the 2026 row**, not a new row.

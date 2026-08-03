@@ -1,6 +1,6 @@
 manufacturer_id,fmlv_manufacturer,fmlv_display_name,categories,status,pilot_priority,country,website_url,uk_site_url,models_index_url,price_list_url,brochure_url,specs_format,needs_javascript,login_required,ncc_member,contact_name,contact_email,contact_phone,last_verified,notes
-3,Adria Mobil,Adria,,active,1,UK,https://www.adria-mobil.com/,https://www.adria.co.uk/,,,,unknown,unknown,no,yes,,,,,Worked example - 42 motorhomes + 12 caravans in the sample export. UK importer site may differ from group site.
-125,Sunlight,Sunlight,,active,2,DE,https://www.morelo-reisemobile.de/en/,,,,,unknown,unknown,no,no,,,,,
+3,Adria Mobil,Adria,,active,1,UK,https://www.adria-mobil.com/,https://www.adria.co.uk/,https://www.adria.co.uk/motorhomes,,,mixed,yes,no,yes,,,,2026-08-03,"Worked example - 42 motorhomes + 12 caravans in the sample export. UK site (adria.co.uk) is Laravel+Livewire: range pages (e.g. /motorhomes/matrix) render empty; layout/trim/price data only loads via a scroll-triggered AJAX call to /livewire/update, so needs_javascript=yes. Full technical spec (weights, dimensions) is NOT in that JSON - it's in a per-configuration PDF at configure.adria-mobil.com/<market>/<period>/<product id>/pdf, itself a plain deterministic fetch once the product id is read out of the JSON. Campervans have a second index at /campervans. See docs/adapters/adria.md for the full write-up."
+125,Sunlight,Sunlight,,active,2,DE,https://www.sunlight.de/en/,,,,,unknown,unknown,no,no,,,,,
 46,Morelo,Morelo,,active,2,DE,https://www.morelo-reisemobile.de/en/,,,,,unknown,unknown,no,no,,,,,
 26,Swift Group Ltd,Swift,,active,1,UK,https://www.swiftgroup.co.uk/,,,,,unknown,unknown,no,yes,,,,,
 75,Rimor,Rimor,,active,2,IT,https://www.rimor.it/int/en,,,,,unknown,unknown,no,no,,,,,

@@ -87,11 +87,19 @@ verifiable against the real Adria export.
 Do this **before** committing to an adapter interface — the sites decide the shape.
 
 - [ ] **[P]** Survey 3–5 pilot manufacturer sites: HTML tables? JSON blob? PDF only?
-      JS required? Record findings in `data/manufacturers.csv`
-- [ ] **[P]** Write up the general pattern, if there is one
-- [ ] **[P]** Define the adapter interface: snapshot → `list[Motorhome]` + provenance
-- [ ] **[P]** First adapter end-to-end (Adria, since we have its baseline data)
-- [ ] **[P]** Provenance on every extracted field: source URL + snippet, for the reviewer
+      JS required? Record findings in `data/manufacturers.csv` — **Adria done** (see
+      below), Swift/Sunlight/Morelo/Rimor/Auto-Trail still to go
+- [x] **[P]** Write up the general pattern, if there is one — first pass in
+      `docs/adapters/README.md`, based on Adria alone so far; revisit once a second
+      manufacturer's survey either confirms or breaks the "two fetches per product"
+      hypothesis it describes
+- [x] **[P]** Define the adapter interface: snapshot → `list[Motorhome]` + provenance
+      (`adapters/base.py`: `Adapter`, `ExtractedMotorhome`, `Provenance`)
+- [x] **[P]** First adapter end-to-end (Adria, since we have its baseline data) —
+      `adapters/adria.py`; run live against the Matrix range, two rows matched the
+      baseline's MRO/MTPLM/RRP exactly. Full write-up: `docs/adapters/adria.md`
+- [x] **[P]** Provenance on every extracted field: source URL + snippet, for the reviewer
+      — done for every numeric field the Adria adapter extracts
 - [ ] **[P]** Adapters for the remaining pilot manufacturers
 - [ ] **[F]** LLM fallback for PDF-only sources (Haiku 4.5 / Sonnet 5, Batch API for sweeps)
 - [ ] **[F]** Adapter self-test harness — flag when a site changes shape and a parser silently stops finding products
@@ -179,6 +187,14 @@ each needs a human decision or a data fix.
       Worth deciding whether the pipeline should ever propose a correction to the
       *baseline* itself when the manufacturer's own site reconciles cleanly, or leave
       that out of scope — noted as open question **8** below.
+- [ ] **Adria's site model-naming won't line up with the baseline export's `model`
+      column by exact string match.** The site names a configuration by layout code +
+      trim (e.g. `"670 DC"` + `"Supreme Alde RHD"`); the baseline export has
+      `"Supreme 670 DC"`. Same product, different word order. Phase 5's matching logic
+      will need something looser than an exact match (see `docs/adapters/adria.md`).
+      Also spotted while cross-checking: the baseline itself has an inconsistently
+      cased `manufacturer_range` for at least one row (`"Matrix Supreme"` vs `"Matrix"`
+      for a `Supreme MB` product) — pre-existing in the NCC's export, not introduced here.
 
 ## Open questions to chase
 

@@ -201,6 +201,249 @@ Do this **before** committing to an adapter interface — the sites decide the s
 
 ---
 
+# Local end-to-end test plan (Phases 1–7)
+
+Written 2026-08-04 after reviewing Phases 1–6 as merged (commit `820eab5`) plus Phase 7
+as specified above — Phase 7 was still in progress on a teammate's branch at the time of
+writing, so **§T7 and §T8 are written against the Phase 7 spec, not against its code.**
+Adjust the function/CLI names in those two stages to whatever actually lands.
+
+The goal is a run that goes registry → fetch → adapt → diff → **SQLite** → review UI →
+approved-changes CSV, on this machine, with real writes to a real database file.
+
+## T-pre — three things block an end-to-end run today
+
+These are gaps in the *harness*, not bugs in Phases 1–6. Each needs doing before §T3.
+
+- [ ] **T-pre-1 — There is no orchestrator.** Every stage exists and is unit-tested, but
+      nothing wires them together: `registry.load` → `store.start_run` → `adria.collect` →
+      `io.read_export` → `diff.diff_products` → `store.persist_diff` → `store.finish_run`
+      is a sequence no code performs. The package entry point
+      (`fmlv_automated_data_flow:main`, declared in `pyproject.toml`) is still the
+      `print("Hello from …")` stub. **Two options — pick one before testing:**
+      - Pull Phase 8's `CLI: run <manufacturer>` item forward and test the real thing.
+        Preferred: it is needed anyway, and testing the throwaway proves less.
+      - Or write `scripts/run_once.py` as a deliberately temporary driver. Sketch, using
+        the signatures as they exist today:
+        ```python
+        registry = loader.load("data/manufacturers.csv")
+        adria = next(m for m in registry.manufacturers if m.manufacturer_id == 3)
+        connection = store.connect(paths.db_path())
+        run = store.start_run(connection, manufacturer_id=adria.manufacturer_id,
+                              fmlv_manufacturer=adria.fmlv_manufacturer, trigger="manual")
+        snapshots = paths.snapshot_dir(adria.manufacturer_id, run.id)
+        with Fetcher(snapshots) as http, BrowserFetcher(snapshots) as browser:
+            scraped = adria_adapter.collect(http, browser, snapshots, ranges=…)
+        baseline = [m for m in io.read_export(export_path).motorhomes
+                    if m.manufacturer == adria.fmlv_manufacturer]   # see the note below
+        result = store.persist_diff(connection, run_id=run.id,
+                                    manufacturer_id=adria.manufacturer_id,
+                                    diffs=diff_products(scraped, baseline))
+        store.finish_run(connection, run.id)
+        ```
+      - **The baseline must be filtered to one manufacturer before `diff_products`** —
+        `matching.match_products`'s docstring requires it, and nothing enforces it. An
+        unfiltered baseline would let an Adria product match another brand's row.
+      - Wrap the body in `try/except` → `store.fail_run(connection, run.id, str(exc))`,
+        otherwise a crash mid-run leaves a row stuck at `status='running'` and §T4's run
+        list shows it as in-flight forever.
+- [ ] **T-pre-2 — `.gitignore` does not cover `data/`.** A real run writes
+      `data/run_store.sqlite3`, `data/snapshots/**`, `data/exports/**` and
+      `data/uploads/**` into a tracked tree; the sample Adria run is ~50 PDFs. Add those
+      four paths (keeping `data/manufacturers.csv` and its README tracked) **before** the
+      first run, not after.
+- [ ] **T-pre-3 — The review app has no server entry point.** `review.app.create_app` is
+      a factory taking a `db_path`, so `uvicorn review.app:app` will not work. Either add
+      a tiny module that reads the DB path from the environment, or run it with an inline
+      factory (§T4 gives the exact command).
+
+## Known gaps — expected, do not chase these as failures
+
+Found while reviewing; all are already-scoped `[F]`/later-phase items, but each will look
+like a bug during a first end-to-end run if you are not expecting it.
+
+- **`source_snapshot` is never written.** Both fetchers snapshot to disk, but no code
+  inserts the row. The table will be empty after a successful run, and — the real
+  consequence — **skip-if-unchanged cannot work across runs**: `FetchResult.unchanged`
+  needs a `previous_hash` the caller supplies, and there is nowhere to get one from. Two
+  identical consecutive runs will both re-fetch and re-parse everything. Phase 3 flags
+  the wiring as outstanding; this is where it bites.
+- **`DISAPPEARED` products are not persisted** (`store/changes.py`), so a product missing
+  from the site produces no row anywhere. Deliberate — see the `archived = Yes` `[F]`.
+- **Every changed product will also propose a `year` bump.** Today (2026-08-04) is inside
+  the June–September rollover window, so `year_rollover_eligible` is true for every
+  `CHANGED_FIELD` product. Expect roughly double the proposals you would see in
+  February, each with a "possible rollover" badge and no source URL. Correct behaviour,
+  surprising volume.
+- **`test.py` in the repo root** is a leftover scrap (`print(f"{ii} hello")`). Not picked
+  up by pytest (`testpaths = ["tests"]`), but delete it while you are in here.
+
+## T0 — Environment and unit baseline
+
+- [ ] `uv run pytest -q` → **129 passed** is the current state on `master`; anything less
+      means fix that before going further. (`uv run` warns that `VIRTUAL_ENV` does not
+      match `.venv` — harmless, it uses `.venv`.)
+- [ ] `uv run playwright install chromium` — one-time, ~115 MB. Already done on this
+      machine; needed on any other. `tests/fetch/test_browser.py` passing confirms it.
+- [ ] Confirm the sample export is readable and put a copy where a run will look for it:
+      copy `csv-examples/1785753111-…/motorhome-campervans.xlsx` to
+      `data/exports/2026-08-04/motorhome-campervans.xlsx`. Until §T8 works, this stands in
+      for the Playwright download.
+
+## T1 — Store smoke: does it actually write to a real DB file?
+
+The first stage that writes to disk. Everything below runs against `data/run_store.sqlite3`.
+
+- [ ] `store.connect(paths.db_path())` on a path that does not exist yet → file created,
+      schema applied. Then `sqlite3 data/run_store.sqlite3 ".tables"` → all six tables.
+- [ ] `start_run` → `finish_run` → `list_runs` round-trip against that file.
+- [ ] Re-connect to the **same** file and confirm the schema re-applies without error and
+      the earlier run survives — this is the `CREATE TABLE IF NOT EXISTS` idempotency
+      claim, and it has only ever been exercised against fresh tmp files in tests.
+- [ ] Confirm `PRAGMA foreign_keys` is enforced: insert a `proposed_change` with a
+      nonsense `product_id` and expect an `IntegrityError`.
+
+## T2 — Baseline read and validation, against the real export
+
+- [ ] `io.read_export()` the copy from §T0 → 42 motorhomes, `result.issues` reviewed.
+- [ ] `validation.validate_all()` across all of them → expect **5 payload mismatches and
+      2 double-ticked heating rows**. These are pre-existing in the NCC's own export (see
+      the data-quality note below) — a *different* count means something regressed.
+- [ ] Round-trip: `write_csv` the parsed rows to `data/uploads/roundtrip.csv`, read it
+      back, assert equality. Already unit-tested, but worth doing once against a real file
+      on disk to prove encoding and the 68-column order survive a real write.
+
+## T3 — Offline pipeline: fixtures → diff → SQLite
+
+Do this **before** touching the live site. Same driver as §T-pre-1, but with the network
+stubbed: reuse the captured fixtures in `tests/adapters/fixtures/` the way
+`tests/diff/test_real_adria_integration.py` does. This isolates *persistence* bugs from
+*scraping* bugs — if §T6 then fails, you already know which half.
+
+- [ ] Run the driver → `run` row reaches `status='succeeded'`, `finished_at` set.
+- [ ] `product` rows created, one per matched/new product.
+- [ ] `proposed_change` rows: check the known Matrix 670 DC case lands as
+      `mtplm_kilograms 3500 → 3650` and `mro_kilograms 3184 → 3228`, with `source_url`
+      pointing at the PDF and a non-empty `source_snippet`.
+- [ ] `verification` rows exist for the confirmed dimensions — the §6.5 "checked and
+      unchanged" claim, which nothing has yet written to a real database.
+- [ ] `PersistResult` counts match what is actually in the tables.
+- [ ] **Re-run the driver on the same DB.** This is the stage most likely to surface a
+      real defect: `upsert_seen` must update the existing `product` rows rather than
+      insert duplicates, and a second run's proposals should attach to the *same*
+      `product.id`. Assert `SELECT COUNT(*) FROM product` is unchanged.
+
+## T4 — Review app against T3's database
+
+Serve the same file §T3 just wrote:
+
+```powershell
+uv run uvicorn --factory "fmlv_automated_data_flow.review.app:create_app" --port 8000
+```
+
+(needs §T-pre-3 — `create_app` takes a `db_path` argument, so either give it a default
+from an env var or use a small wrapper module.)
+
+- [ ] `GET /` lists the §T3 run with the right status badge.
+- [ ] `GET /runs/{id}` groups proposals by product; tracked numerics sort above layout
+      flags; the "possible rollover" badge appears on the `year` rows and "unusual" on
+      any layout row.
+- [ ] Each row shows the source snippet and a working link to the manufacturer page.
+- [ ] **Accept** one change → row swaps in via HTMX, `decision` row written with
+      `decided_by` and `decided_at`.
+- [ ] **Correct** one with a typed value → stored in `decision.corrected_value`.
+- [ ] **Correct with an empty value** → inline error, and confirm **no** `decision` row
+      was written.
+- [ ] **Reject** one — note the exact (product, field, new_value) for §T5.
+- [ ] Decide the same change twice → two `decision` rows, the later one superseding;
+      history preserved, nothing edited in place.
+- [ ] `GET /runs/999999` → 404, not a 500.
+
+## T5 — Rejection memory across runs
+
+The §6.8 promise, which needs two real runs against one database to test at all.
+
+- [ ] Re-run the driver (third run on the same DB). The change rejected in §T4 must
+      **not** reappear; `PersistResult.suppressed_rejections` ≥ 1.
+- [ ] Then hand-edit the fixture so the manufacturer publishes a *different* figure for
+      that same field, re-run, and confirm it **is** proposed — only the literal rejected
+      value is suppressed, not the field.
+
+## T6 — Live run against adria.co.uk
+
+First stage that touches the network. Be polite: `Fetcher` defaults to a 1s delay, and
+the full `DEFAULT_RANGES` sweep is 9 browser page loads plus **one PDF fetch per
+configuration** (~50 requests).
+
+- [ ] **Start with one range** — pass `ranges=(("motorhomes/matrix", "Matrix"),)`. Confirm
+      the Livewire JSON is captured and at least one PDF parses before going wider.
+- [ ] Check `data/snapshots/3/<run_id>/` — every response on disk, `.json`/`.pdf`
+      suffixes correct.
+- [ ] Compare the live result against §T3's fixture result. Differences here are the
+      interesting output: they are either genuine site changes since the Phase 4 capture,
+      or parser drift.
+- [ ] Then the full `DEFAULT_RANGES` sweep. Watch for: products whose `configuratorURL`
+      is missing (silently skipped), PDFs returning non-200 (silently skipped), and
+      `_SPEC_PATTERNS` finding nothing (product extracted with every weight `None`). None
+      of the three raise — **count them yourself** and compare against the number of
+      configurations the JSON offered, or a silent extraction failure will look like a
+      clean run.
+- [ ] Sanity-check a handful of extracted figures by opening the PDF by hand.
+- [ ] Force a failure — kill the network mid-run — and confirm `fail_run` records
+      `status='failed'` with the message, and that the review app renders it.
+
+## T7 — Approved changes → upload CSV *(against the Phase 7 spec — adapt to the code)*
+
+- [ ] Apply the §T4 decisions onto the baseline and emit the CSV. The join to test is
+      `proposed_change` + its *latest* `decision`: **accept** takes `new_value`,
+      **correct** takes `corrected_value`, **reject** takes neither, and a proposal with
+      no decision must not be applied.
+- [ ] **Carry-through fields survive untouched** — `product_id`, `year`,
+      `manufacturing_release_date`, `latest_model_id`, `images`, `archived`. Diff the
+      output against the baseline and confirm the only differences are the accepted
+      changes. `year` is the exception and only when a rollover proposal was accepted.
+- [ ] **Type round-trip out of TEXT storage.** Every `proposed_change` column is TEXT and
+      `_serialize` flattens on the way in, so writing back has to reverse it:
+      - an enum was stored as its **FMLV column name** (`BathroomLayout.REAR` →
+        `"bathroom_layout_rear"`), so applying it means reverse-mapping column name →
+        enum member, not `Enum(value)` on a label;
+      - `bed_types` was stored comma-joined and has to split back into a list;
+      - numerics are strings and need parsing — a corrected value typed as `"3,650"` or
+        `"3650 kg"` by a reviewer must not silently become `0` or crash the writer.
+        Test that path explicitly; the review form does no numeric validation.
+- [ ] A **new product** (no `fmlv_product_id`) emits with `product_id` blank.
+- [ ] `validation.validate_all()` over the generated rows before it is offered for upload.
+      Specifically: accepting a change to `mro_kilograms` while rejecting the matching
+      `mtplm_kilograms` leaves `mh_payload_kilograms` inconsistent — construct that case
+      deliberately and confirm validation catches it rather than shipping a bad row.
+- [ ] Read the generated CSV back with `io.read_csv` → 68 columns, exact order, values
+      as expected.
+- [ ] Open it in Excel once, to check nothing mangles (leading zeros, the `|` image
+      separator, UTF-8).
+
+## T8 — NCC site download *(against the Phase 7 spec — adapt to the code)*
+
+- [ ] Credentials from environment variables only; confirm nothing is logged, echoed on
+      failure, or written into a snapshot.
+- [ ] Log in and download the current export to `data/exports/<date>/`.
+- [ ] Feed that real download through §T2 and confirm it parses identically to the sample.
+- [ ] Wrong-password path fails with a clear message rather than a Playwright timeout.
+- [ ] **Do not upload anything generated by §T7 to the live site during testing.** Upload
+      is manual by design (§6.2) and open question 3 — what the site's validation rejects
+      — is still unanswered.
+
+## T9 — Reset and repeat
+
+- [ ] Write down the teardown so a run can be repeated from clean:
+      delete `data/run_store.sqlite3`, `data/snapshots/`, `data/uploads/`; keep
+      `data/exports/` and `data/manufacturers.csv`.
+- [ ] Once §T3–§T7 pass by hand, promote §T3 (fixtures, no network) into
+      `tests/test_end_to_end.py` against a `tmp_path` database. It is the one test that
+      would catch a break in the wiring *between* phases, which is exactly what every
+      current test skips.
+
+---
+
 ## For Ben — things found while building Phases 1–3
 
 Nothing here blocked the work (everything degrades to a warning, never a crash), but

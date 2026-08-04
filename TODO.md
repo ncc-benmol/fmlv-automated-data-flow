@@ -132,8 +132,12 @@ Do this **before** committing to an adapter interface — the sites decide the s
       check (`in_rollover_window`, June-September); `ProductDiff.year_rollover_eligible`
       is set for a `CHANGED_FIELD` product seen in that window. Two things still to
       build on top of this:
-      - [ ] **[P]** Phase 8 CLI: a run-trigger parameter to bump `year` for every
-            product of a manufacturer (scenario 1 — user-supplied, not automatic)
+      - [x] **[P]** Phase 8 CLI: a run-trigger parameter to bump `year` for every
+            product of a manufacturer (scenario 1 — user-supplied, not automatic) —
+            `fmlv run <manufacturer> --bump-year`, which widens the same
+            `store/changes.py:persist_diff` branch route 2 uses (`bump_year_all`)
+            rather than adding a second mechanism. Still only ever a *proposal*: it
+            is reviewed and accepted per product like any other field
       - [x] **[P]** Phase 6 review UI: a per-product checkbox, shown only when
             `year_rollover_eligible` is true, that calls `bump_year` on accept
             (scenario 2) — done as **another `proposed_change` row** (`field="year"`),
@@ -192,7 +196,15 @@ Do this **before** committing to an adapter interface — the sites decide the s
       needs to run at image-build time — see the note under Phase 3; locally it's a
       ~115 MB one-time download)
 - [ ] **[P]** `data/` volume for exports, snapshots, SQLite and generated uploads
-- [ ] **[P]** CLI: `run <manufacturer>` and `sweep`
+- [x] **[P]** CLI: `run <manufacturer>` (`cli.py`) — the first code to perform the whole
+      sequence: registry → `run` record → adapter → diff → `proposed_change`/
+      `verification`. `execute_run` takes injectable fetcher factories so the pipeline
+      is testable without a network or a browser (`tests/test_cli.py`). Options:
+      `--export`, `--data-dir`, `--registry`, `--trigger`, `--range` (repeatable, for a
+      one-range smoke run), `--bump-year`. Exit codes: 0 ok, 1 run failed, 2 bad request
+- [ ] **[P]** CLI: `sweep` — every runnable manufacturer with an adapter, in
+      `pilot_priority` order (`registry.active_motorhome_manufacturers` already returns
+      exactly that list; `adapters.adapter_for` returns `None` for the ones to skip)
 - [ ] **[P]** Cron-scheduled sweep
 - [ ] **[P]** README covering how to run it, for whoever inherits it
 - [ ] **[F]** Heavier scheduling through August–September peak season
@@ -211,42 +223,24 @@ Adjust the function/CLI names in those two stages to whatever actually lands.
 The goal is a run that goes registry → fetch → adapt → diff → **SQLite** → review UI →
 approved-changes CSV, on this machine, with real writes to a real database file.
 
-## T-pre — three things block an end-to-end run today
+## T-pre — what has to exist before an end-to-end run
 
-These are gaps in the *harness*, not bugs in Phases 1–6. Each needs doing before §T3.
+Gaps in the *harness*, not bugs in Phases 1–6. The first is done; the other two still
+need doing before §T3.
 
-- [ ] **T-pre-1 — There is no orchestrator.** Every stage exists and is unit-tested, but
-      nothing wires them together: `registry.load` → `store.start_run` → `adria.collect` →
-      `io.read_export` → `diff.diff_products` → `store.persist_diff` → `store.finish_run`
-      is a sequence no code performs. The package entry point
-      (`fmlv_automated_data_flow:main`, declared in `pyproject.toml`) is still the
-      `print("Hello from …")` stub. **Two options — pick one before testing:**
-      - Pull Phase 8's `CLI: run <manufacturer>` item forward and test the real thing.
-        Preferred: it is needed anyway, and testing the throwaway proves less.
-      - Or write `scripts/run_once.py` as a deliberately temporary driver. Sketch, using
-        the signatures as they exist today:
-        ```python
-        registry = loader.load("data/manufacturers.csv")
-        adria = next(m for m in registry.manufacturers if m.manufacturer_id == 3)
-        connection = store.connect(paths.db_path())
-        run = store.start_run(connection, manufacturer_id=adria.manufacturer_id,
-                              fmlv_manufacturer=adria.fmlv_manufacturer, trigger="manual")
-        snapshots = paths.snapshot_dir(adria.manufacturer_id, run.id)
-        with Fetcher(snapshots) as http, BrowserFetcher(snapshots) as browser:
-            scraped = adria_adapter.collect(http, browser, snapshots, ranges=…)
-        baseline = [m for m in io.read_export(export_path).motorhomes
-                    if m.manufacturer == adria.fmlv_manufacturer]   # see the note below
-        result = store.persist_diff(connection, run_id=run.id,
-                                    manufacturer_id=adria.manufacturer_id,
-                                    diffs=diff_products(scraped, baseline))
-        store.finish_run(connection, run.id)
-        ```
-      - **The baseline must be filtered to one manufacturer before `diff_products`** —
-        `matching.match_products`'s docstring requires it, and nothing enforces it. An
-        unfiltered baseline would let an Adria product match another brand's row.
-      - Wrap the body in `try/except` → `store.fail_run(connection, run.id, str(exc))`,
-        otherwise a crash mid-run leaves a row stuck at `status='running'` and §T4's run
-        list shows it as in-flight forever.
+- [x] **T-pre-1 — There was no orchestrator.** Every stage existed and was unit-tested,
+      but nothing performed the *sequence*. **Resolved by pulling Phase 8's CLI forward**
+      — `fmlv run <manufacturer>` (`cli.py`), rather than a throwaway driver script.
+      Three things it settles that any driver would have had to:
+      - **The baseline is filtered to one manufacturer before `diff_products`.**
+        `matching.match_products` requires this and nothing enforces it — an unfiltered
+        baseline would let an Adria product match another brand's row. The filter is
+        `Motorhome.manufacturer == Manufacturer.fmlv_manufacturer`, and
+        `tests/test_cli.py` pins it with a two-brand export.
+      - **A run that raises is recorded as `failed` with the message**, not left stuck at
+        `status='running'`. Snapshots taken before the failure stay on disk.
+      - **Which adapter runs which brand** — `adapters.adapter_for`, keyed on
+        `fmlv_manufacturer` rather than the not-yet-confirmed `manufacturer_id`.
 - [ ] **T-pre-2 — `.gitignore` does not cover `data/`.** A real run writes
       `data/run_store.sqlite3`, `data/snapshots/**`, `data/exports/**` and
       `data/uploads/**` into a tracked tree; the sample Adria run is ~50 PDFs. Add those
@@ -315,12 +309,16 @@ The first stage that writes to disk. Everything below runs against `data/run_sto
 
 ## T3 — Offline pipeline: fixtures → diff → SQLite
 
-Do this **before** touching the live site. Same driver as §T-pre-1, but with the network
-stubbed: reuse the captured fixtures in `tests/adapters/fixtures/` the way
-`tests/diff/test_real_adria_integration.py` does. This isolates *persistence* bugs from
-*scraping* bugs — if §T6 then fails, you already know which half.
+Do this **before** touching the live site: call `cli.execute_run` directly with an
+adapter that replays the captured fixtures in `tests/adapters/fixtures/` (the way
+`tests/diff/test_real_adria_integration.py` builds its products) and
+`_fetcher_factory`/`_browser_factory` set to something inert. This isolates
+*persistence* bugs from *scraping* bugs — if §T6 then fails, you already know which
+half. `tests/test_cli.py` already does exactly this with synthetic products; the value
+of doing it by hand is doing it against the **real 41-row export** and a real
+`data/run_store.sqlite3` you can then open and poke at.
 
-- [ ] Run the driver → `run` row reaches `status='succeeded'`, `finished_at` set.
+- [ ] Run it → `run` row reaches `status='succeeded'`, `finished_at` set.
 - [ ] `product` rows created, one per matched/new product.
 - [ ] `proposed_change` rows: check the known Matrix 670 DC case lands as
       `mtplm_kilograms 3500 → 3650` and `mro_kilograms 3184 → 3228`, with `source_url`
@@ -328,7 +326,7 @@ stubbed: reuse the captured fixtures in `tests/adapters/fixtures/` the way
 - [ ] `verification` rows exist for the confirmed dimensions — the §6.5 "checked and
       unchanged" claim, which nothing has yet written to a real database.
 - [ ] `PersistResult` counts match what is actually in the tables.
-- [ ] **Re-run the driver on the same DB.** This is the stage most likely to surface a
+- [ ] **Re-run on the same DB.** This is the stage most likely to surface a
       real defect: `upsert_seen` must update the existing `product` rows rather than
       insert duplicates, and a second run's proposals should attach to the *same*
       `product.id`. Assert `SELECT COUNT(*) FROM product` is unchanged.
@@ -375,22 +373,29 @@ First stage that touches the network. Be polite: `Fetcher` defaults to a 1s dela
 the full `DEFAULT_RANGES` sweep is 9 browser page loads plus **one PDF fetch per
 configuration** (~50 requests).
 
-- [ ] **Start with one range** — pass `ranges=(("motorhomes/matrix", "Matrix"),)`. Confirm
-      the Livewire JSON is captured and at least one PDF parses before going wider.
+- [ ] **Start with one range**, which is what `--range` exists for:
+      ```powershell
+      uv run fmlv run Adria --range Matrix --export data/exports/2026-08-04/motorhome-campervans.xlsx
+      ```
+      Confirm the Livewire JSON is captured and at least one PDF parses before going
+      wider.
 - [ ] Check `data/snapshots/3/<run_id>/` — every response on disk, `.json`/`.pdf`
       suffixes correct.
 - [ ] Compare the live result against §T3's fixture result. Differences here are the
       interesting output: they are either genuine site changes since the Phase 4 capture,
       or parser drift.
-- [ ] Then the full `DEFAULT_RANGES` sweep. Watch for: products whose `configuratorURL`
+- [ ] Then the full sweep — `uv run fmlv run Adria`. Watch for: products whose `configuratorURL`
       is missing (silently skipped), PDFs returning non-200 (silently skipped), and
       `_SPEC_PATTERNS` finding nothing (product extracted with every weight `None`). None
       of the three raise — **count them yourself** and compare against the number of
       configurations the JSON offered, or a silent extraction failure will look like a
       clean run.
 - [ ] Sanity-check a handful of extracted figures by opening the PDF by hand.
-- [ ] Force a failure — kill the network mid-run — and confirm `fail_run` records
-      `status='failed'` with the message, and that the review app renders it.
+- [ ] Force a failure — kill the network mid-run — and confirm the run is recorded as
+      `status='failed'` with the message, that the CLI exits 1, and that the review app
+      renders it.
+- [ ] Once, run with `--bump-year` against a scratch `--data-dir` to see route 1 of
+      §6.9 in the queue: a `year` proposal on *every* product, not just changed ones.
 
 ## T7 — Approved changes → upload CSV *(against the Phase 7 spec — adapt to the code)*
 
@@ -437,10 +442,10 @@ configuration** (~50 requests).
 - [ ] Write down the teardown so a run can be repeated from clean:
       delete `data/run_store.sqlite3`, `data/snapshots/`, `data/uploads/`; keep
       `data/exports/` and `data/manufacturers.csv`.
-- [ ] Once §T3–§T7 pass by hand, promote §T3 (fixtures, no network) into
-      `tests/test_end_to_end.py` against a `tmp_path` database. It is the one test that
-      would catch a break in the wiring *between* phases, which is exactly what every
-      current test skips.
+- [ ] `tests/test_cli.py` already covers the wiring *between* phases against a
+      `tmp_path` database — the gap every other test left. Once §T3–§T7 pass by hand,
+      extend it with the real Adria fixtures and the real export, so the numbers §T3
+      checks by hand are pinned rather than re-eyeballed.
 
 ---
 

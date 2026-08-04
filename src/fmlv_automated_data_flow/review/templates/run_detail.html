@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ run.fmlv_manufacturer }} — run #{{ run.id }}{% endblock %}
+{% block content %}
+  <p class="muted"><a href="/">← All runs</a></p>
+  <h1>{{ run.fmlv_manufacturer }} <span class="badge {{ run.status }}">{{ run.status }}</span></h1>
+  <p class="muted">
+    Run #{{ run.id }} · {{ run.trigger }} · started {{ run.started_at }}
+    {% if run.finished_at %} · finished {{ run.finished_at }}{% endif %}
+  </p>
+  {% if run.error_message %}
+    <p class="form-error">{{ run.error_message }}</p>
+  {% endif %}
+
+  <div id="reviewer-bar">
+    <label for="reviewer-name">Reviewing as:</label>
+    <input type="text" id="reviewer-name" name="reviewer_name" placeholder="your name">
+  </div>
+
+  <h2>Pending ({{ pending|length }})</h2>
+  {% if not pending %}
+    <p class="muted">Nothing waiting on a decision.</p>
+  {% else %}
+    {% for product_id, group in pending|groupby('product.id') %}
+      <div class="product-group">
+        <h3>
+          {{ group[0].product.manufacturer_range }} — {{ group[0].product.model }}
+          {% if group[0].product.fmlv_product_id %}
+            <span class="muted">#{{ group[0].product.fmlv_product_id }}</span>
+          {% else %}
+            <span class="badge new">new product</span>
+          {% endif %}
+        </h3>
+        {% for entry in group %}
+          {% include "partials/change_row.html" %}
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if decided %}
+    <h2>Decided ({{ decided|length }})</h2>
+    {% for product_id, group in decided|groupby('product.id') %}
+      <div class="product-group">
+        <h3>{{ group[0].product.manufacturer_range }} — {{ group[0].product.model }}</h3>
+        {% for entry in group %}
+          {% include "partials/change_row.html" %}
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endblock %}

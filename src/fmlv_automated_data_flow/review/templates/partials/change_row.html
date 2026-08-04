@@ -1,0 +1,51 @@
+<div id="change-{{ entry.change.id }}" class="change-row">
+  <div class="field-name">
+    {{ entry.change.field }}
+    {% if is_layout_field(entry.change.field) %}
+      <span class="badge high-suspicion" title="Layout changes are rare on an existing product">unusual</span>
+    {% elif is_year_field(entry.change.field) %}
+      <span class="badge high-suspicion" title="Suggested by the pipeline, not read from the site">possible rollover</span>
+    {% endif %}
+  </div>
+  <div>
+    <div class="value-diff">
+      <span class="old">{{ entry.change.old_value if entry.change.old_value is not none else "—" }}</span>
+      →
+      <span class="new">{{ entry.change.new_value if entry.change.new_value is not none else "—" }}</span>
+    </div>
+    {% if entry.change.source_url or entry.change.source_snippet %}
+      <div class="provenance">
+        {% if entry.change.source_url %}
+          <a href="{{ entry.change.source_url }}" target="_blank" rel="noopener">source</a>
+        {% endif %}
+        {% if entry.change.source_snippet %}
+          <blockquote>{{ entry.change.source_snippet }}</blockquote>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if error %}
+      <p class="form-error">{{ error }}</p>
+    {% endif %}
+  </div>
+  <div>
+    {% if entry.decision %}
+      <div class="decision decision-{{ entry.decision.action }}">
+        {{ entry.decision.action }}{% if entry.decision.action == "correct" %} → {{ entry.decision.corrected_value }}{% endif %}
+        <div class="muted">{{ entry.decision.decided_by or "unknown" }} · {{ entry.decision.decided_at }}</div>
+      </div>
+    {% else %}
+      <form
+        class="decision-form"
+        hx-post="/runs/{{ run.id }}/changes/{{ entry.change.id }}/decide"
+        hx-target="#change-{{ entry.change.id }}"
+        hx-swap="outerHTML"
+        hx-include="#reviewer-name"
+      >
+        <button type="submit" name="action" value="accept">Accept</button>
+        <button type="submit" name="action" value="reject">Reject</button>
+        <input type="text" name="corrected_value" placeholder="corrected value">
+        <button type="submit" name="action" value="correct">Correct</button>
+      </form>
+    {% endif %}
+  </div>
+</div>

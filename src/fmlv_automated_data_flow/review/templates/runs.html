@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Runs — FMLV review{% endblock %}
+{% block content %}
+  <h1>Runs</h1>
+  {% if not runs %}
+    <p class="muted">No runs recorded yet.</p>
+  {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Manufacturer</th>
+          <th>Trigger</th>
+          <th>Status</th>
+          <th>Started</th>
+          <th>Finished</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in runs %}
+          <tr>
+            <td><a href="/runs/{{ run.id }}">{{ run.fmlv_manufacturer }}</a></td>
+            <td>{{ run.trigger }}</td>
+            <td><span class="badge {{ run.status }}">{{ run.status }}</span></td>
+            <td class="muted">{{ run.started_at }}</td>
+            <td class="muted">{{ run.finished_at or "—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endblock %}

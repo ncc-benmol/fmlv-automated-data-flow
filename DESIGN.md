@@ -204,6 +204,15 @@ generated upload CSV is written to a folder and uploaded **by hand**.
 public site. Keeps a human gate on the only irreversible step. Whether the site offers a
 proper API is still unknown (§9) — if it does, this is the piece that gets replaced first.
 
+Implemented in `fetch/ncc.py` (Phase 7): `download_export` logs in and saves the
+current export, `NccCredentials.from_env` reads the login from `NCC_LOGIN_EMAIL`/
+`NCC_LOGIN_PASSWORD` (§8's secrets row). Unlike every manufacturer adapter, the NCC
+site's own login/export pages haven't been surveyed the way §5.1's adapters are —
+`NccSiteConfig`'s URLs and form selectors are placeholders to confirm against the real
+site, not facts read off it (see TODO.md's "For Ben" note). The generated-CSV half of
+this section — `output/build.py` turning approved decisions into an upload-ready CSV
+in `schema.COLUMNS` order, validated before it's offered — is also Phase 7.
+
 ### 6.3 Review via a small web app
 
 **Decision:** FastAPI + HTMX, served from the same container.

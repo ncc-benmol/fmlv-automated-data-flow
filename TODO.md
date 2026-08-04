@@ -177,12 +177,38 @@ Do this **before** committing to an adapter interface — the sites decide the s
 
 ## Phase 7 — Output and NCC integration
 
-- [ ] **[P]** Emit the approved changes as a CSV in exact FMLV column order
-- [ ] **[P]** Carry through `product_id`, `year`, `manufacturing_release_date`,
-      `latest_model_id`, `images`, `archived` untouched
-- [ ] **[P]** Validate the generated CSV before it is offered for upload
-- [ ] **[P]** Playwright: log in to the NCC site and download the current export
-- [ ] **[P]** Credential handling via environment variables
+- [x] **[P]** Emit the approved changes as a CSV in exact FMLV column order —
+      `output/build.py:build_upload_motorhomes` applies every `accept`/`correct`
+      decision (per DESIGN.md §6.3) on top of the baseline `Motorhome`, one field at a
+      time (`apply_field`); `write_upload_csv` hands the result to `fmlv.io.write_csv`,
+      which already writes `schema.COLUMNS` order. A product with no `accept`/`correct`
+      decision at all contributes nothing — there's nothing approved to upload for it.
+- [x] **[P]** Carry through `product_id`, `year`, `manufacturing_release_date`,
+      `latest_model_id`, `images`, `archived` untouched — true by construction: an
+      existing product starts from a deep copy of its baseline row, and no field is
+      touched unless a decision says so. `year` is the one exception that *can* be
+      touched, via the same year-rollover proposal Phase 5/6 already route through
+      `proposed_change` (DESIGN.md §6.9) — `apply_field` treats it like any other field.
+- [x] **[P]** Validate the generated CSV before it is offered for upload —
+      `output/build.py:write_upload_csv` runs `fmlv.validation.validate_all` over the
+      built rows before writing. Consistent with DESIGN.md's "report as data, not
+      exceptions" (§1 Phase 1's validation): a validation problem doesn't block the
+      write, it's returned as `UploadResult.issues` for a reviewer to see next to the
+      CSV, with `UploadResult.has_errors` as the "was this actually clean" check the
+      Phase 8 CLI can act on. (Open question 3 — what the NCC upload path itself
+      enforces — is still unanswered; this is our own pre-flight check, not theirs.)
+- [x] **[P]** Playwright: log in to the NCC site and download the current export —
+      `fetch/ncc.py:download_export`. **Caveat:** unlike every manufacturer adapter,
+      the NCC login/export pages themselves haven't been surveyed (no Phase 4-style
+      spike exists for our own site) — `NccSiteConfig`'s URLs/selectors are
+      placeholders to confirm against the real site, not facts read off it. The
+      login-then-download *mechanism* (fill form, submit, click through to a file
+      download) is implemented and tested against a local fixture
+      (`tests/fetch/test_ncc.py`); only the real site's specific markup is unconfirmed.
+- [x] **[P]** Credential handling via environment variables — `fetch/ncc.py`:
+      `NccCredentials.from_env()` reads `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD`, raising
+      `NccCredentialsError` rather than proceeding with a blank credential. Never
+      hardcoded, never committed, matching DESIGN.md §8's secrets row.
 - [ ] **[F]** Automated upload — deliberately manual for now
 - [ ] **[F]** Confirm upload validation rules with whoever runs the site (open question 3)
 
@@ -246,6 +272,15 @@ each needs a human decision or a data fix.
       (`"Matrix Supreme"` vs `"Matrix"` for a `Supreme MB` product) — pre-existing in
       the NCC's export, not introduced here; token matching tolerates it fine since
       "Matrix" is still a shared token either way.
+- [ ] **NCC login/export page structure is unconfirmed.** `fetch/ncc.py`'s
+      `NccSiteConfig` (login URL, export URL, form selectors) is a set of placeholders
+      — no one has surveyed our own site's login/export flow the way Phase 4 surveyed
+      each manufacturer's. The login-then-download *mechanism* works (fill form,
+      submit, click through to a file download) and is tested against a local fixture
+      (`tests/fetch/test_ncc.py`); every URL/selector is a config override, so
+      confirming the real ones is a config change, not a rewrite. Worth checking at the
+      same time: whether the site exposes a proper export/import API instead (open
+      question 2), which would replace this module rather than just configure it.
 
 ## Open questions to chase
 

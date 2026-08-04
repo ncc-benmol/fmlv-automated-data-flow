@@ -44,6 +44,11 @@ YEAR_ROLLOVER_SNIPPET = (
     "manufacturer's site."
 )
 
+#: How `_serialize` joins a multi-valued field (e.g. `bed_types`) into one TEXT column.
+#: `output.build.apply_field` is `_serialize`'s inverse and splits on this same
+#: constant — keep them in sync.
+LIST_SEPARATOR = ", "
+
 
 @dataclass(frozen=True)
 class ProposedChange:
@@ -104,7 +109,7 @@ def _serialize(value: Any) -> str | None:
     if value is None:
         return None
     if isinstance(value, list):
-        return ", ".join(item for item in (_serialize(entry) for entry in value) if item)
+        return LIST_SEPARATOR.join(item for item in (_serialize(entry) for entry in value) if item)
     if hasattr(value, "value"):  # enum member, e.g. BodyType.A_CLASS
         return str(value.value)
     return str(value)

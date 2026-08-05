@@ -85,7 +85,8 @@ verifiable against the real Adria export.
 
 > **One-time local setup:** `BrowserFetcher` needs Chromium installed once per
 > machine — run `uv run playwright install chromium` (~115 MB download). Already done
-> on this dev machine; the Dockerfile (Phase 8) needs the same step baked in.
+> on this dev machine; the Windows Server VM (Phase 8) needs the same step run once
+> during provisioning.
 
 ## Phase 4 — Exploration spike and the first adapter
 
@@ -224,10 +225,117 @@ Do this **before** committing to an adapter interface — the sites decide the s
 
 ## Phase 8 — Packaging and operations
 
-- [ ] **[P]** Dockerfile including Playwright browsers (`playwright install chromium`
-      needs to run at image-build time — see the note under Phase 3; locally it's a
-      ~115 MB one-time download)
-- [ ] **[P]** `data/` volume for exports, snapshots, SQLite and generated uploads
+**Deployment target changed 2026-08-05:** the client's IT has provisioned a **Windows
+Server VM**, not the Linux/Docker host originally assumed. See DESIGN.md §8.2. Docker is
+off the table; the application runs as a Windows service. Everything below is rewritten
+accordingly — no application code is affected, only packaging and scheduling.
+
+### 8a — Prove the host (deployment smoke test, DESIGN.md §8.3)
+
+Deliberately ahead of the real deployment: prove the VM can run and serve *anything*
+before debugging FMLV logic on it at the same time.
+
+- [x] **[P]** Trivial FastAPI service returning the current date/time
+      (`deploy/smoketest/smoke_service.py` — one file, PEP 723 inline dependencies so
+      `uv run` fetches its own deps and the whole toolchain gets exercised)
+- [x] **[P]** Provisioning script: install `uv`, verify Python 3.14
+      (`deploy/windows/01-bootstrap.ps1`)
+- [x] **[P]** Service install script: NSSM wrap + auto-start + firewall rule
+      (`deploy/windows/02-install-smoketest.ps1`), with a matching uninstall
+      (`03-uninstall-smoketest.ps1`)
+- [x] **[P]** Reachability check runnable from the dev machine
+      (`deploy/windows/check-from-local.ps1`)
+- [x] **[P]** Runbook for the whole sequence (`deploy/windows/README.md`)
+- [x] **[P]** Ben: run the sequence on the VM — **done 2026-08-05, it works.** uv
+      installed, the service registered and auto-started, and the dev machine reached
+      it. No IT firewall change was needed beyond the local Windows Firewall rule
+      `02-install-smoketest.ps1` adds.
+- [x] **[P]** Record the outcome: **the VM is dual-homed**, and only one of its two
+      addresses is reachable from a dev machine.
+
+      | Address | Reachable from dev machine? |
+      |---|---|
+      | `192.168.16.43` | **yes** — this is the one to use |
+      | `10.47.17.232` | no |
+
+      Port **8099** (the smoke test default). The 10.47/16 address is presumably a
+      separate management or client network that isn't routed to the office LAN — not a
+      problem, but it has two consequences worth carrying into 8b:
+
+      - the review app should be reached on **192.168.16.43**, and that's the address to
+        quote when asking IT to open the real application's port;
+      - the service binds `0.0.0.0`, so it currently listens on *both* interfaces.
+        Decide in 8b whether to keep that or bind the reachable address only —
+        binding one interface is the tighter default for an app with no authentication
+        (Phase 6's `[F]` item), given we don't know what else is on 10.47/16.
+- [x] **[P]** Outbound internet from the VM — all four `01-bootstrap.ps1` checks passed
+      (PyPI, astral.sh, GitHub, thencc.org.uk), no proxy set. Open question 9 resolved;
+      Phase 3 needs no proxy handling. The real workload still isn't proven — see the
+      caveat under question 9
+- [x] **[P]** Service **survives a reboot** with nobody logged in — confirmed
+      2026-08-05. After a restart the service was answering 128 seconds after it
+      started, with no interactive login. **Phase 8a is complete: all four things the
+      smoke test exists to prove are proven.**
+- [x] **[P]** Host facts, from the smoke test's own reply: hostname **`NCC-AI1`**,
+      Windows Server 2025, Python 3.14.6, checkout at
+      **`C:\apps\fmlv-automated-data-flow`**, service running as `NCC-AI1$` — i.e. the
+      machine account, so it is on **`LocalSystem`** (see 8b)
+- [ ] **[P]** **Set the VM's timezone to UK time** — it is currently on **Pacific
+      Daylight Time** (the smoke test reported `05:28` local for `12:28` UTC). Almost
+      certainly a default from however the VM was imaged rather than a deliberate
+      choice. On the VM: `tzutil /s "GMT Standard Time"`, then restart the service.
+
+      Despite the name, **`GMT Standard Time` is Windows' identifier for the London
+      zone** — display name "(UTC+00:00) Dublin, Edinburgh, Lisbon, London",
+      `SupportsDaylightSavingTime = True` — and it switches to BST by itself in March
+      and back in October. There is no separate "British Summer Time" zone to select,
+      and picking one would be wrong even if there were: it would need changing twice
+      a year. `GMT Summer Time` seen in the smoke test's output is the zone's
+      *DaylightName*, i.e. what it reports while BST is in effect, not a setting.
+
+      Why it matters, in order:
+      - `diff/year_rollover.py:in_rollover_window` uses `date.today()`, which is
+        **local**. On a Pacific-time server the date is a day behind UK time between
+        midnight and 08:00 UK, so the June–September rollover window opens and closes a
+        day late — a real, if narrow, wrong answer in peak season (DESIGN.md §6.9).
+      - Scheduled sweeps (8c) would run at UK-time-minus-eight, so an "overnight" sweep
+        would land in the middle of the UK working day.
+      - Log files and NSSM rotation are stamped in local time, which makes correlating
+        them with anything else needlessly confusing.
+
+      Everything *stored* is already UTC-aware (`datetime.now(UTC)` in `store/runs.py`,
+      `store/decisions.py`, `store/changes.py`, both fetchers), so no data is wrong and
+      nothing needs migrating — this is a host setting, not a code bug.
+- [ ] **[F]** Render stored timestamps in UK local time in the review app — the
+      templates currently print the raw UTC ISO string (`run_detail.html`, `runs.html`,
+      `partials/change_row.html`). Unambiguous, but an hour off wall-clock during BST
+      and ugly to read. Cosmetic, and independent of the timezone item above
+- [ ] **[P]** Ask IT for the VM's proper hostname/FQDN — an IP is fine for a smoke test,
+      but the review app's users shouldn't be given a bare address that can change
+- [ ] **[P]** Tear the smoke test down once 8b is deployed
+      (`03-uninstall-smoketest.ps1`) — it has no business outliving the question it
+      answered
+
+### 8b — Deploy the real application
+
+- [ ] **[P]** Provisioning script for the app proper: checkout, `uv sync`,
+      `uv run playwright install chromium`, create `data\` and `logs\`
+- [ ] **[P]** NSSM service definition for the review app (`uvicorn`), auto-start,
+      stdout/stderr redirected to rotating files under `logs\`
+- [ ] **[P]** `data\` directory on the VM for exports, snapshots, SQLite and generated
+      uploads — decide the drive/path with IT, and confirm it's inside the VM backup
+- [ ] **[P]** `.env` on the VM for `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD` and the
+      Anthropic key, ACL'd to the service account only
+- [ ] **[P]** Decide the service account — the smoke test ran as `LocalSystem` (it
+      reported `NCC-AI1$`, the machine account), which is the install script's default.
+      Simplest, but more privilege than this needs, and a machine account is an
+      awkward thing to ACL a credentials file to. A dedicated local account is the
+      tidier answer now that there'll be a `.env` holding NCC login details
+- [ ] **[F]** Update procedure: how a new version gets onto the VM (git pull + `uv sync`
+      + service restart, scripted) without a container image to swap
+
+### 8c — CLI, scheduling and handover
+
 - [x] **[P]** CLI: `run <manufacturer>` (`cli.py`) — the first code to perform the whole
       sequence: registry → `run` record → adapter → diff → `proposed_change`/
       `verification`. `execute_run` takes injectable fetcher factories so the pipeline
@@ -241,11 +349,18 @@ Do this **before** committing to an adapter interface — the sites decide the s
 - [ ] **[P]** CLI: `sweep` — every runnable manufacturer with an adapter, in
       `pilot_priority` order (`registry.active_motorhome_manufacturers` already returns
       exactly that list; `adapters.adapter_for` returns `None` for the ones to skip)
-- [ ] **[P]** Cron-scheduled sweep
-- [ ] **[P]** README covering how to run it, for whoever inherits it
+- [ ] **[P]** Scheduled sweep via **Windows Task Scheduler** (was: cron) — a task running
+      `uv run fmlv sweep` as the service account, checked in as a `schtasks` /
+      `Register-ScheduledTask` script under `deploy\windows\` so it isn't a click-path
+      no one can reproduce
+- [ ] **[P]** README covering how to run it, for whoever inherits it — must cover the
+      Windows service: start/stop, where the logs are, what to do after a reboot
 - [ ] **[F]** Heavier scheduling through August–September peak season
-- [ ] **[F]** Failure alerting (email/Slack) when a run or an adapter breaks
-- [ ] **[F]** Backup of the SQLite file
+- [ ] **[F]** Failure alerting (email/Slack) when a run or an adapter breaks — a failed
+      Scheduled Task is silent by default, so this matters more here than it would
+      under a supervised container
+- [ ] **[F]** Backup of the SQLite file — confirm whether the VM-level backup covers it,
+      or whether a scheduled `VACUUM INTO` copy is needed
 
 
 ## For Ben — things found while building Phases 1–3
@@ -319,6 +434,17 @@ Tracked in [DESIGN.md §9](DESIGN.md). The ones that block work:
 - [ ] **8** — should the pipeline ever propose fixing the *baseline* export when it
       disagrees with a manufacturer's own site, or only ever propose changes sourced
       from the manufacturer? *(shapes Phase 5's diff logic; see the data-quality note above)*
+- [x] **9** — Windows VM networking. **Resolved 2026-08-05**, both halves, by the
+      Phase 8a smoke test.
+      *Inbound:* reachable from the dev machine on `192.168.16.43:8099` with no IT
+      firewall change needed; the VM's other address, `10.47.17.232`, is not reachable.
+      *Outbound:* all four checks passed (PyPI, astral.sh, GitHub, thencc.org.uk) and
+      no proxy variables were set — so Phase 3's fetching needs no proxy configuration
+      and no `HTTP_PROXY` plumbing into the service. **Caveat:** those four are a
+      representative sample, not the real workload; the ~100 manufacturer sites and the
+      Anthropic API were not individually tested, so a *category*-based block (e.g. a
+      web filter on unclassified or foreign domains) would still show up later. The
+      first real sweep on the VM is what actually proves it
 
 
 ## Future investigations

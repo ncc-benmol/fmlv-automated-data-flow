@@ -17,6 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
+fmlv = "fmlv_automated_data_flow:main"
 fmlv-automated-data-flow = "fmlv_automated_data_flow:main"
 
 [build-system]

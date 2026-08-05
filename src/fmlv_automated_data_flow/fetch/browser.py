@@ -166,7 +166,7 @@ class BrowserFetcher:
     ) -> FetchResult:
         content = html.encode("utf-8")
         digest = content_hash(content)
-        filename = snapshot_filename(url, "text/html")
+        filename = snapshot_filename(url, "text/html", digest)
         path = self.snapshot_dir / filename
         path.write_text(html, encoding="utf-8")
 
@@ -184,7 +184,7 @@ class BrowserFetcher:
         self, url: str, status_code: int, content_type: str | None, content: bytes
     ) -> FetchResult:
         digest = content_hash(content)
-        filename = snapshot_filename(url, content_type)
+        filename = snapshot_filename(url, content_type, digest)
         path = self.snapshot_dir / filename
         path.write_bytes(content)
 

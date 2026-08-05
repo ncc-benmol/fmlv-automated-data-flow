@@ -20,6 +20,12 @@ same `proposed_change`/`decision` machinery as every other field — accepting i
 the "checkbox" TODO.md's Phase 5 entry described, rather than a separate mechanism.
 Its `source_url` is `None` and its snippet says so: the suggestion comes from the
 pipeline noticing the season, not from anything read off the manufacturer's site.
+
+`bump_year_all` is §6.9's *other* route, the one the CLI's `--bump-year` passes:
+the same proposal, for every product of the manufacturer rather than only the
+seasonally plausible ones. Both routes converge here deliberately — a globally
+requested rollover is still reviewed and accepted per product, and the pipeline
+still never writes `year` on its own.
 """
 
 from __future__ import annotations
@@ -188,12 +194,18 @@ def persist_diff(
     run_id: int,
     manufacturer_id: int,
     diffs: list[ProductDiff],
+    bump_year_all: bool = False,
 ) -> PersistResult:
     """Persist one run's worth of `diff_products` output.
 
     Upserts the product identity mapping (`store.products.upsert_seen`) for every
     matched or new product, then records `proposed_change`/`verification` rows.
     `DISAPPEARED` products are skipped entirely — see the module docstring.
+
+    `bump_year_all` proposes a `year` bump for every existing product, not just the
+    seasonally eligible ones — DESIGN.md §6.9 route 1, requested explicitly by a human
+    when triggering the run. A genuinely new product is never given one: it has no
+    baseline year to bump.
     """
     proposed = 0
     verified = 0
@@ -250,7 +262,7 @@ def persist_diff(
             proposed += 1
 
         if (
-            diff.year_rollover_eligible
+            (bump_year_all or diff.year_rollover_eligible)
             and diff.baseline is not None
             and diff.baseline.year is not None
             and not any(change.field == "year" for change in diff.changes)

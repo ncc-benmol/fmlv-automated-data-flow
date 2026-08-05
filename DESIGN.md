@@ -272,8 +272,11 @@ and with never letting the pipeline silently reinterpret a carry-through field.
 
 Implemented in `diff/year_rollover.py`: `bump_year` is the shared primitive both routes
 call; `in_rollover_window` is the seasonal check, computed as part of Phase 5's diff logic
-and exposed as `ProductDiff.year_rollover_eligible` for the review app to render. Neither
-the CLI flag (route 1) nor the review checkbox UI (route 2) is built yet.
+and exposed as `ProductDiff.year_rollover_eligible` for the review app to render. Both
+routes are now built, and both converge on the same branch in `store/changes.py:persist_diff`
+— route 1 as the CLI's `fmlv run <manufacturer> --bump-year` (`bump_year_all`), route 2 as
+the seasonal suggestion needing no flag. Either way the result is an ordinary
+`proposed_change` row a reviewer still has to accept: nothing writes `year` on its own.
 
 ---
 

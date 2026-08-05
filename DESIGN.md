@@ -379,7 +379,17 @@ and means §5's fetching needs no proxy configuration — though four sample dom
 the same as the ~100 manufacturer sites, so a category-based web filter would still only
 surface on the first real sweep.
 
-One finding carries into the real deployment: **the VM is dual-homed**
+The service also came back on its own after a reboot with nobody logged in, answering
+about two minutes after the machine started. The host is `NCC-AI1`, Windows Server 2025,
+Python 3.14.6.
+
+One finding needs fixing before the real deployment: **the VM's clock is set to Pacific
+time**, not UK time. Everything this application *stores* is UTC-aware, so no data would
+be wrong, but `§6.9`'s June–September rollover window is computed from the **local** date
+and would open and close a day late for part of each day, and scheduled sweeps would run
+eight hours off. Fixed on the host (`tzutil /s "GMT Standard Time"`), not in code.
+
+A second finding carries into the real deployment: **the VM is dual-homed**
 — `192.168.16.43` is reachable from the office LAN, `10.47.17.232` is not. The application
 should therefore be reached on `192.168.16.43`, and since the service binds `0.0.0.0` it
 currently listens on both interfaces; §6.3's review app has no authentication yet, so

@@ -272,8 +272,35 @@ before debugging FMLV logic on it at the same time.
       (PyPI, astral.sh, GitHub, thencc.org.uk), no proxy set. Open question 9 resolved;
       Phase 3 needs no proxy handling. The real workload still isn't proven — see the
       caveat under question 9
-- [ ] **[P]** Confirm the service **survives a reboot** with nobody logged in — reboot
-      done 2026-08-05, awaiting the result of `check-from-local.ps1 -VmHost 192.168.16.43`
+- [x] **[P]** Service **survives a reboot** with nobody logged in — confirmed
+      2026-08-05. After a restart the service was answering 128 seconds after it
+      started, with no interactive login. **Phase 8a is complete: all four things the
+      smoke test exists to prove are proven.**
+- [x] **[P]** Host facts, from the smoke test's own reply: hostname **`NCC-AI1`**,
+      Windows Server 2025, Python 3.14.6, checkout at
+      **`C:\apps\fmlv-automated-data-flow`**, service running as `NCC-AI1$` — i.e. the
+      machine account, so it is on **`LocalSystem`** (see 8b)
+- [ ] **[P]** **Set the VM's timezone to UK time** — it is currently on **Pacific
+      Daylight Time** (the smoke test reported `05:28` local for `12:28` UTC). Almost
+      certainly a default from however the VM was imaged rather than a deliberate
+      choice. On the VM: `tzutil /s "GMT Standard Time"`, then restart the service.
+      Why it matters, in order:
+      - `diff/year_rollover.py:in_rollover_window` uses `date.today()`, which is
+        **local**. On a Pacific-time server the date is a day behind UK time between
+        midnight and 08:00 UK, so the June–September rollover window opens and closes a
+        day late — a real, if narrow, wrong answer in peak season (DESIGN.md §6.9).
+      - Scheduled sweeps (8c) would run at UK-time-minus-eight, so an "overnight" sweep
+        would land in the middle of the UK working day.
+      - Log files and NSSM rotation are stamped in local time, which makes correlating
+        them with anything else needlessly confusing.
+
+      Everything *stored* is already UTC-aware (`datetime.now(UTC)` in `store/runs.py`,
+      `store/decisions.py`, `store/changes.py`, both fetchers), so no data is wrong and
+      nothing needs migrating — this is a host setting, not a code bug.
+- [ ] **[F]** Render stored timestamps in UK local time in the review app — the
+      templates currently print the raw UTC ISO string (`run_detail.html`, `runs.html`,
+      `partials/change_row.html`). Unambiguous, but an hour off wall-clock during BST
+      and ugly to read. Cosmetic, and independent of the timezone item above
 - [ ] **[P]** Ask IT for the VM's proper hostname/FQDN — an IP is fine for a smoke test,
       but the review app's users shouldn't be given a bare address that can change
 - [ ] **[P]** Tear the smoke test down once 8b is deployed
@@ -290,8 +317,11 @@ before debugging FMLV logic on it at the same time.
       uploads — decide the drive/path with IT, and confirm it's inside the VM backup
 - [ ] **[P]** `.env` on the VM for `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD` and the
       Anthropic key, ACL'd to the service account only
-- [ ] **[P]** Decide the service account (dedicated local account vs `LocalSystem`) —
-      `LocalSystem` is simplest but has more privilege than this needs
+- [ ] **[P]** Decide the service account — the smoke test ran as `LocalSystem` (it
+      reported `NCC-AI1$`, the machine account), which is the install script's default.
+      Simplest, but more privilege than this needs, and a machine account is an
+      awkward thing to ACL a credentials file to. A dedicated local account is the
+      tidier answer now that there'll be a `.env` holding NCC login details
 - [ ] **[F]** Update procedure: how a new version gets onto the VM (git pull + `uv sync`
       + service restart, scripted) without a container image to swap
 

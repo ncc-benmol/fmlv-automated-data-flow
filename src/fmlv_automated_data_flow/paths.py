@@ -36,6 +36,11 @@ def uploads_dir(*, root: Path = DATA_DIR) -> Path:
     return root / "uploads"
 
 
+def upload_csv_path(run_id: int, *, root: Path = DATA_DIR) -> Path:
+    """Where one run's generated upload CSV is written (DESIGN.md §5: `data/uploads/<run>/…csv`)."""
+    return uploads_dir(root=root) / str(run_id) / "motorhome-campervans.csv"
+
+
 def db_path(*, root: Path = DATA_DIR) -> Path:
     """The SQLite run store file."""
     return root / "run_store.sqlite3"

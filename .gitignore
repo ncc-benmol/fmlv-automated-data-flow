@@ -14,3 +14,6 @@ wheels/
 /data/exports
 /data/uploads
 /data/run_store.sqlite3
+
+# Local secrets
+.env

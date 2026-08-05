@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Runtime data — see data/manufacturers.README.md for what stays tracked
+/data/snapshots
+/data/exports
+/data/uploads
+/data/run_store.sqlite3

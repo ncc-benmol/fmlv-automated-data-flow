@@ -393,6 +393,36 @@ def test_without_bump_year_an_unchanged_product_proposes_nothing(
     assert summary.persisted.verified == 2
 
 
+def test_on_progress_is_threaded_through_to_the_adapter(
+    data_root: Path, export_path: Path
+) -> None:
+    """The adapter's `on_progress` is how a long live sweep narrates itself to the
+    terminal (adria.collect calls it at range/product boundaries and on a skip) —
+    `execute_run` has to actually hand the adapter a working callback for that to work."""
+    adapter = FakeAdapter(products=[make_extracted()])
+    messages: list[str] = []
+
+    run_once(
+        data_root=data_root,
+        export_path=export_path,
+        adapter=adapter,
+        on_progress=messages.append,
+    )
+
+    assert adapter.calls is not None
+    adapter.calls[0]["on_progress"]("a progress line")
+    assert messages == ["a progress line"]
+
+
+def test_on_progress_defaults_to_a_silent_no_op(data_root: Path, export_path: Path) -> None:
+    adapter = FakeAdapter(products=[make_extracted()])
+
+    run_once(data_root=data_root, export_path=export_path, adapter=adapter)
+
+    assert adapter.calls is not None
+    adapter.calls[0]["on_progress"]("should not raise")
+
+
 def test_summary_reports_the_run(data_root: Path, export_path: Path) -> None:
     summary = run_once(
         data_root=data_root,

@@ -173,6 +173,7 @@ def execute_run(
     trigger: Trigger = "manual",
     bump_year: bool = False,
     collect_kwargs: dict[str, Any] | None = None,
+    on_progress: Callable[[str], None] = lambda message: None,
     _fetcher_factory: Callable[[Path], Fetcher] = Fetcher,
     _browser_factory: Callable[[Path], BrowserFetcher] = BrowserFetcher,
 ) -> RunSummary:
@@ -201,7 +202,9 @@ def execute_run(
             # protocol's shape currently requires. Cheap enough at one run per
             # manufacturer; worth revisiting if a sweep ever launches dozens.
             with _fetcher_factory(snapshot_dir) as http, _browser_factory(snapshot_dir) as browser:
-                scraped = adapter.collect(http, browser, snapshot_dir, **(collect_kwargs or {}))
+                scraped = adapter.collect(
+                    http, browser, snapshot_dir, on_progress=on_progress, **(collect_kwargs or {})
+                )
 
             diffs = diff_products(scraped, baseline)
             persisted = store.persist_diff(
@@ -303,6 +306,9 @@ def _run_command(args: argparse.Namespace) -> int:
         msg = f"export not found: {export_path}"
         raise CommandError(msg)
 
+    def report_progress(message: str) -> None:
+        print(message, flush=True)
+
     try:
         summary = execute_run(
             manufacturer=manufacturer,
@@ -312,6 +318,7 @@ def _run_command(args: argparse.Namespace) -> int:
             trigger=args.trigger,
             bump_year=args.bump_year,
             collect_kwargs=collect_kwargs,
+            on_progress=report_progress,
         )
     except Exception as exc:  # noqa: BLE001 — already recorded against the run
         print(f"run failed: {type(exc).__name__}: {exc}", file=sys.stderr)

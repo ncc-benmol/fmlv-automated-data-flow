@@ -63,7 +63,12 @@ verifiable against the real Adria export.
       retry a plain 404)
 - [x] **[P]** Snapshot every response to `data/snapshots/<manufacturer>/<run>/`
       (`paths.snapshot_dir`; `Fetcher`/`BrowserFetcher` write into whatever directory
-      they're given)
+      they're given). **Bug found and fixed during local testing (§T6)**: the snapshot
+      filename was derived from the URL alone, so a URL fetched more than once with
+      different content (e.g. one POST route shared by every page, like Adria's
+      Livewire endpoint) silently overwrote its own earlier snapshot. Filenames now
+      fold in the content hash too — same content still dedups to one file, different
+      content no longer collides.
 - [x] **[P]** Content hashing + skip-if-unchanged — `FetchResult.unchanged` compares
       against a `previous_hash` the caller supplies. **Not yet wired up**: recording
       "verified unchanged" against the `verification` table is product-level and
@@ -201,7 +206,11 @@ Do this **before** committing to an adapter interface — the sites decide the s
       `verification`. `execute_run` takes injectable fetcher factories so the pipeline
       is testable without a network or a browser (`tests/test_cli.py`). Options:
       `--export`, `--data-dir`, `--registry`, `--trigger`, `--range` (repeatable, for a
-      one-range smoke run), `--bump-year`. Exit codes: 0 ok, 1 run failed, 2 bad request
+      one-range smoke run), `--bump-year`. Exit codes: 0 ok, 1 run failed, 2 bad request.
+      Prints live progress during a run — `execute_run(on_progress=...)`, threaded
+      through to `adria.collect()`, which narrates each range/product boundary and every
+      silent-skip case to the terminal (added during §T6's full-sweep test, where a
+      multi-minute silent run was the original complaint)
 - [ ] **[P]** CLI: `sweep` — every runnable manufacturer with an adapter, in
       `pilot_priority` order (`registry.active_motorhome_manufacturers` already returns
       exactly that list; `adapters.adapter_for` returns `None` for the ones to skip)
@@ -241,15 +250,17 @@ need doing before §T3.
         `status='running'`. Snapshots taken before the failure stay on disk.
       - **Which adapter runs which brand** — `adapters.adapter_for`, keyed on
         `fmlv_manufacturer` rather than the not-yet-confirmed `manufacturer_id`.
-- [ ] **T-pre-2 — `.gitignore` does not cover `data/`.** A real run writes
+- [x] **T-pre-2 — `.gitignore` did not cover `data/`.** A real run writes
       `data/run_store.sqlite3`, `data/snapshots/**`, `data/exports/**` and
-      `data/uploads/**` into a tracked tree; the sample Adria run is ~50 PDFs. Add those
-      four paths (keeping `data/manufacturers.csv` and its README tracked) **before** the
-      first run, not after.
-- [ ] **T-pre-3 — The review app has no server entry point.** `review.app.create_app` is
-      a factory taking a `db_path`, so `uvicorn review.app:app` will not work. Either add
-      a tiny module that reads the DB path from the environment, or run it with an inline
-      factory (§T4 gives the exact command).
+      `data/uploads/**` into a tracked tree; the live Adria sweep alone is 34 PDFs.
+      `/data/snapshots` was added early (before §T6's live runs); `/data/exports`,
+      `/data/uploads` and `/data/run_store.sqlite3` finished off here, before committing
+      — `data/manufacturers.csv` and its README are unaffected and stay tracked.
+- [x] **T-pre-3 — The review app had no server entry point.** `review.app.create_app` is
+      a factory taking a `db_path`, so `uvicorn review.app:app` doesn't work. **Resolved**:
+      `review/serve.py` builds a module-level `app` against `paths.db_path()` (or
+      `FMLV_DB_PATH`, to point at a different file), so `uvicorn
+      fmlv_automated_data_flow.review.serve:app` serves the real store.
 
 ## Known gaps — expected, do not chase these as failures
 
@@ -274,12 +285,12 @@ like a bug during a first end-to-end run if you are not expecting it.
 
 ## T0 — Environment and unit baseline
 
-- [ ] `uv run pytest -q` → **129 passed** is the current state on `master`; anything less
+- [x] `uv run pytest -q` → **129 passed** is the current state on `master`; anything less
       means fix that before going further. (`uv run` warns that `VIRTUAL_ENV` does not
       match `.venv` — harmless, it uses `.venv`.)
-- [ ] `uv run playwright install chromium` — one-time, ~115 MB. Already done on this
+- [x] `uv run playwright install chromium` — one-time, ~115 MB. Already done on this
       machine; needed on any other. `tests/fetch/test_browser.py` passing confirms it.
-- [ ] Confirm the sample export is readable and put a copy where a run will look for it:
+- [x] Confirm the sample export is readable and put a copy where a run will look for it:
       copy `csv-examples/1785753111-…/motorhome-campervans.xlsx` to
       `data/exports/2026-08-04/motorhome-campervans.xlsx`. Until §T8 works, this stands in
       for the Playwright download.
@@ -288,24 +299,25 @@ like a bug during a first end-to-end run if you are not expecting it.
 
 The first stage that writes to disk. Everything below runs against `data/run_store.sqlite3`.
 
-- [ ] `store.connect(paths.db_path())` on a path that does not exist yet → file created,
+- [x] `store.connect(paths.db_path())` on a path that does not exist yet → file created,
       schema applied. Then `sqlite3 data/run_store.sqlite3 ".tables"` → all six tables.
-- [ ] `start_run` → `finish_run` → `list_runs` round-trip against that file.
-- [ ] Re-connect to the **same** file and confirm the schema re-applies without error and
+- [x] `start_run` → `finish_run` → `list_runs` round-trip against that file.
+- [x] Re-connect to the **same** file and confirm the schema re-applies without error and
       the earlier run survives — this is the `CREATE TABLE IF NOT EXISTS` idempotency
       claim, and it has only ever been exercised against fresh tmp files in tests.
-- [ ] Confirm `PRAGMA foreign_keys` is enforced: insert a `proposed_change` with a
+- [x] Confirm `PRAGMA foreign_keys` is enforced: insert a `proposed_change` with a
       nonsense `product_id` and expect an `IntegrityError`.
 
 ## T2 — Baseline read and validation, against the real export
 
-- [ ] `io.read_export()` the copy from §T0 → 42 motorhomes, `result.issues` reviewed.
-- [ ] `validation.validate_all()` across all of them → expect **5 payload mismatches and
-      2 double-ticked heating rows**. These are pre-existing in the NCC's own export (see
-      the data-quality note below) — a *different* count means something regressed.
-- [ ] Round-trip: `write_csv` the parsed rows to `data/uploads/roundtrip.csv`, read it
-      back, assert equality. Already unit-tested, but worth doing once against a real file
-      on disk to prove encoding and the 68-column order survive a real write.
+- [x] `io.read_export()` the copy from §T0 → 41 motorhomes, `result.issues` reviewed —
+      2 `ambiguous_layout_group` (Supreme 670 SL and 670 DC, both heating options ticked).
+- [x] `validation.validate_all()` across all of them → **5 `payload_mismatch`, 2
+      `automatic_payload_mismatch`, 1 `layout_group_unset`**. These are pre-existing in
+      the NCC's own export (see the data-quality note below) — a *different* count means
+      something regressed.
+- [x] Round-trip: `write_csv` the parsed rows to `data/uploads/roundtrip.csv`, read it
+      back, assert equality — confirmed `True` against the real file, 41 rows both ways.
 
 ## T3 — Offline pipeline: fixtures → diff → SQLite
 
@@ -318,54 +330,64 @@ half. `tests/test_cli.py` already does exactly this with synthetic products; the
 of doing it by hand is doing it against the **real 41-row export** and a real
 `data/run_store.sqlite3` you can then open and poke at.
 
-- [ ] Run it → `run` row reaches `status='succeeded'`, `finished_at` set.
-- [ ] `product` rows created, one per matched/new product.
-- [ ] `proposed_change` rows: check the known Matrix 670 DC case lands as
+- [x] Run it → `run` row reaches `status='succeeded'`, `finished_at` set (run #2).
+- [x] `product` rows created, one per matched/new product — matched to `fmlv_product_id`
+      4147, the real Matrix 670 DC, not created as new.
+- [x] `proposed_change` rows: the known Matrix 670 DC case lands as
       `mtplm_kilograms 3500 → 3650` and `mro_kilograms 3184 → 3228`, with `source_url`
-      pointing at the PDF and a non-empty `source_snippet`.
-- [ ] `verification` rows exist for the confirmed dimensions — the §6.5 "checked and
-      unchanged" claim, which nothing has yet written to a real database.
-- [ ] `PersistResult` counts match what is actually in the tables.
-- [ ] **Re-run on the same DB.** This is the stage most likely to surface a
-      real defect: `upsert_seen` must update the existing `product` rows rather than
-      insert duplicates, and a second run's proposals should attach to the *same*
-      `product.id`. Assert `SELECT COUNT(*) FROM product` is unchanged.
+      pointing at the PDF and a non-empty `source_snippet`. Also proposed: berths/seats
+      3→4, `rrp_pounds` 93950→93920, and a `year` 2026→2027 rollover suggestion
+      (`source_url=None`) — expected, we're inside the June–September window.
+- [x] `verification` rows exist for the confirmed dimensions (`mh_length_mm`,
+      `mh_width_mm`, `mh_height_mm`) — the §6.5 "checked and unchanged" claim, now
+      landing in a real table for the first time.
+- [x] `PersistResult` counts match what is actually in the tables (proposed=6,
+      verified=3, year_rollover_proposed=1).
+- [x] **Re-ran on the same DB (run #3).** `SELECT COUNT(*) FROM product` stayed at 1;
+      `first_seen_run_id` stayed 2, `last_seen_run_id` moved to 3 — updated in place,
+      not duplicated.
 
 ## T4 — Review app against T3's database
 
 Serve the same file §T3 just wrote:
 
 ```powershell
-uv run uvicorn --factory "fmlv_automated_data_flow.review.app:create_app" --port 8000
+uv run uvicorn fmlv_automated_data_flow.review.serve:app --port 8000
 ```
 
-(needs §T-pre-3 — `create_app` takes a `db_path` argument, so either give it a default
-from an env var or use a small wrapper module.)
-
-- [ ] `GET /` lists the §T3 run with the right status badge.
-- [ ] `GET /runs/{id}` groups proposals by product; tracked numerics sort above layout
-      flags; the "possible rollover" badge appears on the `year` rows and "unusual" on
-      any layout row.
-- [ ] Each row shows the source snippet and a working link to the manufacturer page.
-- [ ] **Accept** one change → row swaps in via HTMX, `decision` row written with
+- [x] `GET /` lists the §T3 runs with the right status badges.
+- [x] `GET /runs/{id}` groups proposals by product; tracked numerics sort above layout
+      flags; the "possible rollover" badge appears on the `year` rows.
+- [x] Each row shows the source snippet and a working link — **caught and fixed a bug
+      in the T3 driver script** (not the app): it hardcoded a placeholder PDF URL
+      instead of calling `adria.technical_data_pdf_url()` like the real adapter does,
+      so run #2/#3's PDF-sourced fields linked to a fake address. Re-ran as run #4 with
+      the fix; links now resolve correctly.
+- [x] **Accept** one change → row swaps in via HTMX, `decision` row written with
       `decided_by` and `decided_at`.
-- [ ] **Correct** one with a typed value → stored in `decision.corrected_value`.
-- [ ] **Correct with an empty value** → inline error, and confirm **no** `decision` row
+- [x] **Correct** one with a typed value → stored in `decision.corrected_value`.
+- [x] **Correct with an empty value** → inline error, and confirmed **no** `decision` row
       was written.
-- [ ] **Reject** one — note the exact (product, field, new_value) for §T5.
-- [ ] Decide the same change twice → two `decision` rows, the later one superseding;
+- [x] **Reject** one (`berths`, run #2) — carried into §T5.
+- [x] Decide the same change twice → two `decision` rows, the later one superseding;
       history preserved, nothing edited in place.
-- [ ] `GET /runs/999999` → 404, not a 500.
+- [x] `GET /runs/999999` → confirmed a genuine `404` (JSON body via FastAPI's default
+      `HTTPException` handling, not a styled page — fine, the check only asked for
+      "404, not a 500").
 
 ## T5 — Rejection memory across runs
 
 The §6.8 promise, which needs two real runs against one database to test at all.
 
-- [ ] Re-run the driver (third run on the same DB). The change rejected in §T4 must
-      **not** reappear; `PersistResult.suppressed_rejections` ≥ 1.
-- [ ] Then hand-edit the fixture so the manufacturer publishes a *different* figure for
-      that same field, re-run, and confirm it **is** proposed — only the literal rejected
-      value is suppressed, not the field.
+- [x] Re-run the driver (**run #4**, done a step early while fixing the T4 PDF-link
+      bug). The `berths` change rejected in §T4's run #2 did **not** reappear;
+      `PersistResult.suppressed_rejections == 1`, confirmed against the actual
+      `proposed_change` rows.
+- [x] Patched the PDF text in memory (`"Nr. of berths 4"` → `"...5"` — editing the JSON
+      product had no effect, since `_build_extracted_motorhome` prefers the PDF-derived
+      spec over the JSON figure) and re-ran (**run #6**): `berths: 3 → 5` **is** proposed,
+      `suppressed_rejections == 0`. Confirms only the literal rejected value (`4`) is
+      remembered, not the field.
 
 ## T6 — Live run against adria.co.uk
 
@@ -373,29 +395,62 @@ First stage that touches the network. Be polite: `Fetcher` defaults to a 1s dela
 the full `DEFAULT_RANGES` sweep is 9 browser page loads plus **one PDF fetch per
 configuration** (~50 requests).
 
-- [ ] **Start with one range**, which is what `--range` exists for:
+- [x] **Start with one range**, which is what `--range` exists for:
       ```powershell
-      uv run fmlv run Adria --range Matrix --export data/exports/2026-08-04/motorhome-campervans.xlsx
+      uv run fmlv run Adria --range Matrix
       ```
-      Confirm the Livewire JSON is captured and at least one PDF parses before going
-      wider.
-- [ ] Check `data/snapshots/3/<run_id>/` — every response on disk, `.json`/`.pdf`
-      suffixes correct.
-- [ ] Compare the live result against §T3's fixture result. Differences here are the
-      interesting output: they are either genuine site changes since the Phase 4 capture,
-      or parser drift.
-- [ ] Then the full sweep — `uv run fmlv run Adria`. Watch for: products whose `configuratorURL`
-      is missing (silently skipped), PDFs returning non-200 (silently skipped), and
-      `_SPEC_PATTERNS` finding nothing (product extracted with every weight `None`). None
-      of the three raise — **count them yourself** and compare against the number of
-      configurations the JSON offered, or a silent extraction failure will look like a
-      clean run.
-- [ ] Sanity-check a handful of extracted figures by opening the PDF by hand.
-- [ ] Force a failure — kill the network mid-run — and confirm the run is recorded as
-      `status='failed'` with the message, that the CLI exits 1, and that the review app
-      renders it.
-- [ ] Once, run with `--bump-year` against a scratch `--data-dir` to see route 1 of
-      §6.9 in the queue: a `year` proposal on *every* product, not just changed ones.
+      (`--export` isn't needed — `latest_export()` picks the newest file under
+      `data/exports/` automatically.) **Run #7**: 7 products scraped, matching the
+      Phase 4 write-up's "Matrix range (7 configurations)". The 670 DC figures matched
+      §T3's fixture exactly (`mro 3184→3228`, `mtplm 3500→3650`, `rrp 93950→93920`),
+      confirming the fixture data used in T3–T5 genuinely reflects the live site.
+- [x] Check `data/snapshots/3/7/` — 1 `.html` (range page), 1 `.json` (captured
+      Livewire response), 7 `.pdf` (one per product), all correctly suffixed and
+      real-sized (PDFs 2–6 MB, matching the documented "~5 MB" spec sheet).
+- [x] Compare the live result against §T3's fixture result. Four of the five changed
+      products showed the same `mtplm 3500→3650` "extended homologation" bump the
+      Phase 4 write-up described. One (`MB 670 DC`, product 7212) behaved differently
+      — `mtplm` *decreased* and `mro` jumped further — plausibly a different base
+      chassis ("MB" = Mercedes-Benz, vs. the others' Fiat base), confirmed by hand below
+      rather than assumed.
+      - [x] Rejection memory (§T5) held up on live data too: `berths` was correctly
+            suppressed only for product 4147 (the one it was rejected against in run
+            #2), and proposed normally for the other four Matrix products.
+      - [x] Counted for silent skips, per the checklist below — none, for this one range:
+            all 7 configurations the JSON offered had a resolvable PDF URL, and all 7
+            fetched PDFs yielded all 7 spec fields via regex.
+- [x] Sanity-check a handful of extracted figures by opening the PDF by hand — opened
+      the `MB 670 DC` PDF (`.../cxensr5200w031-14/pdf`, the odd one out above) and
+      confirmed MRO 3381 kg / MTPLM 3880 kg / width 2290 mm match what was extracted.
+- [x] Then the full sweep — `uv run fmlv run Adria`. **Found and fixed a real bug along
+      the way**: `adria.collect()` had no progress output, so a multi-minute sweep gave
+      no feedback — added an `on_progress` callback (called at each range/product
+      boundary and on every skip/empty-extraction case), wired to `print` in the real
+      CLI (`tests/test_cli.py` pins that `execute_run` threads it through). Turning that
+      on immediately surfaced a second, more serious bug it was meant to help watch
+      for: **`fetch/http.py`'s `snapshot_filename()` hashed only the URL, not the
+      content**, and Adria's Livewire endpoint is one fixed POST route shared by every
+      range page — so each range's captured JSON silently overwrote the previous one on
+      disk. Run #8 (before the fix) kept only 1 of 9 JSON snapshots; `collect()`'s own
+      results were unaffected (it reads each file immediately after writing, before the
+      next range's overwrite), but the on-disk evidence trail DESIGN.md §6.6 promises
+      was broken for 8 of 9 ranges. Fixed by folding the content hash into the filename
+      (`fetch/http.py`, `fetch/browser.py`); `tests/fetch/test_http.py` pins both that a
+      repeated identical fetch still dedups to one file and that two different
+      responses from the same URL no longer collide. Re-ran as **run #9**: all 9 ranges'
+      JSON snapshots now survive distinctly, confirmed against the live site. Final
+      count, 34/34 products, matches `scraped` exactly with zero silent skips.
+- [~] Force a failure — kill the network mid-run — **deliberately skipped**, by choice,
+      rather than left undone. `execute_run`'s `try`/`except` → `fail_run` path is
+      already exercised by `tests/test_cli.py::test_a_failing_adapter_marks_the_run_failed_and_re_raises`,
+      so the mechanism is covered; only the "does a real mid-network-call interruption
+      hit that same path" question is left genuinely untested against the live site.
+- [x] Ran with `--bump-year` against a scratch `--data-dir`, scoped to `--range "Twin
+      Sports"` (3 products) to see route 1 of §6.9 in the queue. Confirmed the point of
+      the flag directly: `600 SPB Sports RHD` had **no other proposed change at all**
+      and still got a `year: 2026 → 2027` proposal — the bump is independent of whatever
+      the diff found, not conditional on it. All 3 products' `year` proposals accepted
+      via the review app, `decision` rows recorded correctly.
 
 ## T7 — Approved changes → upload CSV *(against the Phase 7 spec — adapt to the code)*
 

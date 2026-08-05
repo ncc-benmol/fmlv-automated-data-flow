@@ -65,12 +65,21 @@ def content_hash(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def snapshot_filename(url: str, content_type: str | None) -> str:
-    """Deterministic, filesystem-safe filename for a URL's snapshot."""
-    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+def snapshot_filename(url: str, content_type: str | None, content_digest: str) -> str:
+    """Deterministic, filesystem-safe filename for one fetched response.
+
+    Combines a hash of the URL with a hash of the *content* (`content_digest`, the
+    same digest `content_hash()` produces). URL alone isn't enough: some endpoints
+    return different content from the same URL on every call — Adria's Livewire
+    endpoint is one POST route shared by every model range page, returning different
+    JSON each time — and hashing the URL alone made every capture but the last
+    silently overwrite its predecessor on disk. Two fetches of byte-identical content
+    still land on the same filename, which is a harmless, even useful, dedup.
+    """
+    url_digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
     mime = (content_type or "").split(";", 1)[0].strip().lower()
     suffix = _CONTENT_TYPE_SUFFIXES.get(mime, ".bin")
-    return f"{digest}{suffix}"
+    return f"{url_digest}-{content_digest[:16]}{suffix}"
 
 
 class Fetcher:
@@ -179,7 +188,7 @@ class Fetcher:
 
         content = response.content
         digest = content_hash(content)
-        filename = snapshot_filename(url, response.headers.get("content-type"))
+        filename = snapshot_filename(url, response.headers.get("content-type"), digest)
         path = self.snapshot_dir / filename
         path.write_bytes(content)
 

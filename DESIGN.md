@@ -371,6 +371,14 @@ process can be registered as an auto-starting Windows service; the service survi
 reboot; and the port is reachable from a developer machine. Kept in `deploy\smoketest\`
 so it can be redeployed any time the host configuration is in doubt.
 
+**Result, 2026-08-05:** it works. uv installed, the service registered and auto-started,
+and a developer machine reached it with no firewall change beyond the local Windows
+Firewall rule. One finding that carries into the real deployment: **the VM is dual-homed**
+— `192.168.16.43` is reachable from the office LAN, `10.47.17.232` is not. The application
+should therefore be reached on `192.168.16.43`, and since the service binds `0.0.0.0` it
+currently listens on both interfaces; §6.3's review app has no authentication yet, so
+binding the reachable interface only is the safer default until it does.
+
 ---
 
 ## 9. Open questions
@@ -385,7 +393,7 @@ so it can be redeployed any time the host configuration is in doubt.
 | 6 | Where HTML and PDF disagree, PDF is assumed authoritative — to be confirmed per manufacturer during the exploration spike. | Source precedence |
 | 7 | Are there controlled vocabularies we must map manufacturer terminology onto beyond the enum groups in §4.3? | Extraction mapping |
 | 8 | Should the pipeline ever propose fixing the *baseline* export itself when it disagrees with a manufacturer's own site, or only ever propose changes sourced from the manufacturer? Raised by running validation against the real Adria export, which surfaced 5 pre-existing payload mismatches and 2 rows with two heating options both ticked (see TODO.md). | Phase 5 diff logic |
-| 9 | On the Windows VM (§8.2): is there unrestricted **outbound** internet (PyPI, ~100 manufacturer sites, the NCC site, the Anthropic API), and can a chosen port be reached **inbound** from a developer machine? A proxy or an outbound allowlist would affect fetching far more than anything else in this design. | Everything in §5; the §8.3 smoke test answers the inbound half |
+| 9 | On the Windows VM (§8.2): is there unrestricted **outbound** internet (PyPI, ~100 manufacturer sites, the NCC site, the Anthropic API), and can a chosen port be reached **inbound** from a developer machine? A proxy or an outbound allowlist would affect fetching far more than anything else in this design. **Inbound half resolved 2026-08-05** — see §8.3. Outbound still open. | Everything in §5 |
 
 ---
 

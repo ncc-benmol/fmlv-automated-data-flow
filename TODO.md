@@ -246,11 +246,37 @@ before debugging FMLV logic on it at the same time.
 - [x] **[P]** Reachability check runnable from the dev machine
       (`deploy/windows/check-from-local.ps1`)
 - [x] **[P]** Runbook for the whole sequence (`deploy/windows/README.md`)
-- [ ] **[P]** Ben: run the sequence on the VM and confirm each of the four things it
-      proves — uv installs, service auto-starts, survives a reboot, reachable from the
-      dev machine. **This is the next action.**
-- [ ] **[P]** Record the outcome here: VM hostname/IP, chosen port, whether the port
-      needed an IT firewall change beyond the local Windows Firewall rule
+- [x] **[P]** Ben: run the sequence on the VM — **done 2026-08-05, it works.** uv
+      installed, the service registered and auto-started, and the dev machine reached
+      it. No IT firewall change was needed beyond the local Windows Firewall rule
+      `02-install-smoketest.ps1` adds.
+- [x] **[P]** Record the outcome: **the VM is dual-homed**, and only one of its two
+      addresses is reachable from a dev machine.
+
+      | Address | Reachable from dev machine? |
+      |---|---|
+      | `192.168.16.43` | **yes** — this is the one to use |
+      | `10.47.17.232` | no |
+
+      Port **8099** (the smoke test default). The 10.47/16 address is presumably a
+      separate management or client network that isn't routed to the office LAN — not a
+      problem, but it has two consequences worth carrying into 8b:
+
+      - the review app should be reached on **192.168.16.43**, and that's the address to
+        quote when asking IT to open the real application's port;
+      - the service binds `0.0.0.0`, so it currently listens on *both* interfaces.
+        Decide in 8b whether to keep that or bind the reachable address only —
+        binding one interface is the tighter default for an app with no authentication
+        (Phase 6's `[F]` item), given we don't know what else is on 10.47/16.
+- [ ] **[P]** Confirm the two things "it works" doesn't yet cover: that the service
+      **survives a reboot** with nobody logged in (re-run `check-from-local.ps1` after
+      a `Restart-Computer`), and what `01-bootstrap.ps1` reported for **outbound**
+      internet — see open question 9, which is still half open
+- [ ] **[P]** Ask IT for the VM's proper hostname/FQDN — an IP is fine for a smoke test,
+      but the review app's users shouldn't be given a bare address that can change
+- [ ] **[P]** Tear the smoke test down once 8b is deployed
+      (`03-uninstall-smoketest.ps1`) — it has no business outliving the question it
+      answered
 
 ### 8b — Deploy the real application
 
@@ -367,10 +393,12 @@ Tracked in [DESIGN.md §9](DESIGN.md). The ones that block work:
 - [ ] **8** — should the pipeline ever propose fixing the *baseline* export when it
       disagrees with a manufacturer's own site, or only ever propose changes sourced
       from the manufacturer? *(shapes Phase 5's diff logic; see the data-quality note above)*
-- [ ] **9** — Windows VM networking: unrestricted outbound internet (PyPI, manufacturer
-      sites, NCC, Anthropic), and can a port be reached inbound from the dev machine?
-      *(the Phase 8a smoke test answers the inbound half; the outbound half needs
-      asking of the client's IT — a proxy would affect all of Phase 3)*
+- [ ] **9** — Windows VM networking. **Inbound: answered 2026-08-05** by the Phase 8a
+      smoke test — reachable from the dev machine on `192.168.16.43:8099`, no IT
+      firewall change needed. The VM's other address, `10.47.17.232`, is not reachable.
+      **Outbound still open**: whether the VM can reach PyPI, ~100 manufacturer sites,
+      the NCC site and the Anthropic API without a proxy. `01-bootstrap.ps1` checks
+      four of those; a proxy would affect all of Phase 3
 
 
 ## Future investigations

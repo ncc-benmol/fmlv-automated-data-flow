@@ -373,7 +373,13 @@ so it can be redeployed any time the host configuration is in doubt.
 
 **Result, 2026-08-05:** it works. uv installed, the service registered and auto-started,
 and a developer machine reached it with no firewall change beyond the local Windows
-Firewall rule. One finding that carries into the real deployment: **the VM is dual-homed**
+Firewall rule. **Outbound access is unrestricted and unproxied** (PyPI, astral.sh, GitHub
+and thencc.org.uk all reachable, no proxy variables set), which resolves open question 9
+and means §5's fetching needs no proxy configuration — though four sample domains are not
+the same as the ~100 manufacturer sites, so a category-based web filter would still only
+surface on the first real sweep.
+
+One finding carries into the real deployment: **the VM is dual-homed**
 — `192.168.16.43` is reachable from the office LAN, `10.47.17.232` is not. The application
 should therefore be reached on `192.168.16.43`, and since the service binds `0.0.0.0` it
 currently listens on both interfaces; §6.3's review app has no authentication yet, so
@@ -393,7 +399,7 @@ binding the reachable interface only is the safer default until it does.
 | 6 | Where HTML and PDF disagree, PDF is assumed authoritative — to be confirmed per manufacturer during the exploration spike. | Source precedence |
 | 7 | Are there controlled vocabularies we must map manufacturer terminology onto beyond the enum groups in §4.3? | Extraction mapping |
 | 8 | Should the pipeline ever propose fixing the *baseline* export itself when it disagrees with a manufacturer's own site, or only ever propose changes sourced from the manufacturer? Raised by running validation against the real Adria export, which surfaced 5 pre-existing payload mismatches and 2 rows with two heating options both ticked (see TODO.md). | Phase 5 diff logic |
-| 9 | On the Windows VM (§8.2): is there unrestricted **outbound** internet (PyPI, ~100 manufacturer sites, the NCC site, the Anthropic API), and can a chosen port be reached **inbound** from a developer machine? A proxy or an outbound allowlist would affect fetching far more than anything else in this design. **Inbound half resolved 2026-08-05** — see §8.3. Outbound still open. | Everything in §5 |
+| ~~9~~ | ~~On the Windows VM (§8.2): is there unrestricted **outbound** internet, and can a chosen port be reached **inbound** from a developer machine?~~ **Resolved 2026-08-05 — see §8.3.** Outbound is unrestricted and unproxied; inbound works on one of the VM's two addresses. | Nothing — Phase 3 needs no proxy handling |
 
 ---
 

@@ -268,10 +268,12 @@ before debugging FMLV logic on it at the same time.
         Decide in 8b whether to keep that or bind the reachable address only —
         binding one interface is the tighter default for an app with no authentication
         (Phase 6's `[F]` item), given we don't know what else is on 10.47/16.
-- [ ] **[P]** Confirm the two things "it works" doesn't yet cover: that the service
-      **survives a reboot** with nobody logged in (re-run `check-from-local.ps1` after
-      a `Restart-Computer`), and what `01-bootstrap.ps1` reported for **outbound**
-      internet — see open question 9, which is still half open
+- [x] **[P]** Outbound internet from the VM — all four `01-bootstrap.ps1` checks passed
+      (PyPI, astral.sh, GitHub, thencc.org.uk), no proxy set. Open question 9 resolved;
+      Phase 3 needs no proxy handling. The real workload still isn't proven — see the
+      caveat under question 9
+- [ ] **[P]** Confirm the service **survives a reboot** with nobody logged in — reboot
+      done 2026-08-05, awaiting the result of `check-from-local.ps1 -VmHost 192.168.16.43`
 - [ ] **[P]** Ask IT for the VM's proper hostname/FQDN — an IP is fine for a smoke test,
       but the review app's users shouldn't be given a bare address that can change
 - [ ] **[P]** Tear the smoke test down once 8b is deployed
@@ -393,12 +395,17 @@ Tracked in [DESIGN.md §9](DESIGN.md). The ones that block work:
 - [ ] **8** — should the pipeline ever propose fixing the *baseline* export when it
       disagrees with a manufacturer's own site, or only ever propose changes sourced
       from the manufacturer? *(shapes Phase 5's diff logic; see the data-quality note above)*
-- [ ] **9** — Windows VM networking. **Inbound: answered 2026-08-05** by the Phase 8a
-      smoke test — reachable from the dev machine on `192.168.16.43:8099`, no IT
-      firewall change needed. The VM's other address, `10.47.17.232`, is not reachable.
-      **Outbound still open**: whether the VM can reach PyPI, ~100 manufacturer sites,
-      the NCC site and the Anthropic API without a proxy. `01-bootstrap.ps1` checks
-      four of those; a proxy would affect all of Phase 3
+- [x] **9** — Windows VM networking. **Resolved 2026-08-05**, both halves, by the
+      Phase 8a smoke test.
+      *Inbound:* reachable from the dev machine on `192.168.16.43:8099` with no IT
+      firewall change needed; the VM's other address, `10.47.17.232`, is not reachable.
+      *Outbound:* all four checks passed (PyPI, astral.sh, GitHub, thencc.org.uk) and
+      no proxy variables were set — so Phase 3's fetching needs no proxy configuration
+      and no `HTTP_PROXY` plumbing into the service. **Caveat:** those four are a
+      representative sample, not the real workload; the ~100 manufacturer sites and the
+      Anthropic API were not individually tested, so a *category*-based block (e.g. a
+      web filter on unclassified or foreign domains) would still show up later. The
+      first real sweep on the VM is what actually proves it
 
 
 ## Future investigations

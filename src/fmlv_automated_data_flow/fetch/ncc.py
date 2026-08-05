@@ -20,7 +20,10 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
+
+load_dotenv()
 
 #: DESIGN.md §8: "Anthropic API key and NCC credentials via environment, never
 #: committed." These are the two env vars that carry the NCC login.

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -244,26 +245,51 @@ def collect(
     snapshot_dir: Path,
     *,
     ranges: tuple[tuple[str, str], ...] = DEFAULT_RANGES,
+    on_progress: Callable[[str], None] = lambda message: None,
 ) -> list[ExtractedMotorhome]:
-    """Collect every product across the given Adria ranges (all of them, by default)."""
+    """Collect every product across the given Adria ranges (all of them, by default).
+
+    `on_progress` is called with one line of text at each range/product boundary and
+    whenever a configuration is silently skipped — a missing PDF URL, a non-200 PDF
+    fetch, or a PDF that yielded no spec fields (see `_SPEC_PATTERNS`). None of those
+    three raise, by design (a mid-sweep parser hiccup shouldn't abort every other
+    product), which is exactly why they're worth narrating rather than only being
+    visible after the fact by diffing snapshot counts. Defaults to a no-op so calling
+    this from a test, or any caller that doesn't want console output, needs nothing
+    extra; `cli.py` wires this to `print` for an interactive `fmlv run`.
+    """
     results: list[ExtractedMotorhome] = []
 
     for range_path, range_label in ranges:
         range_url = f"{BASE_URL}/{range_path}"
+        on_progress(f"[{range_label}] loading range page...")
         _page_result, captured = browser.fetch_with_capture(
             range_url, capture_url_contains=_LIVEWIRE_UPDATE_MARKER, scroll=True
         )
         for response in captured:
             products = parse_livewire_products(response.file_path.read_bytes())
-            for product in products:
+            on_progress(f"[{range_label}] {len(products)} configuration(s) found")
+            for index, product in enumerate(products, start=1):
+                label = " / ".join(
+                    part for part in (product.layout_label, product.trim_label) if part
+                ) or product.product_id
+                prefix = f"[{range_label}] ({index}/{len(products)}) {label}"
+
                 pdf_url = technical_data_pdf_url(product)
                 if pdf_url is None:
+                    on_progress(f"{prefix} — SKIPPED: no configuratorURL, can't build a PDF URL")
                     continue
+
+                on_progress(f"{prefix} — fetching PDF...")
                 pdf_result = http.fetch(pdf_url)
                 if pdf_result.status_code != 200:
+                    on_progress(f"{prefix} — SKIPPED: PDF returned {pdf_result.status_code}")
                     continue
+
                 pdf_text = extract_text(pdf_result.file_path).text
                 pdf_specs = parse_technical_data_pdf(pdf_text)
+                if not pdf_specs:
+                    on_progress(f"{prefix} — WARNING: no spec fields found in PDF text")
                 results.append(
                     _build_extracted_motorhome(
                         product, range_label, range_url, pdf_url, pdf_specs

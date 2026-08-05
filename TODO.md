@@ -63,7 +63,12 @@ verifiable against the real Adria export.
       retry a plain 404)
 - [x] **[P]** Snapshot every response to `data/snapshots/<manufacturer>/<run>/`
       (`paths.snapshot_dir`; `Fetcher`/`BrowserFetcher` write into whatever directory
-      they're given)
+      they're given). **Bug found and fixed during local testing (§T6)**: the snapshot
+      filename was derived from the URL alone, so a URL fetched more than once with
+      different content (e.g. one POST route shared by every page, like Adria's
+      Livewire endpoint) silently overwrote its own earlier snapshot. Filenames now
+      fold in the content hash too — same content still dedups to one file, different
+      content no longer collides.
 - [x] **[P]** Content hashing + skip-if-unchanged — `FetchResult.unchanged` compares
       against a `previous_hash` the caller supplies. **Not yet wired up**: recording
       "verified unchanged" against the `verification` table is product-level and
@@ -132,8 +137,12 @@ Do this **before** committing to an adapter interface — the sites decide the s
       check (`in_rollover_window`, June-September); `ProductDiff.year_rollover_eligible`
       is set for a `CHANGED_FIELD` product seen in that window. Two things still to
       build on top of this:
-      - [ ] **[P]** Phase 8 CLI: a run-trigger parameter to bump `year` for every
-            product of a manufacturer (scenario 1 — user-supplied, not automatic)
+      - [x] **[P]** Phase 8 CLI: a run-trigger parameter to bump `year` for every
+            product of a manufacturer (scenario 1 — user-supplied, not automatic) —
+            `fmlv run <manufacturer> --bump-year`, which widens the same
+            `store/changes.py:persist_diff` branch route 2 uses (`bump_year_all`)
+            rather than adding a second mechanism. Still only ever a *proposal*: it
+            is reviewed and accepted per product like any other field
       - [x] **[P]** Phase 6 review UI: a per-product checkbox, shown only when
             `year_rollover_eligible` is true, that calls `bump_year` on accept
             (scenario 2) — done as **another `proposed_change` row** (`field="year"`),
@@ -147,6 +156,7 @@ Do this **before** committing to an adapter interface — the sites decide the s
       — done in Phase 6: `store/changes.py:persist_diff`. `DISAPPEARED` products are
       still not persisted (no actionable proposal exists for them yet — see the
       `archived = Yes` item above).
+- [ ] **[P]** Caching function - aim to not re-download exactly the same PDF assets I've we've already got a copy in data/snapshots. The except here would be if the existing pdf is more than 1 month old, in which case we should re-download anyway.
 
 ## Phase 6 — Review app
 
@@ -170,7 +180,7 @@ Do this **before** committing to an adapter interface — the sites decide the s
 - [x] **[P]** Remember rejections so the next run doesn't re-propose them —
       `store/changes.py:was_previously_rejected`, matched on the exact
       (product, field, new_value) triple; a *different* corrected figure from the
-      manufacturer is still proposed (DESIGN.md §6.8)
+      manufacturer is still proposed (DESIGN.md §6.8)      
 - [ ] **[F]** Bulk accept for a whole product or a whole field across products
 - [ ] **[F]** Authentication — currently a trusted internal network
 - [ ] **[F]** Concurrent reviewers
@@ -218,14 +228,25 @@ Do this **before** committing to an adapter interface — the sites decide the s
       needs to run at image-build time — see the note under Phase 3; locally it's a
       ~115 MB one-time download)
 - [ ] **[P]** `data/` volume for exports, snapshots, SQLite and generated uploads
-- [ ] **[P]** CLI: `run <manufacturer>` and `sweep`
+- [x] **[P]** CLI: `run <manufacturer>` (`cli.py`) — the first code to perform the whole
+      sequence: registry → `run` record → adapter → diff → `proposed_change`/
+      `verification`. `execute_run` takes injectable fetcher factories so the pipeline
+      is testable without a network or a browser (`tests/test_cli.py`). Options:
+      `--export`, `--data-dir`, `--registry`, `--trigger`, `--range` (repeatable, for a
+      one-range smoke run), `--bump-year`. Exit codes: 0 ok, 1 run failed, 2 bad request.
+      Prints live progress during a run — `execute_run(on_progress=...)`, threaded
+      through to `adria.collect()`, which narrates each range/product boundary and every
+      silent-skip case to the terminal (added during §T6's full-sweep test, where a
+      multi-minute silent run was the original complaint)
+- [ ] **[P]** CLI: `sweep` — every runnable manufacturer with an adapter, in
+      `pilot_priority` order (`registry.active_motorhome_manufacturers` already returns
+      exactly that list; `adapters.adapter_for` returns `None` for the ones to skip)
 - [ ] **[P]** Cron-scheduled sweep
 - [ ] **[P]** README covering how to run it, for whoever inherits it
 - [ ] **[F]** Heavier scheduling through August–September peak season
 - [ ] **[F]** Failure alerting (email/Slack) when a run or an adapter breaks
 - [ ] **[F]** Backup of the SQLite file
 
----
 
 ## For Ben — things found while building Phases 1–3
 
@@ -299,7 +320,6 @@ Tracked in [DESIGN.md §9](DESIGN.md). The ones that block work:
       disagrees with a manufacturer's own site, or only ever propose changes sourced
       from the manufacturer? *(shapes Phase 5's diff logic; see the data-quality note above)*
 
----
 
 ## Future investigations
 

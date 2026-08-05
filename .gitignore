@@ -9,8 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
-# Data directories
-/data/
+# Runtime data — see data/manufacturers.README.md for what stays tracked
+/data/snapshots
+/data/exports
+/data/uploads
+/data/run_store.sqlite3
 
 # Local secrets
 .env

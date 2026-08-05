@@ -16,6 +16,11 @@ from pathlib import Path
 DATA_DIR = Path("data")
 
 
+def registry_path(*, root: Path = DATA_DIR) -> Path:
+    """The manufacturer registry CSV — who to visit, where, and in what shape."""
+    return root / "manufacturers.csv"
+
+
 def snapshot_dir(manufacturer_id: int, run_id: int, *, root: Path = DATA_DIR) -> Path:
     """Where fetched pages/files for one manufacturer's run are snapshotted."""
     return root / "snapshots" / str(manufacturer_id) / str(run_id)

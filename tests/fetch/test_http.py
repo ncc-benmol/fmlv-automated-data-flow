@@ -160,7 +160,7 @@ def test_enforces_politeness_delay_between_requests(tmp_path: Path) -> None:
     assert len(clock.sleeps) > sleeps_before_second_fetch
 
 
-def test_snapshot_filename_is_stable_for_the_same_url(tmp_path: Path) -> None:
+def test_snapshot_filename_is_stable_for_the_same_url_and_content(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, content=b"content")
 
@@ -169,6 +169,26 @@ def test_snapshot_filename_is_stable_for_the_same_url(tmp_path: Path) -> None:
     second = fetcher.fetch("https://example.com/stable")
 
     assert first.file_path == second.file_path
+
+
+def test_snapshot_filename_differs_when_the_same_url_returns_different_content(
+    tmp_path: Path,
+) -> None:
+    """A URL that returns different content on each call (e.g. a POST endpoint shared
+    by every caller, like Adria's Livewire route) must not overwrite its own snapshot —
+    see the bug this pins in `snapshot_filename`'s docstring."""
+    responses = iter([b"first response", b"second response"])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=next(responses))
+
+    fetcher, _clock = make_fetcher(tmp_path, handler)
+    first = fetcher.fetch("https://example.com/same-url-every-time")
+    second = fetcher.fetch("https://example.com/same-url-every-time")
+
+    assert first.file_path != second.file_path
+    assert first.file_path.read_bytes() == b"first response"
+    assert second.file_path.read_bytes() == b"second response"
 
 
 def test_transport_error_raises_after_exhausting_retries(tmp_path: Path) -> None:

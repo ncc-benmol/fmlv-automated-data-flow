@@ -284,6 +284,15 @@ before debugging FMLV logic on it at the same time.
       Daylight Time** (the smoke test reported `05:28` local for `12:28` UTC). Almost
       certainly a default from however the VM was imaged rather than a deliberate
       choice. On the VM: `tzutil /s "GMT Standard Time"`, then restart the service.
+
+      Despite the name, **`GMT Standard Time` is Windows' identifier for the London
+      zone** — display name "(UTC+00:00) Dublin, Edinburgh, Lisbon, London",
+      `SupportsDaylightSavingTime = True` — and it switches to BST by itself in March
+      and back in October. There is no separate "British Summer Time" zone to select,
+      and picking one would be wrong even if there were: it would need changing twice
+      a year. `GMT Summer Time` seen in the smoke test's output is the zone's
+      *DaylightName*, i.e. what it reports while BST is in effect, not a setting.
+
       Why it matters, in order:
       - `diff/year_rollover.py:in_rollover_window` uses `date.today()`, which is
         **local**. On a Pacific-time server the date is a day behind UK time between

@@ -1,6 +1,6 @@
 # FMLV Automated Data Flow — project design
 
-**Status:** prototype design, agreed 2026-08-03
+**Status:** prototype design, agreed 2026-08-03; deployment target revised 2026-08-05 (§8.2)
 **Owner:** Ben Molyneaux (NCC)
 
 ---
@@ -215,7 +215,7 @@ in `schema.COLUMNS` order, validated before it's offered — is also Phase 7.
 
 ### 6.3 Review via a small web app
 
-**Decision:** FastAPI + HTMX, served from the same container.
+**Decision:** FastAPI + HTMX, served by the same Windows service that hosts the pipeline.
 
 **Why:** others will run and maintain this, not just the author, and reviewer time is the
 real bottleneck. The app puts the source snippet and a link to the live manufacturer page
@@ -227,8 +227,8 @@ one SQLite file, so tests point it at a throwaway one rather than needing a runn
 server. `store/changes.py` is where a run's diff (Phase 5's `diff_products`) becomes the
 `proposed_change`/`verification` rows the app reads and writes — including the §6.9
 year-rollover suggestion, which is deliberately just another field proposal rather than a
-separate UI mechanism. Not yet built: the container itself (Phase 8), authentication, and
-concurrent reviewers — all already scoped as non-goals/[F] in TODO.md.
+separate UI mechanism. Not yet built: the service wrapper itself (Phase 8, §8.2),
+authentication, and concurrent reviewers — all already scoped as non-goals/[F] in TODO.md.
 
 ### 6.4 Change detection: everything, no thresholds
 
@@ -291,8 +291,9 @@ the seasonal suggestion needing no flag. Either way the result is an ordinary
 
 ## 7. Storage
 
-**SQLite**, single file on a mounted volume. Right-sized for one server, one reviewer,
-~2,000 products, and it keeps deployment to a single container.
+**SQLite**, a single file under the application's `data\` directory on the server.
+Right-sized for one server, one reviewer, ~2,000 products, and it keeps deployment to a
+single process with no database server to install or administer.
 
 Tables, in outline:
 
@@ -311,12 +312,12 @@ Tables, in outline:
 
 | Concern | Decision |
 |---|---|
-| Runtime | Python 3.14, `uv`, single Docker container on a small NCC-hosted server. |
-| Triggers | Manual "run manufacturer X" from the UI/CLI, **and** a scheduled sweep via cron. |
+| Runtime | Python 3.14 via `uv`, running directly on a **Windows Server VM** provided by the client's IT (see §8.2). No container. |
+| Triggers | Manual "run manufacturer X" from the UI/CLI, **and** a scheduled sweep via **Windows Task Scheduler**. |
 | Cadence | Weekly or monthly in quiet months; **August–September is peak season** for model-year changes and warrants more frequent runs. |
-| Headless browser | Playwright available for JS-rendered sites. Adds ~1 GB to the image; accepted. |
-| Persistence | `data/` volume: exports, snapshots, SQLite file, generated uploads. |
-| Secrets | Anthropic API key and NCC credentials via environment, never committed. |
+| Headless browser | Playwright available for JS-rendered sites. `playwright install chromium` is run once on the VM as part of provisioning (~115 MB) rather than baked into an image. |
+| Persistence | A `data\` directory on the VM: exports, snapshots, SQLite file, generated uploads. Backed up by whatever backs up the VM. |
+| Secrets | Anthropic API key and NCC credentials from a `.env` file on the VM, readable only by the service account. Never committed. |
 
 ### 8.1 Cost control
 
@@ -329,6 +330,46 @@ Target is **under £5/month, £20 ceiling**. Three mechanisms, in order of impac
    clean structured content, Claude Sonnet 5 ($3/$15; introductory $2/$10 until
    2026-08-31) for PDFs and messy pages, and the Batch API (−50%) for scheduled sweeps
    where latency does not matter.
+
+### 8.2 Deployment target: Windows Server VM
+
+**Decision (2026-08-05, revising the original plan):** the application is deployed as a
+**Windows service on a Windows Server VM**, not as a Docker container on a Linux host.
+
+**Why:** the client's IT team has provisioned a Windows Server VM, and that is what is
+actually available. Nothing in the design depended on Linux or on containers — the
+application is a Python process, a directory of files and a SQLite file, all of which are
+platform-neutral. The cost of this change is confined to packaging and scheduling.
+
+What it changes, concretely:
+
+| Was | Is now |
+|---|---|
+| Dockerfile, `docker run`, image registry | `uv sync` from a checkout on the VM |
+| Container restart policy | **NSSM** wrapping `uvicorn` as a Windows service, set to auto-start |
+| Docker volume for `data/` | A directory on the VM's data disk |
+| `cron` for the scheduled sweep | Windows Task Scheduler running the `fmlv sweep` CLI |
+| Container logs / `docker logs` | NSSM's stdout/stderr redirection to rotating files under `logs\` |
+| Environment variables passed by the container runtime | `.env` file on disk, plus NSSM's `AppEnvironmentExtra` |
+
+What it does **not** change: the CLI, the review app, the storage model, or any of §4–§7.
+Code must stay path-safe (`pathlib`, no hardcoded `/`) and must not assume a POSIX shell —
+a constraint the codebase already meets, since it has been developed on Windows throughout.
+
+**Trade-off, recorded honestly:** we lose the reproducible-image guarantee, so "it works on
+my machine" risk moves onto the provisioning scripts. Mitigated by keeping provisioning as
+checked-in PowerShell under `deploy\windows\` rather than as undocumented manual steps, and
+by the §8.3 smoke test proving the host can actually run and serve a service before the
+real application is deployed to it.
+
+### 8.3 Deployment smoke test
+
+Before the real application goes anywhere near the VM, a deliberately trivial service is
+deployed to it — one FastAPI endpoint returning the current date and time — to prove four
+things independently of any FMLV logic: Python and `uv` install and run on the host; a
+process can be registered as an auto-starting Windows service; the service survives a
+reboot; and the port is reachable from a developer machine. Kept in `deploy\smoketest\`
+so it can be redeployed any time the host configuration is in doubt.
 
 ---
 
@@ -344,6 +385,7 @@ Target is **under £5/month, £20 ceiling**. Three mechanisms, in order of impac
 | 6 | Where HTML and PDF disagree, PDF is assumed authoritative — to be confirmed per manufacturer during the exploration spike. | Source precedence |
 | 7 | Are there controlled vocabularies we must map manufacturer terminology onto beyond the enum groups in §4.3? | Extraction mapping |
 | 8 | Should the pipeline ever propose fixing the *baseline* export itself when it disagrees with a manufacturer's own site, or only ever propose changes sourced from the manufacturer? Raised by running validation against the real Adria export, which surfaced 5 pre-existing payload mismatches and 2 rows with two heating options both ticked (see TODO.md). | Phase 5 diff logic |
+| 9 | On the Windows VM (§8.2): is there unrestricted **outbound** internet (PyPI, ~100 manufacturer sites, the NCC site, the Anthropic API), and can a chosen port be reached **inbound** from a developer machine? A proxy or an outbound allowlist would affect fetching far more than anything else in this design. | Everything in §5; the §8.3 smoke test answers the inbound half |
 
 ---
 

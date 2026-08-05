@@ -85,7 +85,8 @@ verifiable against the real Adria export.
 
 > **One-time local setup:** `BrowserFetcher` needs Chromium installed once per
 > machine — run `uv run playwright install chromium` (~115 MB download). Already done
-> on this dev machine; the Dockerfile (Phase 8) needs the same step baked in.
+> on this dev machine; the Windows Server VM (Phase 8) needs the same step run once
+> during provisioning.
 
 ## Phase 4 — Exploration spike and the first adapter
 
@@ -224,10 +225,50 @@ Do this **before** committing to an adapter interface — the sites decide the s
 
 ## Phase 8 — Packaging and operations
 
-- [ ] **[P]** Dockerfile including Playwright browsers (`playwright install chromium`
-      needs to run at image-build time — see the note under Phase 3; locally it's a
-      ~115 MB one-time download)
-- [ ] **[P]** `data/` volume for exports, snapshots, SQLite and generated uploads
+**Deployment target changed 2026-08-05:** the client's IT has provisioned a **Windows
+Server VM**, not the Linux/Docker host originally assumed. See DESIGN.md §8.2. Docker is
+off the table; the application runs as a Windows service. Everything below is rewritten
+accordingly — no application code is affected, only packaging and scheduling.
+
+### 8a — Prove the host (deployment smoke test, DESIGN.md §8.3)
+
+Deliberately ahead of the real deployment: prove the VM can run and serve *anything*
+before debugging FMLV logic on it at the same time.
+
+- [x] **[P]** Trivial FastAPI service returning the current date/time
+      (`deploy/smoketest/smoke_service.py` — one file, PEP 723 inline dependencies so
+      `uv run` fetches its own deps and the whole toolchain gets exercised)
+- [x] **[P]** Provisioning script: install `uv`, verify Python 3.14
+      (`deploy/windows/01-bootstrap.ps1`)
+- [x] **[P]** Service install script: NSSM wrap + auto-start + firewall rule
+      (`deploy/windows/02-install-smoketest.ps1`), with a matching uninstall
+      (`03-uninstall-smoketest.ps1`)
+- [x] **[P]** Reachability check runnable from the dev machine
+      (`deploy/windows/check-from-local.ps1`)
+- [x] **[P]** Runbook for the whole sequence (`deploy/windows/README.md`)
+- [ ] **[P]** Ben: run the sequence on the VM and confirm each of the four things it
+      proves — uv installs, service auto-starts, survives a reboot, reachable from the
+      dev machine. **This is the next action.**
+- [ ] **[P]** Record the outcome here: VM hostname/IP, chosen port, whether the port
+      needed an IT firewall change beyond the local Windows Firewall rule
+
+### 8b — Deploy the real application
+
+- [ ] **[P]** Provisioning script for the app proper: checkout, `uv sync`,
+      `uv run playwright install chromium`, create `data\` and `logs\`
+- [ ] **[P]** NSSM service definition for the review app (`uvicorn`), auto-start,
+      stdout/stderr redirected to rotating files under `logs\`
+- [ ] **[P]** `data\` directory on the VM for exports, snapshots, SQLite and generated
+      uploads — decide the drive/path with IT, and confirm it's inside the VM backup
+- [ ] **[P]** `.env` on the VM for `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD` and the
+      Anthropic key, ACL'd to the service account only
+- [ ] **[P]** Decide the service account (dedicated local account vs `LocalSystem`) —
+      `LocalSystem` is simplest but has more privilege than this needs
+- [ ] **[F]** Update procedure: how a new version gets onto the VM (git pull + `uv sync`
+      + service restart, scripted) without a container image to swap
+
+### 8c — CLI, scheduling and handover
+
 - [x] **[P]** CLI: `run <manufacturer>` (`cli.py`) — the first code to perform the whole
       sequence: registry → `run` record → adapter → diff → `proposed_change`/
       `verification`. `execute_run` takes injectable fetcher factories so the pipeline
@@ -241,11 +282,18 @@ Do this **before** committing to an adapter interface — the sites decide the s
 - [ ] **[P]** CLI: `sweep` — every runnable manufacturer with an adapter, in
       `pilot_priority` order (`registry.active_motorhome_manufacturers` already returns
       exactly that list; `adapters.adapter_for` returns `None` for the ones to skip)
-- [ ] **[P]** Cron-scheduled sweep
-- [ ] **[P]** README covering how to run it, for whoever inherits it
+- [ ] **[P]** Scheduled sweep via **Windows Task Scheduler** (was: cron) — a task running
+      `uv run fmlv sweep` as the service account, checked in as a `schtasks` /
+      `Register-ScheduledTask` script under `deploy\windows\` so it isn't a click-path
+      no one can reproduce
+- [ ] **[P]** README covering how to run it, for whoever inherits it — must cover the
+      Windows service: start/stop, where the logs are, what to do after a reboot
 - [ ] **[F]** Heavier scheduling through August–September peak season
-- [ ] **[F]** Failure alerting (email/Slack) when a run or an adapter breaks
-- [ ] **[F]** Backup of the SQLite file
+- [ ] **[F]** Failure alerting (email/Slack) when a run or an adapter breaks — a failed
+      Scheduled Task is silent by default, so this matters more here than it would
+      under a supervised container
+- [ ] **[F]** Backup of the SQLite file — confirm whether the VM-level backup covers it,
+      or whether a scheduled `VACUUM INTO` copy is needed
 
 
 ## For Ben — things found while building Phases 1–3
@@ -319,6 +367,10 @@ Tracked in [DESIGN.md §9](DESIGN.md). The ones that block work:
 - [ ] **8** — should the pipeline ever propose fixing the *baseline* export when it
       disagrees with a manufacturer's own site, or only ever propose changes sourced
       from the manufacturer? *(shapes Phase 5's diff logic; see the data-quality note above)*
+- [ ] **9** — Windows VM networking: unrestricted outbound internet (PyPI, manufacturer
+      sites, NCC, Anthropic), and can a port be reached inbound from the dev machine?
+      *(the Phase 8a smoke test answers the inbound half; the outbound half needs
+      asking of the client's IT — a proxy would affect all of Phase 3)*
 
 
 ## Future investigations

@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..fmlv.enums import (
+from ..product_model.enums import (
     BathroomLayout,
     BedType,
     BodyType,
@@ -33,9 +33,9 @@ from ..fmlv.enums import (
     Refrigeration,
     SleepingArea,
 )
-from ..fmlv.io import write_csv as write_fmlv_csv
-from ..fmlv.model import AutomaticVariant, Motorhome
-from ..fmlv.validation import Issue, validate_all
+from ..product_model.io import write_csv as write_fmlv_csv
+from ..product_model.model import AutomaticVariant, Motorhome
+from ..product_model.validation import Issue, validate_all
 from ..registry.models import Manufacturer
 from ..store.changes import LIST_SEPARATOR, ChangeQueueEntry, list_change_queue
 

@@ -191,7 +191,7 @@ Do this **before** committing to an adapter interface — the sites decide the s
 - [x] **[P]** Emit the approved changes as a CSV in exact FMLV column order —
       `output/build.py:build_upload_motorhomes` applies every `accept`/`correct`
       decision (per DESIGN.md §6.3) on top of the baseline `Motorhome`, one field at a
-      time (`apply_field`); `write_upload_csv` hands the result to `fmlv.io.write_csv`,
+      time (`apply_field`); `write_upload_csv` hands the result to `product_model.io.write_csv`,
       which already writes `schema.COLUMNS` order. A product with no `accept`/`correct`
       decision at all contributes nothing — there's nothing approved to upload for it.
 - [x] **[P]** Carry through `product_id`, `year`, `manufacturing_release_date`,
@@ -201,7 +201,7 @@ Do this **before** committing to an adapter interface — the sites decide the s
       touched, via the same year-rollover proposal Phase 5/6 already route through
       `proposed_change` (DESIGN.md §6.9) — `apply_field` treats it like any other field.
 - [x] **[P]** Validate the generated CSV before it is offered for upload —
-      `output/build.py:write_upload_csv` runs `fmlv.validation.validate_all` over the
+      `output/build.py:write_upload_csv` runs `product_model.validation.validate_all` over the
       built rows before writing. Consistent with DESIGN.md's "report as data, not
       exceptions" (§1 Phase 1's validation): a validation problem doesn't block the
       write, it's returned as `UploadResult.issues` for a reviewer to see next to the
@@ -363,7 +363,7 @@ each needs a human decision or a data fix.
       so it doesn't propagate if the field starts driving logic (e.g. language/currency
       handling) later.
 - [ ] **Data quality in the sample export itself**, found by running validation across
-      all 41 Adria products (`fmlv.validation.validate_all`): 5 products where the
+      all 41 Adria products (`product_model.validation.validate_all`): 5 products where the
       published payload doesn't reconcile with `mtplm - mro`, and 2 products with both
       "blown air" and "wet central" heating ticked (only one should be). These are
       pre-existing in the NCC's own current export, not introduced by anything here.

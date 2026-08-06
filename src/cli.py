@@ -45,11 +45,11 @@ from .adapters import Adapter, adapter_for
 from .diff import diff_products
 from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
-from .fmlv import io
+from .product_model import io
 from .registry import Manufacturer, loader
 from .store.runs import Trigger
 
-#: Export file types `fmlv.io.read_export` can dispatch on.
+#: Export file types `product_model.io.read_export` can dispatch on.
 EXPORT_SUFFIXES = (".xlsx", ".csv")
 
 

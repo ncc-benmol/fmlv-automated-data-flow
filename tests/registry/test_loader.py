@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from fmlv_automated_data_flow import registry
+from src import registry
 
 _COLUMNS = (
     "manufacturer_id",

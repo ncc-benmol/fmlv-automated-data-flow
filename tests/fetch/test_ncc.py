@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from fmlv_automated_data_flow.fetch.ncc import (
+from src.fetch.ncc import (
     CREDENTIALS_EMAIL_ENV,
     CREDENTIALS_PASSWORD_ENV,
     NccCredentials,

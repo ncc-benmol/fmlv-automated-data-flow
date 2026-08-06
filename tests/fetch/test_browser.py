@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from fmlv_automated_data_flow.fetch.browser import BrowserFetcher
+from src.fetch.browser import BrowserFetcher
 
 FIXTURE = Path(__file__).parent / "fixtures" / "js_rendered.html"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

@@ -51,7 +51,7 @@ warning every time.
 
 ## Loading and validation
 
-`fmlv_automated_data_flow.registry.load(path)` reads this file and never raises on a
+`src.registry.load(path)` reads this file and never raises on a
 single bad row — problems come back as a list of `Issue`s alongside whatever did parse
 successfully. It also checks two things across rows that are easy to get wrong by hand:
 

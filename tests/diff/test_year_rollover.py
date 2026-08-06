@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from fmlv_automated_data_flow.diff.year_rollover import bump_year, in_rollover_window
-from fmlv_automated_data_flow.fmlv.model import Motorhome
+from src.diff.year_rollover import bump_year, in_rollover_window
+from src.product_model.model import Motorhome
 
 
 def test_bump_year_advances_by_one() -> None:

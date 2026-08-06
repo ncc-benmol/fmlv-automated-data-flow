@@ -25,7 +25,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from ..adapters.base import ExtractedMotorhome
-from ..fmlv.model import Motorhome
+from ..product_model.model import Motorhome
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 

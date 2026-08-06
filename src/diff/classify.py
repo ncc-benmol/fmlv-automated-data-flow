@@ -14,7 +14,7 @@ from datetime import date
 from enum import Enum
 
 from ..adapters.base import ExtractedMotorhome
-from ..fmlv.model import Motorhome
+from ..product_model.model import Motorhome
 from .compare import FieldChange, compare_fields, sort_changes
 from .matching import DEFAULT_THRESHOLD, match_products
 from .year_rollover import in_rollover_window

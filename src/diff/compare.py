@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from ..adapters.base import ExtractedMotorhome, Provenance
-from ..fmlv import schema
-from ..fmlv.model import Motorhome
+from ..product_model import schema
+from ..product_model.model import Motorhome
 
 Priority = Literal["tracked_numeric", "layout", "other"]
 

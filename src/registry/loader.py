@@ -1,6 +1,6 @@
 """Loading `data/manufacturers.csv`.
 
-Mirrors the approach in `fmlv.io`: a single bad row is reported as an `Issue`, not
+Mirrors the approach in `product_model.io`: a single bad row is reported as an `Issue`, not
 raised, so one malformed registry entry doesn't stop every other manufacturer from
 loading. Two cross-row checks run as the file loads: duplicate `manufacturer_id`s, and
 duplicate `website_url`s — the latter catches copy-paste mistakes between adjacent

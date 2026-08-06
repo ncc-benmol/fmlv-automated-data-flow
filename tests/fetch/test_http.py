@@ -12,7 +12,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from fmlv_automated_data_flow.fetch.http import Fetcher, content_hash
+from src.fetch.http import Fetcher, content_hash
 
 
 class FakeClock:

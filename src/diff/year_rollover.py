@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from ..fmlv.model import Motorhome
+from ..product_model.model import Motorhome
 
 #: (month, day) start/end, inclusive, of the window in which a detected change is
 #: plausibly a model-year rollover rather than an ordinary in-season correction.

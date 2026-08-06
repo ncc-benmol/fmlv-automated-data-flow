@@ -16,9 +16,9 @@ from typing import Any
 
 import pytest
 
-from fmlv_automated_data_flow import paths, store
-from fmlv_automated_data_flow.adapters.base import ExtractedMotorhome, Provenance
-from fmlv_automated_data_flow.cli import (
+from src import paths, store
+from src.adapters.base import ExtractedMotorhome, Provenance
+from src.cli import (
     CommandError,
     execute_run,
     find_manufacturer,
@@ -27,9 +27,9 @@ from fmlv_automated_data_flow.cli import (
     main,
     resolve_ranges,
 )
-from fmlv_automated_data_flow.fmlv import io
-from fmlv_automated_data_flow.fmlv.model import Motorhome
-from fmlv_automated_data_flow.registry.models import Manufacturer, Status, TriState
+from src.product_model import io
+from src.product_model.model import Motorhome
+from src.registry.models import Manufacturer, Status, TriState
 
 RANGE_URL = "https://www.adria.co.uk/motorhomes/matrix"
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from fmlv_automated_data_flow.fmlv import validation
-from fmlv_automated_data_flow.fmlv.enums import (
+from src.product_model import validation
+from src.product_model.enums import (
     BathroomLayout,
     BodyType,
     Heating,
@@ -11,7 +11,7 @@ from fmlv_automated_data_flow.fmlv.enums import (
     LoungeLocation,
     SleepingArea,
 )
-from fmlv_automated_data_flow.fmlv.model import AutomaticVariant, Motorhome
+from src.product_model.model import AutomaticVariant, Motorhome
 
 BASE_FIELDS = {
     "manufacturer": "Adria Mobil",

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from fmlv_automated_data_flow.adapters.base import ExtractedMotorhome, Provenance
-from fmlv_automated_data_flow.diff.compare import compare_fields, sort_changes
-from fmlv_automated_data_flow.fmlv.enums import BodyType
-from fmlv_automated_data_flow.fmlv.model import AutomaticVariant, Motorhome
+from src.adapters.base import ExtractedMotorhome, Provenance
+from src.diff.compare import compare_fields, sort_changes
+from src.product_model.enums import BodyType
+from src.product_model.model import AutomaticVariant, Motorhome
 
 BASELINE = Motorhome(
     product_id=101,

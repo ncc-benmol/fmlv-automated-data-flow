@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fmlv_automated_data_flow import paths
+from src import paths
 
 
 def test_snapshot_dir_is_scoped_by_manufacturer_and_run() -> None:

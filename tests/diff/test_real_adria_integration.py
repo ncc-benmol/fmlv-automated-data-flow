@@ -16,13 +16,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fmlv_automated_data_flow.adapters.adria import (
+from src.adapters.adria import (
     _build_extracted_motorhome,
     parse_livewire_products,
     parse_technical_data_pdf,
 )
-from fmlv_automated_data_flow.diff import ChangeKind, diff_products, match_products
-from fmlv_automated_data_flow.fmlv.io import read_xlsx
+from src.diff import ChangeKind, diff_products, match_products
+from src.product_model.io import read_xlsx
 
 FIXTURES = Path(__file__).parent.parent / "adapters" / "fixtures"
 BASELINE_EXPORT = (

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from fmlv_automated_data_flow.adapters.base import ExtractedMotorhome
-from fmlv_automated_data_flow.diff.matching import match_products, token_similarity
-from fmlv_automated_data_flow.fmlv.model import Motorhome
+from src.adapters.base import ExtractedMotorhome
+from src.diff.matching import match_products, token_similarity
+from src.product_model.model import Motorhome
 
 
 def make_motorhome(**overrides: object) -> Motorhome:

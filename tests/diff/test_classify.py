@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from fmlv_automated_data_flow.adapters.base import ExtractedMotorhome, Provenance
-from fmlv_automated_data_flow.diff.classify import ChangeKind, diff_products
-from fmlv_automated_data_flow.fmlv.model import Motorhome
+from src.adapters.base import ExtractedMotorhome, Provenance
+from src.diff.classify import ChangeKind, diff_products
+from src.product_model.model import Motorhome
 
 
 def make_baseline(**overrides: object) -> Motorhome:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from fmlv_automated_data_flow import store
+from src import store
 
 
 @pytest.fixture

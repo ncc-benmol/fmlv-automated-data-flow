@@ -33,11 +33,11 @@ need doing before §T3.
       `/data/snapshots` was added early (before §T6's live runs); `/data/exports`,
       `/data/uploads` and `/data/run_store.sqlite3` finished off here, before committing
       — `data/manufacturers.csv` and its README are unaffected and stay tracked.
-- [x] **T-pre-3 — The review app had no server entry point.** `review.app.create_app` is
-      a factory taking a `db_path`, so `uvicorn review.app:app` doesn't work. **Resolved**:
-      `review/serve.py` builds a module-level `app` against `paths.db_path()` (or
+- [x] **T-pre-3 — The review app had no server entry point.** `webapp.app.create_app` is
+      a factory taking a `db_path`, so `uvicorn webapp.app:app` doesn't work. **Resolved**:
+      `webapp/serve.py` builds a module-level `app` against `paths.db_path()` (or
       `FMLV_DB_PATH`, to point at a different file), so `uvicorn
-      fmlv_automated_data_flow.review.serve:app` serves the real store.
+      src.webapp.serve:app` serves the real store.
 
 ## Known gaps — expected, do not chase these as failures
 
@@ -129,7 +129,7 @@ of doing it by hand is doing it against the **real 41-row export** and a real
 Serve the same file §T3 just wrote:
 
 ```powershell
-uv run uvicorn fmlv_automated_data_flow.review.serve:app --port 8000
+uv run uvicorn src.webapp.serve:app --port 8000
 ```
 
 - [x] `GET /` lists the §T3 runs with the right status badges.

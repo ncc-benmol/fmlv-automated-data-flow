@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from fmlv_automated_data_flow import store
-from fmlv_automated_data_flow.adapters.base import ExtractedMotorhome, Provenance
-from fmlv_automated_data_flow.diff.classify import diff_products
-from fmlv_automated_data_flow.fmlv.io import read_csv
-from fmlv_automated_data_flow.fmlv.model import Motorhome
-from fmlv_automated_data_flow.output import build_upload_motorhomes, generate_upload
-from fmlv_automated_data_flow.registry.models import Manufacturer, Status, TriState
+from src import store
+from src.adapters.base import ExtractedMotorhome, Provenance
+from src.diff.classify import diff_products
+from src.product_model.io import read_csv
+from src.product_model.model import Motorhome
+from src.output import build_upload_motorhomes, generate_upload
+from src.registry.models import Manufacturer, Status, TriState
 
 
 @pytest.fixture

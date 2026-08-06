@@ -32,7 +32,7 @@ from urllib.parse import urlparse
 from ..fetch.browser import BrowserFetcher
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
-from ..fmlv.model import Motorhome
+from ..product_model.model import Motorhome
 from .base import ExtractedMotorhome, Provenance
 
 BASE_URL = "https://www.adria.co.uk"

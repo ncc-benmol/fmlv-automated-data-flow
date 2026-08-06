@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fmlv_automated_data_flow.fetch import pdf
+from src.fetch import pdf
 
 
 def build_minimal_pdf(text: str) -> bytes:

@@ -15,11 +15,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from fmlv_automated_data_flow import store
-from fmlv_automated_data_flow.adapters.base import ExtractedMotorhome, Provenance
-from fmlv_automated_data_flow.diff.classify import diff_products
-from fmlv_automated_data_flow.fmlv.model import Motorhome
-from fmlv_automated_data_flow.review import create_app
+from src import store
+from src.adapters.base import ExtractedMotorhome, Provenance
+from src.diff.classify import diff_products
+from src.product_model.model import Motorhome
+from src.webapp import create_app
 
 
 def make_baseline(**overrides: object) -> Motorhome:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from fmlv_automated_data_flow.fmlv import io, validation
+from src.product_model import io, validation
 
 ADRIA_EXPORT = (
     Path(__file__).parents[2]
@@ -88,7 +88,7 @@ def test_round_trip_through_csv_is_lossless(adria_result: io.ReadResult, tmp_pat
 
 
 def test_write_csv_preserves_column_order(adria_result: io.ReadResult, tmp_path: Path) -> None:
-    from fmlv_automated_data_flow.fmlv import schema
+    from src.product_model import schema
 
     out_path = tmp_path / "order.csv"
     io.write_csv(adria_result.motorhomes, out_path)

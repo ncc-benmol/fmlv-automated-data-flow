@@ -20,7 +20,7 @@ from typing import Protocol
 
 from ..fetch.browser import BrowserFetcher
 from ..fetch.http import Fetcher
-from ..fmlv.model import Motorhome
+from ..product_model.model import Motorhome
 
 
 @dataclass(frozen=True)

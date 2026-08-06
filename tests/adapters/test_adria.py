@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fmlv_automated_data_flow.adapters.adria import (
+from src.adapters.adria import (
     LivewireProduct,
     parse_livewire_products,
     parse_technical_data_pdf,

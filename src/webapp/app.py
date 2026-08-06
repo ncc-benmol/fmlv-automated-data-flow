@@ -57,6 +57,7 @@ _templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 # via these globals rather than the DB carrying that classification.
 _templates.env.globals["is_layout_field"] = lambda field: field in LAYOUT_FIELDS
 _templates.env.globals["is_year_field"] = lambda field: field == "year"
+_templates.env.globals["is_archive_field"] = lambda field: field == "archived"
 
 
 #: Everything is stored in UTC (`datetime.now(UTC)` throughout `store/`); this is
@@ -302,6 +303,62 @@ def create_app(
             {
                 "run": run,
                 "entry": entry,
+                "error": error,
+                "reviewers": app.state.reviewers,
+            },
+        )
+
+    @app.post(
+        "/runs/{run_id}/products/{product_id}/accept-all", response_class=HTMLResponse
+    )
+    def accept_all(
+        request: Request,
+        run_id: int,
+        product_id: int,
+        connection: ConnectionDep,
+        reviewer_name: str = Form(""),
+    ) -> HTMLResponse:
+        """Accept every still-pending change for one product in one click.
+
+        Only the changes that were pending *when the button was pressed* are decided
+        and re-rendered — matching `decide`'s one-row-at-a-time response shape, just
+        for a whole product's group instead of a single row.
+        """
+        run = _run_or_404(connection, run_id)
+        queue = store.list_change_queue(connection, run_id)
+        target_entries = [e for e in queue if e.product.id == product_id and e.decision is None]
+        if not target_entries and not any(e.product.id == product_id for e in queue):
+            raise HTTPException(
+                status_code=404, detail=f"no product {product_id} in run {run_id}"
+            )
+
+        reviewer_name = reviewer_name.strip()
+        error = None
+        known_reviewers: set[str] = app.state.reviewer_names_lower
+        if known_reviewers and reviewer_name.lower() not in known_reviewers:
+            error = "Select your name from the reviewer list before deciding."
+        else:
+            for entry in target_entries:
+                store.record_decision(
+                    connection,
+                    proposed_change_id=entry.change.id,
+                    action="accept",
+                    decided_by=reviewer_name or None,
+                )
+
+        change_ids = {e.change.id for e in target_entries}
+        queue_after = store.list_change_queue(connection, run_id)
+        entries = [e for e in queue_after if e.change.id in change_ids]
+        product = entries[0].product if entries else next(
+            e.product for e in queue_after if e.product.id == product_id
+        )
+        return _templates.TemplateResponse(
+            request,
+            "partials/product_group.html",
+            {
+                "run": run,
+                "product": product,
+                "entries": entries,
                 "error": error,
                 "reviewers": app.state.reviewers,
             },

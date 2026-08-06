@@ -236,6 +236,27 @@ def test_accepted_year_rollover_bumps_only_the_year(
     assert motorhome.rrp_pounds == 93950
 
 
+def test_accepted_archive_proposal_sets_archived_true(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    baseline = make_baseline()
+    diffs = diff_products([], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    [entry] = store.list_change_queue(connection, run_id)
+    assert entry.change.field == "archived"
+    store.record_decision(
+        connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
+    )
+
+    [motorhome] = build_upload_motorhomes(
+        connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
+    )
+
+    assert motorhome.archived is True
+    assert motorhome.product_id == 4147
+
+
 def test_generate_upload_writes_a_csv_in_fmlv_column_order_and_carries_product_id(
     connection: sqlite3.Connection, run_id: int, tmp_path: Path
 ) -> None:

@@ -1,0 +1,30 @@
+<div id="product-{{ product.id }}-pending" class="product-group">
+  <div class="product-group-header">
+    <h3>
+      {{ product.manufacturer_range }} — {{ product.model }}
+      {% if product.fmlv_product_id %}
+        <span class="muted">#{{ product.fmlv_product_id }}</span>
+      {% else %}
+        <span class="badge new">new product</span>
+      {% endif %}
+    </h3>
+    {% if entries %}
+      <form
+        class="accept-all-form"
+        hx-post="/runs/{{ run.id }}/products/{{ product.id }}/accept-all"
+        hx-target="#product-{{ product.id }}-pending"
+        hx-swap="outerHTML"
+        hx-include="#reviewer-name"
+      >
+        <button type="submit" class="btn btn-accept">Accept all</button>
+      </form>
+    {% endif %}
+  </div>
+  {% if error %}
+    <p class="form-error">{{ error }}</p>
+  {% endif %}
+  {% for entry in entries %}
+    {% set error = None %}
+    {% include "partials/change_row.html" %}
+  {% endfor %}
+</div>

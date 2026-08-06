@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from src.diff.year_rollover import bump_year, in_rollover_window
+from src.diff.year_rollover import bump_year, can_bump_year, in_rollover_window
 from src.product_model.model import Motorhome
 
 
@@ -45,3 +45,19 @@ def test_in_rollover_window_false_outside_the_window() -> None:
     assert in_rollover_window(date(2026, 5, 31)) is False
     assert in_rollover_window(date(2026, 10, 1)) is False
     assert in_rollover_window(date(2026, 1, 15)) is False
+
+
+def test_can_bump_year_true_when_the_year_is_the_current_year() -> None:
+    assert can_bump_year(2026, today=date(2026, 7, 15)) is True
+
+
+def test_can_bump_year_false_when_already_at_current_year_plus_one() -> None:
+    assert can_bump_year(2027, today=date(2026, 7, 15)) is False
+
+
+def test_can_bump_year_false_when_beyond_the_cap() -> None:
+    assert can_bump_year(2028, today=date(2026, 7, 15)) is False
+
+
+def test_can_bump_year_false_when_the_year_is_stale() -> None:
+    assert can_bump_year(2025, today=date(2026, 7, 15)) is False

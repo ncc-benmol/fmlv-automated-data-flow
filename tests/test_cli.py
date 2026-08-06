@@ -21,6 +21,7 @@ from src.adapters import ADAPTERS
 from src.adapters.base import ExtractedMotorhome, Provenance
 from src.cli import (
     CommandError,
+    _dedupe_baseline,
     execute_run,
     find_manufacturer,
     format_summary,
@@ -326,6 +327,85 @@ def test_a_failing_adapter_marks_the_run_failed_and_re_raises(
         assert run.finished_at is not None
     finally:
         connection.close()
+
+
+def test_dedupe_baseline_keeps_the_newer_of_two_rows_sharing_range_and_model() -> None:
+    """The real Swift case: 'Escape 674' listed twice under different product_ids."""
+    older = make_baseline(product_id=1765, year=2025)
+    newer = make_baseline(product_id=7614, year=2026)
+
+    deduped = _dedupe_baseline([older, newer])
+
+    assert deduped == [newer]
+
+
+def test_dedupe_baseline_breaks_a_year_tie_by_keeping_the_first_seen() -> None:
+    first = make_baseline(product_id=1765, year=2026)
+    second = make_baseline(product_id=7614, year=2026)
+
+    assert _dedupe_baseline([first, second]) == [first]
+
+
+def test_dedupe_baseline_leaves_rows_with_no_duplicate_untouched() -> None:
+    a = make_baseline(product_id=1, manufacturer_range="Escape", model="640")
+    b = make_baseline(product_id=2, manufacturer_range="Escape", model="674")
+
+    assert _dedupe_baseline([a, b]) == [a, b]
+
+
+def test_dedupe_baseline_passes_through_rows_with_no_model_untouched() -> None:
+    blank_a = make_baseline(product_id=1, model=None)
+    blank_b = make_baseline(product_id=2, model=None)
+
+    assert _dedupe_baseline([blank_a, blank_b]) == [blank_a, blank_b]
+
+
+def test_a_run_collapses_a_duplicate_baseline_row_instead_of_proposing_to_archive_it(
+    data_root: Path,
+) -> None:
+    """End to end: the older duplicate must not surface as a DISAPPEARED/archive
+    proposal once the newer one has matched the scraped product."""
+    path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
+    io.write_csv(
+        [
+            make_baseline(product_id=1765, year=2025, mro_kilograms=3251),
+            make_baseline(product_id=7614, year=2026, mro_kilograms=3251),
+        ],
+        path,
+    )
+    adapter = FakeAdapter(products=[make_extracted(mro_kilograms=3490)])
+
+    summary = run_once(data_root=data_root, export_path=path, adapter=adapter)
+
+    assert summary.baseline_count == 1
+    assert summary.kinds["disappeared"] == 0
+    assert summary.persisted.archive_proposed == 0
+    connection = store.connect(paths.db_path(root=data_root))
+    try:
+        queue = store.list_change_queue(connection, summary.run.id)
+        assert queue[0].product.fmlv_product_id == 7614
+        assert not any(entry.change.field == "archived" for entry in queue)
+    finally:
+        connection.close()
+
+
+def test_archived_baseline_rows_are_excluded_from_the_baseline(
+    data_root: Path,
+) -> None:
+    """An archived row must not be diffed against — it's already off FMLV."""
+    path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
+    io.write_csv(
+        [
+            make_baseline(),
+            make_baseline(product_id=4148, model="Old 670 DC", archived=True),
+        ],
+        path,
+    )
+    adapter = FakeAdapter(products=[make_extracted()])
+
+    summary = run_once(data_root=data_root, export_path=path, adapter=adapter)
+
+    assert summary.baseline_count == 1
 
 
 def test_a_second_run_reuses_the_same_product_rows(data_root: Path, export_path: Path) -> None:

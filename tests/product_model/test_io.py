@@ -10,6 +10,7 @@ from src.product_model import io, validation
 
 ADRIA_EXPORT = (
     Path(__file__).parents[2]
+    / "resources"
     / "csv-examples"
     / "1785753111-adria-caravans-motorhomes-product-exports"
     / "motorhome-campervans.xlsx"

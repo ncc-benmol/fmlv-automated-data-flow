@@ -8,11 +8,24 @@ against the baseline export, and persist the result for the review app (DESIGN.m
 
 Four decisions worth knowing about:
 
-* **The baseline is filtered to one manufacturer before diffing.**
-  `diff.match_products` requires this and nothing enforces it — an unfiltered baseline
-  would let one brand's product match another brand's row. The filter is
-  `Motorhome.manufacturer == Manufacturer.fmlv_manufacturer`, which is precisely what
-  that registry column exists to guarantee.
+* **The baseline is filtered to one manufacturer before diffing, archived rows are
+  dropped, and same-range/model duplicates are collapsed to the newest model year.**
+  `diff.match_products` requires the manufacturer filter and nothing enforces it — an
+  unfiltered baseline would let one brand's product match another brand's row. The
+  filter is `Motorhome.manufacturer == Manufacturer.fmlv_manufacturer`, which is
+  precisely what that registry column exists to guarantee. Rows with `archived=Yes`
+  are excluded too: they're gone from FMLV already, so there's nothing to diff a
+  scraped product against. `_dedupe_baseline` handles a third case found on a real
+  Swift run: the export can carry two *non-archived* rows for the same
+  `manufacturer_range`/`model` under different `product_id`s (an older listing FMLV
+  never archived when the newer one was added). Left alone, one scraped product
+  matches one of the two, the other goes unmatched and is proposed for archiving —
+  but `store.products.upsert_seen`'s range/model fallback then folds that archive
+  proposal onto the *same* product row as the match's field changes, since the two
+  duplicates are indistinguishable by range/model alone. Keeping only the row with
+  the higher `year` (ties broken by leaving the first one seen) avoids ever creating
+  the DISAPPEARED half of that pair; the discarded duplicates are exactly what a
+  human would call archived, so this is a baseline-quality fix, not a matching one.
 
 * **A run that raises is still recorded**, as `status='failed'` with the message,
   rather than left stuck at `'running'` forever. Whatever was snapshotted before the
@@ -34,8 +47,8 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections import Counter
-from collections.abc import Callable, Sequence
+from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -46,6 +59,7 @@ from .diff import diff_products
 from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
 from .product_model import io
+from .product_model.model import Motorhome
 from .registry import Manufacturer, loader
 from .store.runs import Trigger
 
@@ -119,6 +133,36 @@ def latest_export(*, root: Path) -> Path:
         )
         raise CommandError(msg)
     return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def _dedupe_baseline(motorhomes: Iterable[Motorhome]) -> list[Motorhome]:
+    """Collapse baseline rows sharing a `(manufacturer_range, model)` to the newest.
+
+    See the module docstring's third bullet for why this exists — a real Swift export
+    had two non-archived rows both named "Escape 674" under different `product_id`s.
+    Ties (equal or both-`None` `year`) keep whichever row was seen first, which is
+    arbitrary but stable. Rows with no `manufacturer_range` or no `model` can't be
+    compared this way and are passed through untouched rather than being collapsed
+    into each other by a shared blank key.
+    """
+    groups: dict[tuple[str, str], list[Motorhome]] = defaultdict(list)
+    passthrough: list[Motorhome] = []
+    order: list[tuple[str, str]] = []
+    for motorhome in motorhomes:
+        if not motorhome.manufacturer_range or not motorhome.model:
+            passthrough.append(motorhome)
+            continue
+        key = (motorhome.manufacturer_range, motorhome.model)
+        if key not in groups:
+            order.append(key)
+        groups[key].append(motorhome)
+
+    deduped = [
+        max(group, key=lambda motorhome: motorhome.year if motorhome.year is not None else -1)
+        for key in order
+        for group in (groups[key],)
+    ]
+    return passthrough + deduped
 
 
 def resolve_ranges(adapter: Adapter, wanted: Sequence[str]) -> tuple[tuple[str, str], ...]:
@@ -202,11 +246,12 @@ def execute_run(
 
         try:
             read = io.read_export(export_path)
-            baseline = [
+            baseline = _dedupe_baseline(
                 motorhome
                 for motorhome in read.motorhomes
                 if motorhome.manufacturer == manufacturer.fmlv_manufacturer
-            ]
+                and not motorhome.archived
+            )
 
             # One browser process and one HTTP client for the whole run — the browser
             # is launched even for an adapter that won't use it, which the `Adapter`
@@ -266,6 +311,10 @@ def format_summary(summary: RunSummary) -> str:
     ]
     if persisted.year_rollover_proposed:
         lines.append(f"              of which {persisted.year_rollover_proposed} are year bumps")
+    if persisted.archive_proposed:
+        lines.append(
+            f"              of which {persisted.archive_proposed} are propose-to-archive"
+        )
     lines.append(f"  verified    {persisted.verified} fields checked and unchanged")
     if persisted.suppressed_rejections:
         lines.append(

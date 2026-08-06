@@ -102,6 +102,19 @@
       border-top: 1px solid var(--border);
     }
     .change-row:first-of-type { border-top: none; }
+    .product-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+    }
+    .product-group-header h3 { margin: 0; }
+    .accept-all-form { display: inline-block; }
+    /* Same type as the other buttons (font/weight/size all inherited from .btn) — just
+       less vertical padding, so it doesn't grow taller than the heading beside it and
+       overlap the change-row divider directly underneath. */
+    .accept-all-form .btn { padding-top: 0.3em; padding-bottom: 0.3em; }
     .field-name {
       font-weight: 600;
       /* Field names are single unbroken tokens (e.g. mh_passenger_seats_inc_driver) —
@@ -140,7 +153,8 @@
         border-color: #b98900;
       }
     }
-    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .decision-form button {
+    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .decision-form button,
+    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .accept-all-form button {
       opacity: 0.5;
       pointer-events: none;
     }

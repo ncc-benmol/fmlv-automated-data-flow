@@ -342,6 +342,81 @@ def test_year_rollover_proposal_is_marked_possible_rollover(
     assert "2027" in response.text
 
 
+def test_disappeared_product_shows_propose_to_archive(
+    client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    baseline = make_baseline()
+    diffs = diff_products([], [baseline])
+    store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = client.get(f"/runs/{run.id}")
+
+    assert response.status_code == 200
+    assert "Propose to Archive" in response.text
+
+
+def test_accept_all_accepts_every_pending_change_for_one_product(
+    client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    baseline = make_baseline(mro_kilograms=3184)
+    extracted = ExtractedMotorhome(
+        motorhome=Motorhome(
+            manufacturer="Adria Mobil",
+            manufacturer_range="Matrix",
+            model="Supreme 670 DC",
+            rrp_pounds=93920,
+            mro_kilograms=3228,
+        ),
+        provenance={
+            "rrp_pounds": Provenance(source_url="https://a", snippet="a"),
+            "mro_kilograms": Provenance(source_url="https://a", snippet="b"),
+        },
+    )
+    diffs = diff_products([extracted], [baseline])
+    store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+    queue = store.list_change_queue(connection, run.id)
+    product_id = queue[0].product.id
+    assert len(queue) == 2
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = client.post(
+        f"/runs/{run.id}/products/{product_id}/accept-all",
+        data={"reviewer_name": "ben"},
+    )
+
+    assert response.status_code == 200
+    assert response.text.count("decision-accept") == 2
+
+    connection = store.connect(db_path)
+    decisions = [store.latest_decision(connection, e.change.id) for e in queue]
+    connection.close()
+    assert all(d is not None and d.action == "accept" for d in decisions)
+
+
+def test_accept_all_404s_for_an_unknown_product(
+    client: TestClient, run_with_one_change: tuple[int, int]
+) -> None:
+    run_id, _change_id = run_with_one_change
+
+    response = client.post(
+        f"/runs/{run_id}/products/999999/accept-all",
+        data={"reviewer_name": "ben"},
+    )
+
+    assert response.status_code == 404
+
+
 def test_run_detail_groups_changes_by_product_not_a_single_flat_list(
     client: TestClient, db_path: Path
 ) -> None:

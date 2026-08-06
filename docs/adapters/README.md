@@ -1,28 +1,37 @@
 # Adapters — the general pattern
 
-Three data points now: [Adria](adria.md), [Morelo](morelo.md) and [Swift](swift.md).
-They differ enough that the ordering of the questions below matters more than any of
-the individual answers.
+Four data points now: [Adria](adria.md), [Morelo](morelo.md), [Swift](swift.md) and
+[Sunlight](sunlight.md). They differ enough that the ordering of the questions below
+matters more than any of the individual answers.
 
 ## Start here: is there a brochure or price list PDF?
 
 **Ask this before looking at the website's rendering behaviour at all.** It was the
-last thing tried for Adria and the first thing that worked for both Morelo and Swift:
+last thing tried for Adria and the first thing that worked for the three since:
 
-| | Adria | Morelo | Swift |
-|---|---|---|---|
-| JavaScript needed | Yes (Livewire, scroll-triggered) | No | No |
-| Fetches | 2 per product | 2 total | 2 per catalogue |
-| Products | 54 | 61 | 30 |
-| Price | AJAX JSON | In the PDF (EUR) | **Not published anywhere** |
-| Berths / seats | Per-product PDF | Not published | In the PDF |
-| Weights + dimensions | Per-product PDF | In the PDF | In the PDF |
+| | Adria | Morelo | Swift | Sunlight |
+|---|---|---|---|---|
+| JavaScript needed | Yes (Livewire, scroll-triggered) | No | No | No |
+| Fetches | 2 per product | 2 total | 2 per catalogue | 2 per catalogue |
+| Products | 54 | 61 | 30 | 26 |
+| Price | AJAX JSON | In the PDF (EUR) | **Not published anywhere** | In the PDF (**GBP**) |
+| Berths / seats | Per-product PDF | Not published | In the PDF | In the PDF |
+| Weights + dimensions | Per-product PDF | In the PDF | In the PDF | In the PDF |
 
-A manufacturer that publishes a price list or a brochure with a technical-specification
-section is dramatically cheaper to support — one fetch, no browser, no per-product work
-— and the document is often *more* complete than the website. For both Morelo and Swift
-the website was the worse source. Adria's shape (JS-rendered catalogue plus a
-per-product PDF) turned out to be the exception, not the rule.
+Three of four publish everything in a PDF, and the PDF has been the better source every
+time — cheaper (one fetch, no browser, no per-product work) *and* more complete than the
+website. Adria's shape, a JS-rendered catalogue plus a per-product PDF, is the exception.
+
+Two follow-on questions the later surveys added:
+
+- **Is there a market-specific edition?** Sunlight is German but publishes a UK & Ireland
+  price list in sterling, which removes the exchange-rate problem that is the single
+  worst piece of data in the Morelo adapter. Check before converting a currency.
+- **Does the downloads page list more than the current document?** Every one so far has
+  had a near-miss sitting beside the file actually wanted — Morelo's catalogue in a
+  directory called `kataloge_preislisten`, Swift's opaque media key, Sunlight's three
+  superseded model years *and* a differently-named glossy catalogue. Match precisely,
+  prefer the newest, and rediscover per run rather than hardcoding.
 
 ## Then: parsing a spec table is where the real risk is
 
@@ -32,17 +41,29 @@ misjoin two Swift tables and you get plausible, internally consistent motorhomes
 carrying each other's weights and prices. Nothing downstream flags it and a reviewer
 accepts the change.
 
-Two defences, both of which earned their place:
+Three defences, all of which earned their place:
 
 - **Never infer a column from reading order alone.** pypdf emits runs in content-stream
   order, which on some Morelo pages is right-to-left. `fetch.pdf.extract_positioned_text`
   gives coordinates — but note that pypdf also fails to place *some* runs (reporting
   (0, 0)), so coordinates can't be trusted blindly either. See [`morelo.md`](morelo.md)
   for the rule that satisfies both.
-- **Look for arithmetic the manufacturer publishes against itself.** Both Morelo and
-  Swift give MTPLM, MRO *and* payload, so `payload == MTPLM − MRO` is a free check on
-  the parse — per column for Morelo, per join for Swift. Products that fail it are
-  dropped rather than proposed. It catches misaligned columns, not mislabelled ones.
+- **Parse runs, not lines, wherever cell boundaries carry meaning.** A line is a lossy
+  rendering of a table: joined up, `CLIFF 540 V` and `CLIFF 540` followed by a stray
+  `V` are the same string, and Sunlight sells both. Where a value can contain a space,
+  run boundaries are the only thing that says where a cell ends.
+- **Look for arithmetic the manufacturer publishes against itself.** Morelo and Swift
+  give MTPLM, MRO *and* payload, so `payload == MTPLM − MRO` is a free check on the
+  parse — per column for Morelo, per join for Swift. Sunlight publishes no payload but
+  prints each mass with its ±5% tolerance band, which is self-consistent in the same
+  way and serves the same purpose. Look for *some* redundancy in the document; there
+  has been one every time. Products that fail it are dropped rather than proposed. It
+  catches misaligned columns, not mislabelled ones.
+
+One trap common to all of them: when slicing a row's values, **stop at the next row's
+label** rather than taking a fixed count. A short row otherwise swallows the following
+label, padding the count back to what was expected and defeating the very check meant
+to catch it.
 
 Anchor row patterns on whichever end of the row is **typed and fixed-width**. Swift's
 rows have ragged engine prose on the left and a fixed run of metres/integers/`kg` on the

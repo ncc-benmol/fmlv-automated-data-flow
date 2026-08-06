@@ -69,16 +69,27 @@ class TextItem:
 
 
 def extract_positioned_text(path: Path | str, page_number: int) -> list[TextItem]:
-    """Every text run on one page, with coordinates, ordered left-to-right.
+    """Every text run on one page, with coordinates, in the order the page draws them.
 
-    `extract_text` is enough whenever reading order carries the meaning. It is *not*
-    enough for a multi-column spec table: pypdf emits runs in the order the PDF's
-    content stream draws them, which is not always left-to-right. Morelo's price list
-    has pages where the two side-by-side model names are drawn right column first,
-    so pairing names to value columns by reading order silently swaps two products'
-    weights and prices (see `docs/adapters/morelo.md`). Coordinates are the only
-    reliable way to recover the real column order, and nothing about that problem is
-    Morelo-specific, so it lives here rather than in the adapter.
+    `extract_text` is enough whenever reading order carries the meaning. Two things it
+    loses, both of which a spec table needs:
+
+    * **Where a run sits.** pypdf emits runs in content-stream order, which is not
+      always left-to-right. Morelo's price list has pages where the two side-by-side
+      model names are drawn right column first, so pairing names to value columns by
+      reading order silently swaps two products' weights and prices. Coordinates are
+      the only reliable way to recover the real column order — with the caveat that
+      pypdf reports some runs at (0, 0) when it cannot place them, so callers should
+      filter on `y` rather than trust every coordinate (see `docs/adapters/morelo.md`).
+    * **Where one run ends and the next begins.** Joined into a line, `CLIFF 540 V` and
+      `CLIFF 540` followed by `V` are indistinguishable. Sunlight's model headers are
+      one run per model, so the runs themselves carry the split that the text cannot
+      (see `docs/adapters/sunlight.md`).
+
+    Order is the page's own, deliberately: it is the one thing that cannot be
+    reconstructed afterwards, whereas any caller wanting left-to-right can sort on `x`
+    — and should do so explicitly, since whether that is even correct depends on the
+    document.
     """
     reader = PdfReader(Path(path))
     page = reader.pages[page_number - 1]
@@ -91,4 +102,4 @@ def extract_positioned_text(path: Path | str, page_number: int) -> list[TextItem
             items.append(TextItem(x=tm[4], y=tm[5], text=stripped))
 
     page.extract_text(visitor_text=visit)
-    return sorted(items, key=lambda item: item.x)
+    return items

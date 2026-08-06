@@ -449,11 +449,18 @@ def collect(
 
     results: list[ExtractedMotorhome] = []
     for page in spec_pages:
-        positioned = [
-            (item.x, item.text)
-            for item in extract_positioned_text(pdf.file_path, page.page_number)
-            if item.y > 0
-        ]
+        # Sorted left-to-right here rather than relying on the extractor's order,
+        # which is the page's own drawing order. Runs pypdf could not place report
+        # (0, 0) and are dropped, since sorting them would put them leftmost wherever
+        # they actually sit — see `model_names_in_column_order`.
+        positioned = sorted(
+            (
+                (item.x, item.text)
+                for item in extract_positioned_text(pdf.file_path, page.page_number)
+                if item.y > 0
+            ),
+            key=lambda item: item[0],
+        )
         products = parse_spec_page(page.text, positioned, page.page_number)
         if not products:
             on_progress(f"  p{page.page_number} — SKIPPED: no floorplan recognised")

@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from src import paths, store
+from src.adapters import ADAPTERS
 from src.adapters.base import ExtractedMotorhome, Provenance
 from src.cli import (
     CommandError,
@@ -468,15 +469,19 @@ def test_missing_registry_exits_two(
 def test_manufacturer_without_an_adapter_says_which_ones_exist(
     data_root: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    # Rimor is a real registry row with no adapter yet. It used to be Swift here, until
+    # Swift got one — so pick a brand still genuinely unsupported, and expect the
+    # message to list whichever adapters do exist rather than naming them one by one.
     registry = data_root / "manufacturers.csv"
     registry.write_text(
-        "manufacturer_id,fmlv_manufacturer,website_url\n26,Swift Group Ltd,https://example.invalid/\n",
+        "manufacturer_id,fmlv_manufacturer,website_url\n75,Rimor,https://example.invalid/\n",
         encoding="utf-8",
     )
 
-    exit_code = main(["run", "Swift Group Ltd", "--data-dir", str(data_root)])
+    exit_code = main(["run", "Rimor", "--data-dir", str(data_root)])
 
     assert exit_code == 2
     error = capsys.readouterr().err
     assert "no adapter written" in error
-    assert "Adria Mobil" in error
+    for supported in ADAPTERS:
+        assert supported in error

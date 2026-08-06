@@ -1,7 +1,57 @@
 # Adapters — the general pattern
 
-One data point so far (Adria — see [`adria.md`](adria.md)), so treat this as a working
-hypothesis to test against the next manufacturer, not a settled architecture.
+Three data points now: [Adria](adria.md), [Morelo](morelo.md) and [Swift](swift.md).
+They differ enough that the ordering of the questions below matters more than any of
+the individual answers.
+
+## Start here: is there a brochure or price list PDF?
+
+**Ask this before looking at the website's rendering behaviour at all.** It was the
+last thing tried for Adria and the first thing that worked for both Morelo and Swift:
+
+| | Adria | Morelo | Swift |
+|---|---|---|---|
+| JavaScript needed | Yes (Livewire, scroll-triggered) | No | No |
+| Fetches | 2 per product | 2 total | 2 per catalogue |
+| Products | 54 | 61 | 30 |
+| Price | AJAX JSON | In the PDF (EUR) | **Not published anywhere** |
+| Berths / seats | Per-product PDF | Not published | In the PDF |
+| Weights + dimensions | Per-product PDF | In the PDF | In the PDF |
+
+A manufacturer that publishes a price list or a brochure with a technical-specification
+section is dramatically cheaper to support — one fetch, no browser, no per-product work
+— and the document is often *more* complete than the website. For both Morelo and Swift
+the website was the worse source. Adria's shape (JS-rendered catalogue plus a
+per-product PDF) turned out to be the exception, not the rule.
+
+## Then: parsing a spec table is where the real risk is
+
+For a PDF-sourced manufacturer, finding the numbers is easy and *attaching them to the
+right product* is hard — and it fails silently. Swap two columns of a Morelo page or
+misjoin two Swift tables and you get plausible, internally consistent motorhomes
+carrying each other's weights and prices. Nothing downstream flags it and a reviewer
+accepts the change.
+
+Two defences, both of which earned their place:
+
+- **Never infer a column from reading order alone.** pypdf emits runs in content-stream
+  order, which on some Morelo pages is right-to-left. `fetch.pdf.extract_positioned_text`
+  gives coordinates — but note that pypdf also fails to place *some* runs (reporting
+  (0, 0)), so coordinates can't be trusted blindly either. See [`morelo.md`](morelo.md)
+  for the rule that satisfies both.
+- **Look for arithmetic the manufacturer publishes against itself.** Both Morelo and
+  Swift give MTPLM, MRO *and* payload, so `payload == MTPLM − MRO` is a free check on
+  the parse — per column for Morelo, per join for Swift. Products that fail it are
+  dropped rather than proposed. It catches misaligned columns, not mislabelled ones.
+
+Anchor row patterns on whichever end of the row is **typed and fixed-width**. Swift's
+rows have ragged engine prose on the left and a fixed run of metres/integers/`kg` on the
+right, so every pattern anchors right and never parses the left at all.
+
+## What Adria's survey found
+
+Kept because it is still the pattern for a JS-driven catalogue, and some manufacturer
+will have one.
 
 ## What Adria's survey found
 
@@ -49,6 +99,8 @@ as a generic capability, not something specific to Adria.
 
 ## What to check for the next manufacturer
 
+- **Is there a brochure or price list PDF with a spec section?** Check this first — see
+  the top of this file.
 - Does the plain-HTML page already have the numbers? (Don't reach for the browser
   before checking.)
 - If not, is the real data in a JS framework's own state/AJAX payload (React/Vue

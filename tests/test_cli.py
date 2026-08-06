@@ -50,6 +50,7 @@ def make_manufacturer(**overrides: Any) -> Manufacturer:
         "models_index_url": None,
         "price_list_url": None,
         "brochure_url": None,
+        "ncc_supplier_name": "Adria Caravans & Motorhomes",
         "specs_format": "mixed",
         "needs_javascript": TriState.YES,
         "login_required": False,
@@ -212,23 +213,38 @@ def test_ambiguous_manufacturer_asks_for_the_id() -> None:
 
 
 def test_latest_export_picks_the_most_recently_modified(data_root: Path) -> None:
-    exports = paths.exports_dir(root=data_root)
-    (exports / "old").mkdir(parents=True)
-    (exports / "new").mkdir(parents=True)
-    older = exports / "old" / "export.csv"
-    newer = exports / "new" / "export.xlsx"
+    exports = paths.manufacturer_exports_dir(3, "Adria Mobil", root=data_root)
+    exports.mkdir(parents=True)
+    older = exports / "2026-08-03_Adria-Mobil_motorhome-campervans.csv"
+    newer = exports / "2026-08-04_Adria-Mobil_motorhome-campervans.xlsx"
     older.write_text("old", encoding="utf-8")
     newer.write_text("new", encoding="utf-8")
     import os
 
     os.utime(older, (1_000_000, 1_000_000))
 
-    assert latest_export(root=data_root) == newer
+    assert (
+        latest_export(root=data_root, manufacturer_id=3, manufacturer_name="Adria Mobil")
+        == newer
+    )
+
+
+def test_latest_export_ignores_a_different_manufacturers_export(data_root: Path) -> None:
+    # A real bug found during Phase 7: downloading manufacturer A's export must not
+    # let it be silently picked up as manufacturer B's baseline.
+    other = paths.manufacturer_exports_dir(26, "Swift Group Ltd", root=data_root)
+    other.mkdir(parents=True)
+    (other / "2026-08-04_Swift-Group-Ltd_motorhome-campervans.xlsx").write_text(
+        "swift", encoding="utf-8"
+    )
+
+    with pytest.raises(CommandError, match="--export"):
+        latest_export(root=data_root, manufacturer_id=3, manufacturer_name="Adria Mobil")
 
 
 def test_latest_export_with_nothing_downloaded_is_a_command_error(data_root: Path) -> None:
     with pytest.raises(CommandError, match="--export"):
-        latest_export(root=data_root)
+        latest_export(root=data_root, manufacturer_id=3, manufacturer_name="Adria Mobil")
 
 
 def test_resolve_ranges_selects_by_label_case_insensitively() -> None:

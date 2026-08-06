@@ -204,14 +204,26 @@ generated upload CSV is written to a folder and uploaded **by hand**.
 public site. Keeps a human gate on the only irreversible step. Whether the site offers a
 proper API is still unknown (§9) — if it does, this is the piece that gets replaced first.
 
-Implemented in `fetch/ncc.py` (Phase 7): `download_export` logs in and saves the
-current export, `NccCredentials.from_env` reads the login from `NCC_LOGIN_EMAIL`/
-`NCC_LOGIN_PASSWORD` (§8's secrets row). Unlike every manufacturer adapter, the NCC
-site's own login/export pages haven't been surveyed the way §5.1's adapters are —
-`NccSiteConfig`'s URLs and form selectors are placeholders to confirm against the real
-site, not facts read off it (see TODO.md's "For Ben" note). The generated-CSV half of
-this section — `output/build.py` turning approved decisions into an upload-ready CSV
-in `schema.COLUMNS` order, validated before it's offered — is also Phase 7.
+Implemented in `fetch/ncc.py` (Phase 7): `download_export` logs in and saves one
+manufacturer's current export, `NccCredentials.from_env` reads the login from
+`NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD` (§8's secrets row). Surveyed against the real
+site 2026-08-06 (TODO.md's "For Ben" note is resolved): the login page is a plain
+form, but there is **no single "download everything" button** — the NCC's admin panel
+(Laravel Nova, at `/nova/...`) only offers exports **one manufacturer at a time**, via
+a resource action ("Export Products by Supplier") that returns a zip containing
+`motorhome-campervans.xlsx` and `touring-caravans.xlsx`. This is a bigger shape
+difference than a config tweak: `download_export` takes a `supplier_name` argument,
+and `data/exports/` is scoped per manufacturer (`paths.manufacturer_exports_dir`) so
+`cli.latest_export` can never pick up a different manufacturer's stale file as the
+baseline. The supplier dropdown's labels don't always match `fmlv_manufacturer`
+(`"Adria Mobil"` vs `"Adria Caravans & Motorhomes"`), so the registry carries a
+separate `ncc_supplier_name` column. `fmlv fetch-export <manufacturer>` (Phase 8's
+`cli.py`) is the command that actually triggers a download — previously
+`download_export` existed but nothing called it. Open question 2 (is there a proper
+export API?) is now answered: no, this resource-action flow is the only route. The
+generated-CSV half of this section — `output/build.py` turning approved decisions
+into an upload-ready CSV in `schema.COLUMNS` order, validated before it's offered — is
+also Phase 7.
 
 ### 6.3 Review via a small web app
 
@@ -402,7 +414,7 @@ binding the reachable interface only is the safer default until it does.
 | # | Question | Blocks |
 |---|---|---|
 | ~~1~~ | ~~The field guide marks `year` "PLEASE Leave as is!", but a 2027 model is said to update the 2026 row with year fields changing. Does the website bump `year` itself, or do we write the new year?~~ **Resolved — see §6.9**: we write it, and only ever on explicit human instruction. | Model-year rollover handling |
-| 2 | Does the NCC site expose an export/import API, or is headless browser automation the only route? | Could replace §6.2 |
+| ~~2~~ | ~~Does the NCC site expose an export/import API, or is headless browser automation the only route?~~ **Resolved 2026-08-06 — see §6.2.** No API: the admin panel's "Export Products by Supplier" resource action (one manufacturer at a time, a zip download) is the only route. | Confirmed §6.2's approach |
 | 3 | What validation does the upload run, and does one bad row reject the whole file? | Upload CSV strategy |
 | 4 | Do we have standing to crawl manufacturer sites, and could any manufacturer supply a feed directly instead? | Politeness policy; could remove work entirely for cooperative brands |
 | 5 | For European brands, is UK-market data always published in English and GBP by the UK importer? | Language/currency handling |

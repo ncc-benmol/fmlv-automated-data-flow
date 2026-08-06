@@ -8,12 +8,26 @@ place that knows that layout, so nothing else hard-codes a path string.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 #: Root of all runtime data. Pass a different `root` to any function here (e.g. a
 #: tmp_path in tests, or a different mount point in the container) rather than
 #: mutating this constant.
 DATA_DIR = Path("data")
+
+#: Characters not safe in a Windows path component, collapsed to a single "-".
+_UNSAFE_PATH_CHARS = re.compile(r'[<>:"/\\|?*]+')
+
+
+def safe_path_component(text: str) -> str:
+    """A folder/file-name-safe version of free text like a manufacturer name.
+
+    Manufacturer names are free text from the registry (`Manufacturer.fmlv_manufacturer`)
+    and could in principle carry characters Windows paths reject — this is the one
+    place that guards against that rather than every call site doing it separately.
+    """
+    return _UNSAFE_PATH_CHARS.sub("-", text.strip()).strip()
 
 
 def registry_path(*, root: Path = DATA_DIR) -> Path:
@@ -34,6 +48,22 @@ def snapshot_dir(manufacturer_id: int, run_id: int, *, root: Path = DATA_DIR) ->
 def exports_dir(*, root: Path = DATA_DIR) -> Path:
     """Where downloaded FMLV exports (the baseline for each run) are kept."""
     return root / "exports"
+
+
+def manufacturer_exports_dir(
+    manufacturer_id: int, manufacturer_name: str, *, root: Path = DATA_DIR
+) -> Path:
+    """Where one manufacturer's downloaded exports are kept.
+
+    The NCC site only offers exports one manufacturer at a time (`fetch/ncc.py`), so
+    exports are scoped the same way snapshots are — one subdirectory per manufacturer
+    — without ever picking up a different manufacturer's stale file as the baseline
+    (`cli.latest_export`). Named `<id>_<name>` rather than the bare id so the folder is
+    identifiable by eye; the id is still the leading, stable part of the name in case
+    the manufacturer is ever renamed in the registry.
+    """
+    folder = f"{manufacturer_id}_{safe_path_component(manufacturer_name)}"
+    return exports_dir(root=root) / folder
 
 
 def uploads_dir(*, root: Path = DATA_DIR) -> Path:

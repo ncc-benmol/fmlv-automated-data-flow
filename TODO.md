@@ -182,7 +182,7 @@ Do this **before** committing to an adapter interface — the sites decide the s
       `store/changes.py:was_previously_rejected`, matched on the exact
       (product, field, new_value) triple; a *different* corrected figure from the
       manufacturer is still proposed (DESIGN.md §6.8)      
-- [ ] **[F]** Bulk accept for a whole product or a whole field across products
+- [x] **[F]** Bulk accept for a whole product or a whole field across products
 - [ ] **[F]** Authentication — currently a trusted internal network
 - [ ] **[F]** Concurrent reviewers
 
@@ -209,17 +209,37 @@ Do this **before** committing to an adapter interface — the sites decide the s
       Phase 8 CLI can act on. (Open question 3 — what the NCC upload path itself
       enforces — is still unanswered; this is our own pre-flight check, not theirs.)
 - [x] **[P]** Playwright: log in to the NCC site and download the current export —
-      `fetch/ncc.py:download_export`. **Caveat:** unlike every manufacturer adapter,
-      the NCC login/export pages themselves haven't been surveyed (no Phase 4-style
-      spike exists for our own site) — `NccSiteConfig`'s URLs/selectors are
-      placeholders to confirm against the real site, not facts read off it. The
-      login-then-download *mechanism* (fill form, submit, click through to a file
-      download) is implemented and tested against a local fixture
-      (`tests/fetch/test_ncc.py`); only the real site's specific markup is unconfirmed.
+      `fetch/ncc.py:download_export`. **Surveyed against the real site 2026-08-06**
+      (Ben walked through it live): the login page is a plain form at
+      `/nova/login`, but there is no single "download everything" button — exports
+      come from the admin panel's ("Nova") "Export Products by Supplier" resource
+      action, **one manufacturer at a time**, as a zip containing
+      `motorhome-campervans.xlsx` + `touring-caravans.xlsx`. `NccSiteConfig`'s
+      URLs/selectors are now the real ones, not placeholders.
+      `tests/fetch/test_ncc.py` covers the full flow against local fixtures.
 - [x] **[P]** Credential handling via environment variables — `fetch/ncc.py`:
       `NccCredentials.from_env()` reads `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD`, raising
       `NccCredentialsError` rather than proceeding with a blank credential. Never
-      hardcoded, never committed, matching DESIGN.md §8's secrets row.
+      hardcoded, never committed, matching DESIGN.md §8's secrets row. `.env` is set
+      up on the dev machine (gitignored, per `.env.example`).
+- [x] **[P]** Wire `download_export` into the CLI — previously written but never
+      called from anywhere except tests. `fmlv fetch-export <manufacturer>`
+      (`cli.py:_fetch_export_command`) is the new command; it resolves the
+      manufacturer from the registry, requires `ncc_supplier_name` to be set (a clear
+      `CommandError` if not), and writes to
+      `data/exports/<manufacturer_id>_<manufacturer>/<date>_<manufacturer>_motorhome-campervans.xlsx`,
+      and prints progress ("logging in...", "triggering the export download...") so a
+      terminal isn't silent for the several seconds a real browser login takes.
+- [x] **[P]** Registry: `ncc_supplier_name` column (`data/manufacturers.csv`,
+      `registry/models.py`, `registry/loader.py`) — the exact label a manufacturer has
+      in the NCC's supplier dropdown, which doesn't always match `fmlv_manufacturer`
+      (e.g. `"Adria Mobil"` vs `"Adria Caravans & Motorhomes"`). Filled in for all six
+      pilot manufacturers.
+- [x] **[P]** Scope `data/exports/` per manufacturer — since the NCC only offers
+      exports one manufacturer at a time, `paths.manufacturer_exports_dir` and
+      `cli.latest_export(manufacturer_id=...)` fix a real bug the old single shared
+      `data/exports/` directory had: downloading manufacturer A's export and then
+      running manufacturer B would have silently used A's stale file as B's baseline.
 - [ ] **[F]** Automated upload — deliberately manual for now
 - [ ] **[F]** Confirm upload validation rules with whoever runs the site (open question 3)
 
@@ -383,15 +403,13 @@ each needs a human decision or a data fix.
       (`"Matrix Supreme"` vs `"Matrix"` for a `Supreme MB` product) — pre-existing in
       the NCC's export, not introduced here; token matching tolerates it fine since
       "Matrix" is still a shared token either way.
-- [ ] **NCC login/export page structure is unconfirmed.** `fetch/ncc.py`'s
-      `NccSiteConfig` (login URL, export URL, form selectors) is a set of placeholders
-      — no one has surveyed our own site's login/export flow the way Phase 4 surveyed
-      each manufacturer's. The login-then-download *mechanism* works (fill form,
-      submit, click through to a file download) and is tested against a local fixture
-      (`tests/fetch/test_ncc.py`); every URL/selector is a config override, so
-      confirming the real ones is a config change, not a rewrite. Worth checking at the
-      same time: whether the site exposes a proper export/import API instead (open
-      question 2), which would replace this module rather than just configure it.
+- [x] **NCC login/export page structure — resolved 2026-08-06.** Surveyed live with
+      Ben logged in: `NccSiteConfig` now holds the real URLs and selectors, and
+      `fetch/ncc.py`'s module docstring records the flow. Turned out to be more than a
+      config change — the site exports one manufacturer at a time, not "everything",
+      so `download_export` gained a `supplier_name` parameter and the registry gained
+      `ncc_supplier_name`. No export/import API exists (open question 2, resolved) —
+      this resource-action flow is the only route.
 
 ## Open questions to chase
 
@@ -400,7 +418,8 @@ Tracked in [DESIGN.md §9](DESIGN.md). The ones that block work:
 - [x] **1** — does the website bump `year` on rollover, or do we write it? *(blocks Phase 5)*
       **Resolved** — we write it, only on explicit human instruction, never automatically.
       See DESIGN.md §6.9 and the Phase 5 entry above.
-- [ ] **2** — is there an NCC API? *(could replace Phase 7's Playwright work)*
+- [x] **2** — is there an NCC API? **Resolved 2026-08-06** — no; the admin panel's
+      per-supplier export resource action is the only route. See DESIGN.md §6.2.
 - [ ] **3** — upload validation rules; does one bad row reject the file? *(shapes Phase 7)*
 - [ ] **4** — permission to crawl; would any manufacturer supply a feed instead?
 - [ ] **5** — European brands: always English and GBP via the UK importer?

@@ -23,3 +23,15 @@ def test_helpers_respect_a_custom_root(tmp_path: Path) -> None:
     assert paths.exports_dir(root=tmp_path) == tmp_path / "exports"
     assert paths.uploads_dir(root=tmp_path) == tmp_path / "uploads"
     assert paths.db_path(root=tmp_path) == tmp_path / "run_store.sqlite3"
+
+
+def test_manufacturer_exports_dir_is_named_id_underscore_name() -> None:
+    root = Path("data")
+    assert (
+        paths.manufacturer_exports_dir(3, "Adria Mobil", root=root)
+        == root / "exports" / "3_Adria Mobil"
+    )
+
+
+def test_safe_path_component_collapses_windows_unsafe_characters() -> None:
+    assert paths.safe_path_component('Ace: "Motorhomes" / Ltd') == "Ace- -Motorhomes- - Ltd"

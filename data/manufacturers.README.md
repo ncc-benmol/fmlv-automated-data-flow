@@ -30,6 +30,7 @@ warning every time.
 | `models_index_url` | | URL | The page that lists all current models/ranges. This is the crawl entry point — the single most valuable field to fill in. |
 | `price_list_url` | | URL | Current retail price list, usually a PDF. Likely the authoritative price source. |
 | `brochure_url` | | URL | Full brochure PDF, often carries the technical specification tables. |
+| `ncc_supplier_name` | for `fmlv fetch-export` | free text | The exact label this manufacturer has in the NCC site's own "Export Products by Supplier" dropdown (`/nova/resources/products` → `...` → Export Products by Supplier). Not always the same string as `fmlv_manufacturer` (e.g. `Adria Mobil` vs `Adria Caravans & Motorhomes`) — confirm by opening the dropdown, don't guess. |
 | `specs_format` | | `html_table` / `json` / `pdf` / `mixed` / `unknown` | Filled in during the exploration spike. Decides whether we write a deterministic parser or send it to Claude. |
 | `needs_javascript` | | `yes` / `no` / `unknown` | Whether the spec data is server-rendered or requires a headless browser. Cost/latency driver. |
 | `login_required` | | `yes` / `no` | Dealer-portal gated data. |

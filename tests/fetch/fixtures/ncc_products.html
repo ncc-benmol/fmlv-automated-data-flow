@@ -1,0 +1,29 @@
+<html>
+<body>
+<!-- Stands in for /nova/resources/products: the "..." actions dropdown, the
+     "Export Products by Supplier" modal, and the zip download it triggers.
+     Selectors match the real dusk/id attributes surveyed on the live Nova site
+     2026-08-06 (see fetch/ncc.py's module docstring). -->
+<button dusk="index-standalone-action-dropdown" onclick="document.getElementById('actions-menu').style.display='block'">...</button>
+<div id="actions-menu" style="display:none">
+  <span onclick="document.getElementById('export-modal').style.display='block'">Export Products by Supplier</span>
+</div>
+
+<div id="export-modal" style="display:none">
+  <label for="exhibitor">Supplier*</label>
+  <select id="exhibitor">
+    <option value="">Choose an option</option>
+    <option value="1">Test Motorhomes</option>
+    <option value="2">Other Brand</option>
+  </select>
+  <div
+    dusk="only_active_products-default-boolean-field"
+    role="checkbox"
+    data-state="checked"
+    style="display:inline-block; width:20px; height:20px;"
+    onclick="this.setAttribute('data-state', this.getAttribute('data-state') === 'checked' ? 'unchecked' : 'checked')"
+  ></div>
+  <a dusk="confirm-action-button" href="ncc_export.zip" download>Run Action</a>
+</div>
+</body>
+</html>

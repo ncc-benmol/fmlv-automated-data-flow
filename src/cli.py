@@ -50,6 +50,7 @@ import sys
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,7 @@ from .adapters import Adapter, adapter_for
 from .diff import diff_products
 from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
+from .fetch.ncc import NccCredentials, NccCredentialsError, NccExportError, download_export
 from .product_model import io
 from .product_model.model import Motorhome
 from .registry import Manufacturer, loader
@@ -113,14 +115,18 @@ def find_manufacturer(manufacturers: Sequence[Manufacturer], needle: str) -> Man
     raise CommandError(msg)
 
 
-def latest_export(*, root: Path) -> Path:
-    """The most recently modified FMLV export under `data/exports/`.
+def latest_export(*, root: Path, manufacturer_id: int, manufacturer_name: str) -> Path:
+    """The most recently modified FMLV export for one manufacturer.
 
-    Phase 7's Playwright download writes a dated directory per download, so "newest
-    file wins" is the right default for a scheduled run; `--export` overrides it when
-    testing against one specific baseline.
+    `fetch/ncc.py`'s download is per-manufacturer (the NCC site offers exports no
+    other way), so the search is scoped to that manufacturer's own subdirectory under
+    `data/exports/` — otherwise a stale export downloaded for a *different*
+    manufacturer could silently become today's baseline. `fetch-export` names each
+    download `<date>_<manufacturer>_motorhome-campervans.xlsx` directly in that
+    subdirectory (no per-date nesting), so "newest file wins" is the right default for
+    a scheduled run; `--export` overrides it when testing against one specific baseline.
     """
-    directory = paths.exports_dir(root=root)
+    directory = paths.manufacturer_exports_dir(manufacturer_id, manufacturer_name, root=root)
     candidates = [
         path
         for path in directory.rglob("*")
@@ -129,7 +135,7 @@ def latest_export(*, root: Path) -> Path:
     if not candidates:
         msg = (
             f"no {' or '.join(EXPORT_SUFFIXES)} export found under {directory} — "
-            f"download one first, or point at it with --export"
+            f"run `fmlv fetch-export` first, or point at one with --export"
         )
         raise CommandError(msg)
     return max(candidates, key=lambda path: path.stat().st_mtime)
@@ -361,7 +367,11 @@ def _run_command(args: argparse.Namespace) -> int:
     if args.ranges:
         collect_kwargs["ranges"] = resolve_ranges(adapter, args.ranges)
 
-    export_path: Path = args.export or latest_export(root=data_root)
+    export_path: Path = args.export or latest_export(
+        root=data_root,
+        manufacturer_id=manufacturer.manufacturer_id,
+        manufacturer_name=manufacturer.fmlv_manufacturer,
+    )
     if not export_path.exists():
         msg = f"export not found: {export_path}"
         raise CommandError(msg)
@@ -392,6 +402,65 @@ def _run_command(args: argparse.Namespace) -> int:
             f"the registry's fmlv_manufacturer matches its 'manufacturer' column",
             file=sys.stderr,
         )
+    return 0
+
+
+def _fetch_export_command(args: argparse.Namespace) -> int:
+    """`fmlv fetch-export <manufacturer>`: log in to the NCC site and download its export.
+
+    The download itself is `fetch.ncc.download_export`; this handler is just the same
+    registry-resolution and error-reporting wiring `_run_command` uses, plus turning
+    the two ways this can fail for a reason the operator can fix — missing
+    credentials, no `ncc_supplier_name` on record — into a `CommandError` rather than
+    a traceback.
+    """
+    data_root: Path = args.data_dir
+
+    registry_file = args.registry or paths.registry_path(root=data_root)
+    if not registry_file.exists():
+        msg = f"manufacturer registry not found at {registry_file}"
+        raise CommandError(msg)
+
+    registry = loader.load(registry_file)
+    manufacturer = find_manufacturer(registry.manufacturers, args.manufacturer)
+
+    if not manufacturer.ncc_supplier_name:
+        msg = (
+            f"{manufacturer.fmlv_manufacturer!r} has no ncc_supplier_name set in the "
+            f"registry — open the NCC site's 'Export Products by Supplier' dropdown "
+            f"(/nova/resources/products) and copy the exact label into "
+            f"data/manufacturers.csv"
+        )
+        raise CommandError(msg)
+
+    try:
+        credentials = NccCredentials.from_env()
+    except NccCredentialsError as exc:
+        raise CommandError(str(exc)) from exc
+
+    safe_name = paths.safe_path_component(manufacturer.fmlv_manufacturer)
+    dest_path = (
+        paths.manufacturer_exports_dir(
+            manufacturer.manufacturer_id, manufacturer.fmlv_manufacturer, root=data_root
+        )
+        / f"{date.today().isoformat()}_{safe_name}_motorhome-campervans.xlsx"
+    )
+
+    def report_progress(message: str) -> None:
+        print(message, flush=True)
+
+    try:
+        download_export(
+            credentials,
+            manufacturer.ncc_supplier_name,
+            dest_path,
+            headless=not args.show_browser,
+            on_progress=report_progress,
+        )
+    except NccExportError as exc:
+        raise CommandError(str(exc)) from exc
+
+    print(f"downloaded {manufacturer.fmlv_manufacturer} export to {dest_path}")
     return 0
 
 
@@ -450,6 +519,33 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run_parser.set_defaults(handler=_run_command)
+
+    fetch_export_parser = subparsers.add_parser(
+        "fetch-export",
+        help="log in to the NCC site and download one manufacturer's current export",
+    )
+    fetch_export_parser.add_argument(
+        "manufacturer",
+        help="registry name, display name or manufacturer_id — e.g. 'Adria', 'Adria Mobil', 3",
+    )
+    fetch_export_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=paths.DATA_DIR,
+        help=f"root for exports (default: {paths.DATA_DIR})",
+    )
+    fetch_export_parser.add_argument(
+        "--registry",
+        type=Path,
+        default=None,
+        help="manufacturer registry CSV (default: <data-dir>/manufacturers.csv)",
+    )
+    fetch_export_parser.add_argument(
+        "--show-browser",
+        action="store_true",
+        help="run non-headless, for debugging against the real site",
+    )
+    fetch_export_parser.set_defaults(handler=_fetch_export_command)
 
     return parser
 

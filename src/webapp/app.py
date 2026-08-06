@@ -206,7 +206,11 @@ def create_app(
             if range_name:
                 collect_kwargs["ranges"] = resolve_ranges(adapter, [range_name])
 
-            export_path = latest_export(root=app.state.data_root)
+            export_path = latest_export(
+                root=app.state.data_root,
+                manufacturer_id=manufacturer.manufacturer_id,
+                manufacturer_name=manufacturer.fmlv_manufacturer,
+            )
         except CommandError as exc:
             return render_error(str(exc))
 

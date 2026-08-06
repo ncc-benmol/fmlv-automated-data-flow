@@ -54,3 +54,41 @@ def extract_text(path: Path | str) -> ExtractedPdf:
         for index, page in enumerate(reader.pages, start=1)
     ]
     return ExtractedPdf(file_path=path, pages=pages)
+
+
+@dataclass(frozen=True)
+class TextItem:
+    """One run of text on a page, with the position it was drawn at.
+
+    `x` increases left-to-right and `y` bottom-to-top, in PDF user-space points.
+    """
+
+    x: float
+    y: float
+    text: str
+
+
+def extract_positioned_text(path: Path | str, page_number: int) -> list[TextItem]:
+    """Every text run on one page, with coordinates, ordered left-to-right.
+
+    `extract_text` is enough whenever reading order carries the meaning. It is *not*
+    enough for a multi-column spec table: pypdf emits runs in the order the PDF's
+    content stream draws them, which is not always left-to-right. Morelo's price list
+    has pages where the two side-by-side model names are drawn right column first,
+    so pairing names to value columns by reading order silently swaps two products'
+    weights and prices (see `docs/adapters/morelo.md`). Coordinates are the only
+    reliable way to recover the real column order, and nothing about that problem is
+    Morelo-specific, so it lives here rather than in the adapter.
+    """
+    reader = PdfReader(Path(path))
+    page = reader.pages[page_number - 1]
+
+    items: list[TextItem] = []
+
+    def visit(text: str, _cm: object, tm: list[float], *_rest: object) -> None:
+        stripped = text.strip()
+        if stripped:
+            items.append(TextItem(x=tm[4], y=tm[5], text=stripped))
+
+    page.extract_text(visitor_text=visit)
+    return sorted(items, key=lambda item: item.x)

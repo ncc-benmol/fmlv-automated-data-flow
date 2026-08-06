@@ -21,6 +21,11 @@ def registry_path(*, root: Path = DATA_DIR) -> Path:
     return root / "manufacturers.csv"
 
 
+def reviewers_path(*, root: Path = DATA_DIR) -> Path:
+    """The known-reviewers CSV — who is allowed to decide on a proposed change."""
+    return root / "reviewers.csv"
+
+
 def snapshot_dir(manufacturer_id: int, run_id: int, *, root: Path = DATA_DIR) -> Path:
     """Where fetched pages/files for one manufacturer's run are snapshotted."""
     return root / "snapshots" / str(manufacturer_id) / str(run_id)

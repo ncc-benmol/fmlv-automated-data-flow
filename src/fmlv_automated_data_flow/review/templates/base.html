@@ -3,38 +3,76 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}FMLV review{% endblock %}</title>
+  <title>{% block title %}FMLV Automated Data Ingestion{% endblock %}</title>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <!-- Same headline typeface (din-condensed) Find My Leisure Vehicle itself loads from
+       Adobe Fonts — an optional enhancement: if this is unreachable (offline VM,
+       blocked domain) every rule below falls back to "Arial Narrow", a condensed
+       sans that ships with Windows, so nothing breaks without it. -->
+  <link rel="stylesheet" href="https://use.typekit.net/wyj4vzk.css">
   <style>
     :root {
       color-scheme: light dark;
       --border: #d0d0d0;
       --muted: #666;
-      --accept: #1a7f37;
+      /* Find My Leisure Vehicle's own palette (findmyleisurevehicle.co.uk), sampled
+         from its stylesheet: a mid olive-green brand colour, a darker green for
+         banners/footers, a bright green for accents, and a pale green used across
+         its search panel and input fields. */
+      --brand-green: #628015;
+      --brand-green-dark: #44590f;
+      --brand-green-bright: #94c01f;
+      --brand-green-pale: #edf4d7;
+      --brand-green-pale2: #d8dfc7;
+      --page-bg: #f6f8ee;
+      --card-bg: #fff;
+      --home-link-title: var(--brand-green-dark);
+      --accept: var(--brand-green);
       --reject: #b42318;
       --correct: #9a6700;
       --bg-subtle: #f6f6f6;
+      --heading-font: "din-condensed", "Arial Narrow", "Segoe UI", sans-serif;
     }
     @media (prefers-color-scheme: dark) {
       :root {
         --border: #444;
         --muted: #aaa;
         --bg-subtle: #1c1c1c;
+        --page-bg: #12150d;
+        --card-bg: #1c1c1c;
+        --accept: var(--brand-green-bright);
+        --brand-green-pale: #202b10;
+        --brand-green-pale2: #2b3a17;
+        /* `--brand-green-dark` stays put (it's still used for the always-light
+           topbar/footer, which don't flip with the theme) — headings that sit on the
+           dark-mode pale-green tile need a brighter green instead, or the text
+           nearly disappears against its own tile. */
+        --home-link-title: var(--brand-green-bright);
       }
     }
+    * { box-sizing: border-box; }
     body {
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      max-width: 60rem;
-      margin: 0 auto;
-      padding: 1.5rem 1rem 4rem;
       line-height: 1.4;
+      margin: 0;
+      background: var(--page-bg);
+      color-scheme: inherit;
     }
     a { color: inherit; }
-    h1 { font-size: 1.4rem; }
-    h2 { font-size: 1.15rem; margin-top: 2rem; }
-    h3 { font-size: 1rem; margin-bottom: 0.4rem; }
+    h1, h2, h3 { font-family: var(--heading-font); letter-spacing: 0.01em; }
+    h1 { font-size: 2rem; font-weight: 700; }
+    h2 { font-size: 1.4rem; margin-top: 2rem; font-weight: 700; }
+    h3 { font-size: 1.15rem; margin-bottom: 0.4rem; font-weight: 700; }
     table { border-collapse: collapse; width: 100%; }
-    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); }
+    thead th {
+      background: var(--brand-green-pale);
+      text-transform: uppercase;
+      font-size: 0.75em;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    tbody tr:hover td { background: color-mix(in srgb, var(--brand-green) 6%, transparent); }
     .muted { color: var(--muted); font-size: 0.9em; }
     .badge {
       display: inline-block;
@@ -57,19 +95,26 @@
     }
     .change-row {
       display: grid;
-      grid-template-columns: 10rem 1fr auto;
-      gap: 0.6rem;
+      grid-template-columns: 13rem 1fr auto;
+      gap: 0.6rem 1rem;
       align-items: start;
       padding: 0.5rem 0;
       border-top: 1px solid var(--border);
     }
     .change-row:first-of-type { border-top: none; }
-    .field-name { font-weight: 600; }
+    .field-name {
+      font-weight: 600;
+      /* Field names are single unbroken tokens (e.g. mh_passenger_seats_inc_driver) —
+         without this, a long one overflows its grid track into the value column
+         instead of wrapping, since grid items default to a content-based min-width. */
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
     .value-diff .old { text-decoration: line-through; color: var(--muted); }
     .value-diff .new { font-weight: 600; }
     .provenance { font-size: 0.85em; color: var(--muted); margin-top: 0.2rem; }
     .provenance blockquote { margin: 0.2rem 0 0; padding-left: 0.6rem; border-left: 2px solid var(--border); }
-    .decision-form { display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap; }
+    .decision-form { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
     .decision-form input[type="text"] { width: 8rem; }
     .decision { font-size: 0.9em; }
     .decision-accept { color: var(--accept); }
@@ -78,9 +123,166 @@
     .form-error { color: var(--reject); font-size: 0.85em; }
     #reviewer-bar { margin-bottom: 1.5rem; }
     #reviewer-bar label { font-size: 0.9em; color: var(--muted); }
+    #reviewer-bar select { font: inherit; }
+    /* Soft front-end guard: highlight and dim until a reviewer is picked.
+       Belt-and-braces — the server rejects an unrecognised/blank reviewer regardless
+       (`app.py:decide`), so this is a hint, not the enforcement. */
+    #reviewer-name:invalid {
+      background-color: #fff3b0;
+      border-color: #b98900;
+      outline: none;
+      box-shadow: none;
+    }
+    @media (prefers-color-scheme: dark) {
+      #reviewer-name:invalid {
+        background-color: #6b5900;
+        color: #fff3b0;
+        border-color: #b98900;
+      }
+    }
+    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .decision-form button {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    select:focus, input:focus, textarea:focus {
+      outline: 2px solid var(--brand-green-bright);
+      outline-offset: 1px;
+    }
+
+    /* Buttons — styled to match FMLV's rounded, bold-text call-to-action buttons,
+       colour-coded by what the action does rather than uniformly branded: accept and
+       primary actions get the brand green, reject/correct stay on their existing
+       semantic colours (red/amber) so meaning isn't lost to branding. */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35em;
+      font: inherit;
+      font-weight: 600;
+      padding: 0.5em 1.1em;
+      border-radius: 0.4rem;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-primary, .btn-accept {
+      background: var(--brand-green);
+      color: #fff;
+    }
+    .btn-primary:hover, .btn-accept:hover { background: var(--brand-green-dark); }
+    .btn-reject {
+      background: transparent;
+      color: var(--reject);
+      border-color: var(--reject);
+    }
+    .btn-reject:hover { background: var(--reject); color: #fff; }
+    .btn-correct {
+      background: transparent;
+      color: var(--correct);
+      border-color: var(--correct);
+    }
+    .btn-correct:hover { background: var(--correct); color: #fff; }
+
+    /* Layout shell: full-bleed white header and dark-green footer bands, with the
+       actual content kept in a centred card — the same "band, band, readable
+       column" rhythm as findmyleisurevehicle.co.uk itself. */
+    .topbar {
+      /* Deliberately always light, in both themes: the FMLV wordmark's lettering is
+         dark and only reads on a light plate. */
+      background: #fff;
+      border-bottom: 3px solid var(--brand-green);
+    }
+    .topbar-inner {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 0.7rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+    }
+    .topbar .brand { display: flex; align-items: center; }
+    .topbar .brand img { height: 30px; display: block; }
+    .topbar nav { display: flex; gap: 1.5rem; }
+    .topbar nav a {
+      font-size: 0.9em;
+      font-weight: 600;
+      text-decoration: none;
+      color: #1f2937;
+      padding-bottom: 0.2rem;
+      border-bottom: 2px solid transparent;
+    }
+    .topbar nav a:hover { color: var(--brand-green-dark); border-bottom-color: var(--brand-green); }
+
+    .content-shell { max-width: 64rem; margin: 0 auto; padding: 1.75rem 1.5rem 3rem; }
+    .content-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.75rem 2rem;
+    }
+
+    .site-footer { background: var(--brand-green-dark); color: #fff; margin-top: 2rem; }
+    .site-footer a { color: #fff; }
+    .footer-inner {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 1.1rem 1.5rem;
+      font-size: 0.85em;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.4rem 1.5rem;
+      opacity: 0.9;
+    }
+
+    .form-row { margin-bottom: 1rem; }
+    .form-row label { display: block; font-size: 0.9em; color: var(--muted); margin-bottom: 0.2rem; }
+    .form-row select, .form-row input[type="text"] {
+      font: inherit;
+      padding: 0.45em 0.6em;
+      border-radius: 0.35rem;
+      border: 1px solid var(--border);
+      background: var(--brand-green-pale);
+    }
+    .home-links { display: flex; gap: 1rem; margin-top: 1.5rem; }
+    .home-links a {
+      display: block;
+      background: var(--brand-green-pale);
+      border: 1px solid var(--brand-green-pale2);
+      border-radius: 0.5rem;
+      padding: 1rem 1.2rem;
+      text-decoration: none;
+      flex: 1;
+      transition: border-color 0.15s ease;
+    }
+    .home-links a:hover { border-color: var(--brand-green); }
+    .home-links .title { font-weight: 700; color: var(--home-link-title); }
   </style>
 </head>
 <body>
-  {% block content %}{% endblock %}
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="FMLV Automated Data Ingestion — home">
+        <img src="data:image/png;base64,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" alt="Find My Leisure Vehicle, powered by NCC">
+      </a>
+      <nav>
+        <a href="/trigger">Trigger a run</a>
+        <a href="/runs">Review runs</a>
+      </nav>
+    </div>
+  </header>
+  <main class="content-shell">
+    <div class="content-card">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>FMLV Automated Data Ingestion — internal NCC tool</span>
+      <a href="https://findmyleisurevehicle.co.uk/" target="_blank" rel="noopener">findmyleisurevehicle.co.uk ↗</a>
+    </div>
+  </footer>
 </body>
 </html>

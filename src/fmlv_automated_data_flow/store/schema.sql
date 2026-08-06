@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS run (
     status TEXT NOT NULL CHECK (status IN ('running', 'succeeded', 'failed')) DEFAULT 'running',
     started_at TEXT NOT NULL,
     finished_at TEXT,
-    error_message TEXT
+    error_message TEXT,
+    range_label TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_run_manufacturer ON run (manufacturer_id, started_at);

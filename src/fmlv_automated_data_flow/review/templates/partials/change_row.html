@@ -31,7 +31,7 @@
     {% if entry.decision %}
       <div class="decision decision-{{ entry.decision.action }}">
         {{ entry.decision.action }}{% if entry.decision.action == "correct" %} → {{ entry.decision.corrected_value }}{% endif %}
-        <div class="muted">{{ entry.decision.decided_by or "unknown" }} · {{ entry.decision.decided_at }}</div>
+        <div class="muted">{{ entry.decision.decided_by or "unknown" }} · {{ entry.decision.decided_at|fmt_dt }}</div>
       </div>
     {% else %}
       <form
@@ -41,10 +41,10 @@
         hx-swap="outerHTML"
         hx-include="#reviewer-name"
       >
-        <button type="submit" name="action" value="accept">Accept</button>
-        <button type="submit" name="action" value="reject">Reject</button>
+        <button type="submit" name="action" value="accept" class="btn btn-accept">Accept</button>
+        <button type="submit" name="action" value="reject" class="btn btn-reject">Reject</button>
         <input type="text" name="corrected_value" placeholder="corrected value">
-        <button type="submit" name="action" value="correct">Correct</button>
+        <button type="submit" name="action" value="correct" class="btn btn-correct">Correct</button>
       </form>
     {% endif %}
   </div>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Runs — FMLV review{% endblock %}
+{% block title %}Runs — FMLV Automated Data Ingestion{% endblock %}
 {% block content %}
   <h1>Runs</h1>
   {% if not runs %}
@@ -8,7 +8,9 @@
     <table>
       <thead>
         <tr>
+          <th>Run</th>
           <th>Manufacturer</th>
+          <th>Range</th>
           <th>Trigger</th>
           <th>Status</th>
           <th>Started</th>
@@ -18,11 +20,24 @@
       <tbody>
         {% for run in runs %}
           <tr>
-            <td><a href="/runs/{{ run.id }}">{{ run.fmlv_manufacturer }}</a></td>
+            <td class="muted">#{{ run.id }}</td>
+            <td>
+              {% if run.status == "running" %}
+                {{ run.fmlv_manufacturer }}
+              {% else %}
+                <a href="/runs/{{ run.id }}">{{ run.fmlv_manufacturer }}</a>
+              {% endif %}
+            </td>
+            <td>{{ run.range_label or "" }}</td>
             <td>{{ run.trigger }}</td>
-            <td><span class="badge {{ run.status }}">{{ run.status }}</span></td>
-            <td class="muted">{{ run.started_at }}</td>
-            <td class="muted">{{ run.finished_at or "—" }}</td>
+            <td>
+              <span class="badge {{ run.status }}">{{ run.status }}</span>
+              {% if run.status == "running" %}
+                <span class="muted">— not yet available for review</span>
+              {% endif %}
+            </td>
+            <td class="muted">{{ run.started_at|fmt_dt_short }}</td>
+            <td class="muted">{{ run.finished_at|fmt_dt_short }}</td>
           </tr>
         {% endfor %}
       </tbody>

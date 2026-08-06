@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %} — run #{{ run.id }} in progress{% endblock %}
+{% block content %}
+  <p class="muted"><a href="/runs">← All runs</a></p>
+  <h1>
+    {{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %}
+    <span class="badge running">running</span>
+  </h1>
+  <p class="muted">Run #{{ run.id }} · {{ run.trigger }} · started {{ run.started_at|fmt_dt }}</p>
+  <p>
+    This run is still fetching and diffing data — there's nothing to review yet.
+    This page refreshes automatically every 10 seconds.
+  </p>
+  <meta http-equiv="refresh" content="10">
+{% endblock %}

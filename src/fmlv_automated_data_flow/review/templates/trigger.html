@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Trigger a run — FMLV Automated Data Ingestion{% endblock %}
+{% block content %}
+  <h1>Trigger a new run</h1>
+
+  {% for message in registry_errors %}
+    <p class="form-error">{{ message }}</p>
+  {% endfor %}
+  {% if error %}
+    <p class="form-error">{{ error }}</p>
+  {% endif %}
+
+  {% if not manufacturers %}
+    <p class="muted">No manufacturer has an adapter written yet — nothing can be run.</p>
+  {% else %}
+    <form method="post" action="/trigger">
+      <div class="form-row">
+        <label for="manufacturer_name">Manufacturer</label>
+        <select id="manufacturer_name" name="manufacturer_name" required>
+          {% for manufacturer in manufacturers %}
+            <option value="{{ manufacturer.fmlv_manufacturer }}"
+              {% if manufacturer.fmlv_manufacturer == submitted_manufacturer %}selected{% endif %}>
+              {{ manufacturer.fmlv_display_name or manufacturer.fmlv_manufacturer }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="range_name">Range (optional)</label>
+        <input type="text" id="range_name" name="range_name" value="{{ submitted_range or '' }}"
+               placeholder="e.g. Matrix — leave blank for every range">
+      </div>
+      <button type="submit" class="btn btn-primary">Trigger run</button>
+    </form>
+  {% endif %}
+{% endblock %}

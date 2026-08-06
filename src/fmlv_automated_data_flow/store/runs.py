@@ -28,6 +28,7 @@ class Run:
     started_at: str
     finished_at: str | None
     error_message: str | None
+    range_label: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Run:
@@ -40,6 +41,7 @@ class Run:
             started_at=row["started_at"],
             finished_at=row["finished_at"],
             error_message=row["error_message"],
+            range_label=row["range_label"],
         )
 
 
@@ -53,14 +55,20 @@ def start_run(
     manufacturer_id: int,
     fmlv_manufacturer: str,
     trigger: Trigger,
+    range_label: str | None = None,
 ) -> Run:
-    """Record the start of a run. Status is 'running' until `finish_run`/`fail_run`."""
+    """Record the start of a run. Status is 'running' until `finish_run`/`fail_run`.
+
+    `range_label` is the human label of any `--range`/range-box restriction (e.g.
+    "Matrix", or "Supersonic, Sonic" for more than one) — `None` for an unrestricted
+    full-manufacturer run, which is what most of DESIGN.md's scheduled sweeps will be.
+    """
     cursor = connection.execute(
         """
-        INSERT INTO run (manufacturer_id, fmlv_manufacturer, trigger, status, started_at)
-        VALUES (?, ?, ?, 'running', ?)
+        INSERT INTO run (manufacturer_id, fmlv_manufacturer, trigger, status, started_at, range_label)
+        VALUES (?, ?, ?, 'running', ?, ?)
         """,
-        (manufacturer_id, fmlv_manufacturer, trigger, _now()),
+        (manufacturer_id, fmlv_manufacturer, trigger, _now(), range_label),
     )
     connection.commit()
     assert cursor.lastrowid is not None

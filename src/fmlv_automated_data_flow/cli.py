@@ -174,18 +174,29 @@ def execute_run(
     bump_year: bool = False,
     collect_kwargs: dict[str, Any] | None = None,
     on_progress: Callable[[str], None] = lambda message: None,
+    on_run_started: Callable[[store.Run], None] = lambda run: None,
     _fetcher_factory: Callable[[Path], Fetcher] = Fetcher,
     _browser_factory: Callable[[Path], BrowserFetcher] = BrowserFetcher,
 ) -> RunSummary:
-    """Run one manufacturer end to end, recording everything against a `run` row."""
+    """Run one manufacturer end to end, recording everything against a `run` row.
+
+    `on_run_started` fires right after the `run` row is inserted, before the slow
+    fetch/diff work begins — a caller that kicks this off on a background thread (the
+    review app's "trigger a run" page) can use it to learn the real `run.id` and
+    redirect a waiting request there, without waiting for the whole run to finish.
+    """
     connection = store.connect(paths.db_path(root=data_root))
     try:
+        ranges = (collect_kwargs or {}).get("ranges")
+        range_label = ", ".join(label for _path, label in ranges) if ranges else None
         run = store.start_run(
             connection,
             manufacturer_id=manufacturer.manufacturer_id,
             fmlv_manufacturer=manufacturer.fmlv_manufacturer,
             trigger=trigger,
+            range_label=range_label,
         )
+        on_run_started(run)
         snapshot_dir = paths.snapshot_dir(manufacturer.manufacturer_id, run.id, root=data_root)
         snapshot_dir.mkdir(parents=True, exist_ok=True)
 

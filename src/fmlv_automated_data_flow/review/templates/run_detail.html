@@ -1,11 +1,16 @@
 {% extends "base.html" %}
-{% block title %}{{ run.fmlv_manufacturer }} — run #{{ run.id }}{% endblock %}
+{% block title %}{{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %} — run #{{ run.id }}{% endblock %}
 {% block content %}
-  <p class="muted"><a href="/">← All runs</a></p>
-  <h1>{{ run.fmlv_manufacturer }} <span class="badge {{ run.status }}">{{ run.status }}</span></h1>
+  <p class="muted"><a href="/runs">← All runs</a></p>
+  <h1>
+    {{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %}
+    <span class="badge {{ run.status }}">{{ run.status }}</span>
+  </h1>
   <p class="muted">
-    Run #{{ run.id }} · {{ run.trigger }} · started {{ run.started_at }}
-    {% if run.finished_at %} · finished {{ run.finished_at }}{% endif %}
+    Run #{{ run.id }} · {{ run.trigger }} · started {{ run.started_at|fmt_dt }}
+    {% if run.finished_at %}
+      · finished {{ run.finished_at|fmt_dt }} · took {{ run_duration(run) }}
+    {% endif %}
   </p>
   {% if run.error_message %}
     <p class="form-error">{{ run.error_message }}</p>
@@ -13,7 +18,16 @@
 
   <div id="reviewer-bar">
     <label for="reviewer-name">Reviewing as:</label>
-    <input type="text" id="reviewer-name" name="reviewer_name" placeholder="your name">
+    {% if reviewers %}
+      <select id="reviewer-name" name="reviewer_name" required>
+        <option value="" selected>Select your name…</option>
+        {% for reviewer in reviewers %}
+          <option value="{{ reviewer.name }}">{{ reviewer.name }}</option>
+        {% endfor %}
+      </select>
+    {% else %}
+      <input type="text" id="reviewer-name" name="reviewer_name" placeholder="your name">
+    {% endif %}
   </div>
 
   <h2>Pending ({{ pending|length }})</h2>

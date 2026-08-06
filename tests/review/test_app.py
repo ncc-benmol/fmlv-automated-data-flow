@@ -75,28 +75,70 @@ def run_with_one_change(db_path: Path) -> tuple[int, int]:
         diffs = diff_products([extracted], [baseline])
         store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
         [entry] = store.list_change_queue(connection, run.id)
+        store.finish_run(connection, run.id)
         return run.id, entry.change.id
     finally:
         connection.close()
 
 
-def test_run_list_is_empty_with_no_runs(client: TestClient) -> None:
+def test_home_page_links_to_trigger_and_runs(client: TestClient) -> None:
     response = client.get("/")
+    assert response.status_code == 200
+    assert 'href="/trigger"' in response.text
+    assert 'href="/runs"' in response.text
+
+
+def test_run_list_is_empty_with_no_runs(client: TestClient) -> None:
+    response = client.get("/runs")
     assert response.status_code == 200
     assert "No runs recorded yet" in response.text
 
 
 def test_run_list_shows_recorded_runs(client: TestClient, db_path: Path) -> None:
     connection = store.connect(db_path)
-    store.start_run(
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = client.get("/runs")
+
+    assert response.status_code == 200
+    assert "Adria Mobil" in response.text
+    assert f"#{run.id}" in response.text
+
+
+def test_run_list_shows_a_running_run_without_a_review_link(
+    client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
         connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
     )
     connection.close()
 
-    response = client.get("/")
+    response = client.get("/runs")
 
     assert response.status_code == 200
-    assert "Adria Mobil" in response.text
+    assert f'href="/runs/{run.id}"' not in response.text
+    assert "not yet available for review" in response.text
+
+
+def test_a_running_run_shows_the_in_progress_page_not_the_queue(
+    client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    connection.close()
+
+    response = client.get(f"/runs/{run.id}")
+
+    assert response.status_code == 200
+    assert "still fetching and diffing" in response.text
+    assert "Pending (" not in response.text
 
 
 def test_run_detail_404s_for_an_unknown_run(client: TestClient) -> None:
@@ -241,6 +283,7 @@ def test_new_product_field_has_no_old_value_shown_as_an_em_dash(
     )
     diffs = diff_products([extracted], [])
     store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+    store.finish_run(connection, run.id)
     connection.close()
 
     response = client.get(f"/runs/{run.id}")
@@ -271,6 +314,7 @@ def test_layout_field_change_is_marked_unusual(
     )
     diffs = diff_products([extracted], [baseline])
     store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+    store.finish_run(connection, run.id)
     connection.close()
 
     response = client.get(f"/runs/{run.id}")
@@ -289,6 +333,7 @@ def test_year_rollover_proposal_is_marked_possible_rollover(
     extracted = make_extracted(rrp_pounds=93920)
     diffs = diff_products([extracted], [baseline], today=date(2026, 7, 15))
     store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+    store.finish_run(connection, run.id)
     connection.close()
 
     response = client.get(f"/runs/{run.id}")
@@ -328,6 +373,7 @@ def test_run_detail_groups_changes_by_product_not_a_single_flat_list(
         [first_extracted, second_extracted], [first_baseline, second_baseline]
     )
     store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+    store.finish_run(connection, run.id)
     connection.close()
 
     response = client.get(f"/runs/{run.id}")
@@ -351,6 +397,7 @@ def test_rejection_is_remembered_across_runs_end_to_end(
     diffs = diff_products([extracted], [baseline])
     store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
     [entry] = store.list_change_queue(connection, run.id)
+    store.finish_run(connection, run.id)
     connection.close()
 
     client.post(
@@ -364,8 +411,102 @@ def test_rejection_is_remembered_across_runs_end_to_end(
     )
     second_diffs = diff_products([extracted], [baseline])
     store.persist_diff(connection, run_id=second_run.id, manufacturer_id=3, diffs=second_diffs)
+    store.finish_run(connection, second_run.id)
     connection.close()
 
     response = client.get(f"/runs/{second_run.id}")
     assert "Pending (0)" in response.text
     assert "rrp_pounds" not in response.text
+
+
+# --------------------------------------------------------------------------- #
+# Reviewer gating — decisions are only accepted from a name in reviewers.csv
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def reviewers_path(tmp_path: Path) -> Path:
+    path = tmp_path / "reviewers.csv"
+    path.write_text(
+        "reviewer_name,reviewer_email\nBen Molyneaux,ben.m@thencc.org.uk\nFran,\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.fixture
+def gated_client(db_path: Path, reviewers_path: Path) -> TestClient:
+    return TestClient(create_app(db_path, reviewers_path=reviewers_path))
+
+
+def test_decide_is_rejected_when_reviewer_is_not_in_the_known_list(
+    gated_client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    baseline = make_baseline()
+    extracted = make_extracted(rrp_pounds=93920)
+    diffs = diff_products([extracted], [baseline])
+    store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+    [entry] = store.list_change_queue(connection, run.id)
+    connection.close()
+
+    response = gated_client.post(
+        f"/runs/{run.id}/changes/{entry.change.id}/decide",
+        data={"action": "accept", "reviewer_name": "Someone Unlisted"},
+    )
+
+    assert response.status_code == 200
+    assert "Select your name from the reviewer list" in response.text
+    connection = store.connect(db_path)
+    decision = store.latest_decision(connection, entry.change.id)
+    connection.close()
+    assert decision is None
+
+
+def test_decide_succeeds_when_reviewer_is_in_the_known_list(
+    gated_client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    baseline = make_baseline()
+    extracted = make_extracted(rrp_pounds=93920)
+    diffs = diff_products([extracted], [baseline])
+    store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+    [entry] = store.list_change_queue(connection, run.id)
+    connection.close()
+
+    response = gated_client.post(
+        f"/runs/{run.id}/changes/{entry.change.id}/decide",
+        data={"action": "accept", "reviewer_name": "Fran"},
+    )
+
+    assert response.status_code == 200
+    assert "decision-accept" in response.text
+    connection = store.connect(db_path)
+    decision = store.latest_decision(connection, entry.change.id)
+    connection.close()
+    assert decision is not None
+    assert decision.decided_by == "Fran"
+
+
+def test_run_detail_offers_a_reviewer_dropdown_when_reviewers_are_configured(
+    gated_client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = gated_client.get(f"/runs/{run.id}")
+
+    assert response.status_code == 200
+    assert "<select" in response.text
+    assert "Ben Molyneaux" in response.text
+    assert "Fran" in response.text

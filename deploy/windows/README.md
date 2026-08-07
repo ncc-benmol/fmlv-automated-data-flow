@@ -3,10 +3,51 @@
 The application runs as a **Windows service on a Windows Server VM**, not in a Docker
 container — see [DESIGN.md §8.2](../../DESIGN.md) for the decision and what it changed.
 
-This directory currently holds the **deployment smoke test** (DESIGN.md §8.3): a
-deliberately trivial service that proves the VM can run and serve a Python web service
-*before* the real application is deployed to it. Scripts for the real deployment come
-later (TODO.md Phase 8b).
+This directory holds two things:
+
+- The **deployment smoke test** (DESIGN.md §8.3, scripts `01`–`03`): a deliberately
+  trivial service that proved the VM could run and serve a Python web service at all,
+  before the real application went anywhere near it. **Already run and confirmed
+  working (TODO.md 8a, 2026-08-05)** — kept here so it can be re-checked and torn down.
+- The **real deployment** (TODO.md Phase 8b, scripts `04`–`05`): provisions the actual
+  checkout and installs the FMLV review app itself as a service.
+
+## Deploying the real app for the first time
+
+1. Re-run the smoke test's checks below ("Run it") to confirm the VM still works
+   exactly as it did on 2026-08-05, since nothing about it should have changed.
+2. Provision the app (no admin needed):
+   ```powershell
+   cd <repo>\deploy\windows
+   powershell -ExecutionPolicy Bypass -File .\04-provision-app.ps1
+   ```
+   This needs a real `.env` in the repo root first (copy `.env.example`, fill in the
+   NCC credentials) — the script warns but doesn't fail if it's missing, so fix it
+   before continuing to step 3.
+3. Install and start the app as a service (**elevated PowerShell**):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\05-install-app-service.ps1
+   ```
+   Finishes by polling `http://127.0.0.1:8000/` and reporting success, same shape as
+   the smoke test's step 2.
+4. Check it from your own machine — `http://192.168.16.43:8000/` (see TODO.md 8a for
+   why that address and not the other one) — and trigger a real run from the browser.
+5. Once that's confirmed, tear down the smoke test — it has no business outliving the
+   question it answered:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\03-uninstall-smoketest.ps1
+   ```
+   This leaves `C:\fmlv\tools\nssm.exe` and the uv cache in place; both `05-install-
+   app-service.ps1` and any future re-provisioning reuse them.
+
+`04`/`05` run as **`LocalSystem`**, the same account the smoke test proved works here —
+see the docstring in `05-install-app-service.ps1` for how to switch to a dedicated
+account later without any code change, if `.env` holding NCC credentials under
+LocalSystem ever becomes a concern.
+
+---
+
+## The deployment smoke test (`01`–`03`)
 
 ## What the smoke test proves
 

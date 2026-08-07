@@ -116,3 +116,20 @@ def test_validate_all_aggregates_across_products() -> None:
     issues = validation.validate_all([good, bad])
     assert len(issues) == 1
     assert issues[0].product_key == bad.key
+
+
+def test_format_issues_is_empty_for_no_issues() -> None:
+    assert validation.format_issues([]) == ""
+
+
+def test_format_issues_renders_one_readable_line_per_issue() -> None:
+    bad = make_motorhome(rrp_pounds=None)
+    issues = validation.validate(bad)
+    text = validation.format_issues(issues)
+    assert text.endswith("\n")
+    lines = text.splitlines()
+    assert len(lines) == len(issues)
+    assert lines[0].startswith("[ERROR]")
+    assert bad.key in lines[0]
+    assert "rrp_pounds" in lines[0]
+    assert "required field" in lines[0]

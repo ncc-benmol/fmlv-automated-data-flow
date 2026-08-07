@@ -11,6 +11,7 @@ import pytest
 from src import store
 from src.adapters.base import ExtractedMotorhome, Provenance
 from src.diff.classify import diff_products
+from src.product_model import validation
 from src.product_model.io import read_csv
 from src.product_model.model import Motorhome
 from src.output import build_upload_motorhomes, generate_upload
@@ -282,6 +283,11 @@ def test_generate_upload_writes_a_csv_in_fmlv_column_order_and_carries_product_i
 
     assert result.path == csv_path
     assert csv_path.exists()
+    assert not result.has_errors
+    assert result.issues_path is not None
+    assert result.issues_path.read_text(encoding="utf-8") == validation.format_issues(
+        result.issues
+    )
 
     # The FMLV upload site expects the header on row 3 and data from row 4, and won't
     # parse the file correctly if those two rows are genuinely empty, so the file
@@ -330,3 +336,9 @@ def test_generate_upload_surfaces_validation_issues_without_blocking_the_write(
     assert csv_path.exists()
     assert result.has_errors
     assert any(issue.code == "missing_required" for issue in result.issues)
+
+    assert result.issues_path is not None
+    assert result.issues_path.exists()
+    issues_text = result.issues_path.read_text(encoding="utf-8")
+    assert "[ERROR]" in issues_text
+    assert "missing" in issues_text

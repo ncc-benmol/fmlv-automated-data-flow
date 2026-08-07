@@ -398,24 +398,31 @@ def create_app(
                 "has_errors": result.has_errors,
                 "issues": [f"{issue.severity}: {issue.message}" for issue in result.issues],
                 "download_url": f"/runs/{run.id}/uploads/{result.path.name}",
+                "issues_filename": result.issues_path.name if result.issues_path else None,
+                "issues_download_url": (
+                    f"/runs/{run.id}/uploads/{result.issues_path.name}"
+                    if result.issues_path
+                    else None
+                ),
             }
         )
 
     @app.get("/runs/{run_id}/uploads/{filename}")
     def download_upload(run_id: int, filename: str) -> FileResponse:
-        """Download one previously generated upload CSV for this run.
+        """Download one previously generated upload CSV, or its issues text file, for this run.
 
-        `filename` must be exactly one `paths.upload_csv_path` produced for this run
-        (checked by prefix, and that it resolves inside `uploads_dir` with no path
-        separators) — each generation gets its own timestamped file, so there can be
-        more than one for a given run.
+        `filename` must be exactly one `paths.upload_csv_path`/`paths.upload_issues_path`
+        produced for this run (checked by prefix, and that it resolves inside
+        `uploads_dir` with no path separators) — each generation gets its own
+        timestamped file, so there can be more than one for a given run.
         """
         if "/" in filename or "\\" in filename or not filename.startswith(f"run{run_id}_"):
             raise HTTPException(status_code=404, detail="upload CSV not found")
         path = paths.uploads_dir(root=app.state.data_root) / filename
         if not path.exists():
             raise HTTPException(status_code=404, detail="upload CSV not found")
-        return FileResponse(path, filename=filename, media_type="text/csv")
+        media_type = "text/plain" if filename.endswith(".txt") else "text/csv"
+        return FileResponse(path, filename=filename, media_type=media_type)
 
     @app.post("/runs/{run_id}/changes/{change_id}/decide", response_class=HTMLResponse)
     def decide(

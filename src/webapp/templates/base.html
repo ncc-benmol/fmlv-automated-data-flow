@@ -402,8 +402,11 @@
       const filename = escapeHtml(data.filename);
       const downloadLink = `<a href="${data.download_url}" download>Download</a>`;
       let message = `Generated upload CSV (${count}): <code>${filename}</code> — ${downloadLink}`;
-      if (data.has_errors) {
-        message += " — validation errors found, check before uploading.";
+      if (data.issues_download_url) {
+        const issuesLink = `<a href="${data.issues_download_url}" download>Download issues</a>`;
+        message += data.has_errors
+          ? ` — validation errors found, check before uploading: ${issuesLink}.`
+          : ` — validation warnings found: ${issuesLink}.`;
       }
       showToast(message, data.has_errors);
     }

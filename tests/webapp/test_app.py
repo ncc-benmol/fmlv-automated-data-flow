@@ -321,6 +321,7 @@ def test_generate_upload_route_writes_a_csv_and_reports_it_as_json(
     assert data["count"] == 1
     assert data["filename"].startswith(f"run{run_id}_")
     assert data["download_url"] == f"/runs/{run_id}/uploads/{data['filename']}"
+    assert data["issues_download_url"] == f"/runs/{run_id}/uploads/{data['issues_filename']}"
     assert "folder_url" not in data
 
 
@@ -349,6 +350,19 @@ def test_downloading_a_generated_upload_serves_the_file(
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
+
+
+def test_downloading_a_generated_upload_issues_file_serves_readable_text(
+    client: TestClient, run_ready_for_upload: int
+) -> None:
+    run_id = run_ready_for_upload
+    issues_filename = client.post(f"/runs/{run_id}/generate-upload").json()["issues_filename"]
+
+    response = client.get(f"/runs/{run_id}/uploads/{issues_filename}")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert "[WARNING]" in response.text or "[ERROR]" in response.text
 
 
 def test_downloading_an_upload_for_the_wrong_run_id_404s(

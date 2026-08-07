@@ -152,3 +152,19 @@ def validate_all(motorhomes: Iterable[Motorhome]) -> list[Issue]:
     for motorhome in motorhomes:
         issues.extend(validate(motorhome))
     return issues
+
+
+def format_issues(issues: Iterable[Issue]) -> str:
+    """Render issues as human-readable text, one per line, for a reviewer to read.
+
+    Used for the downloadable issues file alongside a generated upload CSV
+    (`output.build.write_upload_csv`) — plain text rather than the JSON shape `Issue`
+    itself has, since this is meant to be opened and read by a person, not parsed.
+    """
+    lines = []
+    for issue in issues:
+        where = " ".join(part for part in (issue.product_key, issue.field) if part)
+        prefix = f"[{issue.severity.upper()}]"
+        line = f"{prefix} {where}: {issue.message}" if where else f"{prefix} {issue.message}"
+        lines.append(line)
+    return "\n".join(lines) + "\n" if lines else ""

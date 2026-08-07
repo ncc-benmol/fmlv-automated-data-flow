@@ -99,6 +99,15 @@ def upload_csv_path(
     return uploads_dir(root=root) / f"run{run_id}_{stamp}_motorhome-campervans.csv"
 
 
+def upload_issues_path(csv_path: Path) -> Path:
+    """Where the human-readable validation issues file for one generated upload CSV goes.
+
+    Named to sit next to its CSV in `uploads_dir` (`<csv-stem>-issues.txt`), so it keeps
+    the same `run<run>_...` prefix the upload download route already checks for.
+    """
+    return csv_path.with_name(f"{csv_path.stem}-issues.txt")
+
+
 def db_path(*, root: Path = DATA_DIR) -> Path:
     """The SQLite run store file."""
     return root / "run_store.sqlite3"

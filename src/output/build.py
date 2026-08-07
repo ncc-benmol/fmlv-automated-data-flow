@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .. import paths
 from ..product_model.enums import (
     BathroomLayout,
     BedType,
@@ -35,7 +36,7 @@ from ..product_model.enums import (
 )
 from ..product_model.io import write_csv as write_fmlv_csv
 from ..product_model.model import AutomaticVariant, Motorhome
-from ..product_model.validation import Issue, validate_all
+from ..product_model.validation import Issue, format_issues, validate_all
 from ..registry.models import Manufacturer
 from ..store.changes import LIST_SEPARATOR, ChangeQueueEntry, list_change_queue
 
@@ -208,23 +209,37 @@ class UploadResult:
     path: Path
     motorhomes: list[Motorhome] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
+    issues_path: Path | None = None
 
     @property
     def has_errors(self) -> bool:
         return any(issue.severity == "error" for issue in self.issues)
 
 
-def write_upload_csv(motorhomes: list[Motorhome], path: Path | str) -> list[Issue]:
+def write_upload_csv(
+    motorhomes: list[Motorhome], path: Path | str
+) -> tuple[list[Issue], Path | None]:
     """Validate then write the upload CSV. Never blocks the write — see `validation.py`:
     problems are reported as data so a reviewer can see exactly what's wrong with which
     row, not silently dropped or raised past the point where they'd be useful.
 
     Two rows, each holding a single `-`, precede the header: the FMLV upload site
     expects the header on row 3 and data from row 4, and won't parse the file
-    correctly if those two rows are genuinely empty."""
+    correctly if those two rows are genuinely empty.
+
+    Any issues found are also written to a human-readable text file alongside the CSV
+    (`paths.upload_issues_path`), so a reviewer can download and read them rather than
+    the JSON shape `Issue` itself has — no file is written when there's nothing to
+    report."""
     issues = validate_all(motorhomes)
     write_fmlv_csv(motorhomes, path, leading_blank_rows=2)
-    return issues
+
+    issues_path: Path | None = None
+    if issues:
+        issues_path = paths.upload_issues_path(Path(path))
+        issues_path.write_text(format_issues(issues), encoding="utf-8")
+
+    return issues, issues_path
 
 
 def generate_upload(
@@ -243,5 +258,7 @@ def generate_upload(
     motorhomes = build_upload_motorhomes(
         connection, run_id=run_id, manufacturer=manufacturer, baseline=baseline
     )
-    issues = write_upload_csv(motorhomes, path)
-    return UploadResult(path=Path(path), motorhomes=motorhomes, issues=issues)
+    issues, issues_path = write_upload_csv(motorhomes, path)
+    return UploadResult(
+        path=Path(path), motorhomes=motorhomes, issues=issues, issues_path=issues_path
+    )

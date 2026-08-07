@@ -411,6 +411,7 @@ def test_run_detail_shows_pending_change_with_source_and_link(
     assert "https://www.adria.co.uk/motorhomes/matrix" in response.text
     assert "£93,920" in response.text
     assert "Pending (1)" in response.text
+    assert 'class="product-group new-product"' not in response.text
 
 
 def test_accept_records_a_decision_and_moves_the_change_to_decided(
@@ -542,6 +543,7 @@ def test_new_product_field_has_no_old_value_shown_as_an_em_dash(
     assert response.status_code == 200
     assert "new product" in response.text
     assert "45000" in response.text
+    assert 'class="product-group new-product"' in response.text
 
 
 def test_layout_field_change_is_marked_unusual(

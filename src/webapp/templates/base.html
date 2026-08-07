@@ -32,6 +32,11 @@
       --correct: #9a6700;
       --bg-subtle: #f6f6f6;
       --heading-font: "din-condensed", "Arial Narrow", "Segoe UI", sans-serif;
+      /* Pale blue for a new-product card — deliberately outside the brand's
+         green/olive palette so a brand-new product stands out from everything else
+         on the page at a glance. */
+      --new-product-pale: #e3f0fb;
+      --new-product-border: #7fb3e0;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -43,6 +48,8 @@
         --accept: var(--brand-green-bright);
         --brand-green-pale: #202b10;
         --brand-green-pale2: #2b3a17;
+        --new-product-pale: #16283a;
+        --new-product-border: #3d7cae;
         /* `--brand-green-dark` stays put (it's still used for the always-light
            topbar/footer, which don't flip with the theme) — headings that sit on the
            dark-mode pale-green tile need a brighter green instead, or the text
@@ -92,6 +99,12 @@
       border-radius: 0.5rem;
       padding: 0.8rem 1rem;
       margin-bottom: 1rem;
+    }
+    /* Draws the eye to a brand-new product — same shape as any other card, just
+       tinted pale blue so it's unmistakable against the rest of the pending list. */
+    .product-group.new-product {
+      background: var(--new-product-pale);
+      border-color: var(--new-product-border);
     }
     .change-row {
       display: grid;

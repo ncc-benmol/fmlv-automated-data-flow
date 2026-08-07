@@ -1,4 +1,4 @@
-<div id="product-{{ product.id }}-pending" class="product-group">
+<div id="product-{{ product.id }}-pending" class="product-group{% if not product.fmlv_product_id %} new-product{% endif %}">
   <div class="product-group-header">
     <h3>
       {{ product.manufacturer_range }} — {{ product.model }}

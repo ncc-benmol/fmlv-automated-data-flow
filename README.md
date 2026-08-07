@@ -78,6 +78,59 @@ uv run uvicorn src.webapp.serve:app --port 8000
 See [TESTING.md](TESTING.md) for a fuller walkthrough, including how to point the
 pipeline at a real export and inspect what it produces.
 
+## Deployment (Windows Server VM)
+
+The app runs as a **Windows service**, not in a container — see
+[DESIGN.md §8.2](DESIGN.md) for why. It's installed with [NSSM](https://nssm.cc/) as
+service **`FMLVReviewApp`**, listening on port **8000**, running as `LocalSystem`.
+
+Full deploy instructions, including a Windows-onboarding smoke test that should be run
+once on any new VM before the real app goes anywhere near it, live in
+[`deploy/windows/README.md`](deploy/windows/README.md). In short, from an elevated
+PowerShell on the VM, in order:
+
+```powershell
+cd deploy\windows
+.\01-bootstrap.ps1            # installs uv + Python 3.14, checks outbound internet
+.\04-provision-app.ps1        # uv sync, playwright install chromium, creates data\
+.\05-install-app-service.ps1  # registers and starts the FMLVReviewApp service
+```
+
+`04` and `05` both need a real `.env` in the repo root first (copy `.env.example`,
+fill in `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD`) and must be run elevated — the shared
+cache under `C:\fmlv` is only writable by `SYSTEM`/`Administrators`.
+
+**Updating a running deployment:**
+
+```powershell
+cd C:\apps\fmlv-automated-data-flow
+git pull
+.\deploy\windows\05-install-app-service.ps1   # elevated; safe to re-run, restarts the service
+```
+
+**Useful commands on the VM:**
+
+```powershell
+Get-Service FMLVReviewApp                     # is it running?
+Restart-Service FMLVReviewApp
+Get-Content C:\fmlv\logs\fmlv-app.err.log -Tail 80   # first place to look when a run fails
+Get-Content C:\fmlv\logs\fmlv-app.out.log -Tail 80
+```
+
+**Where the logs are:** `C:\fmlv\logs\fmlv-app.err.log` / `fmlv-app.out.log` — NSSM
+redirects the service's stdout/stderr there and rotates them, since a Windows service
+has no console to print to. A failed *run* (as opposed to the service itself not
+starting) also records its error message against that run in the review app —
+`/runs/<id>` — so check there first; the log file is for tracebacks the review app
+doesn't show, or for the service failing to start at all.
+
+`deploy/windows/README.md`'s own Troubleshooting section covers the two failures
+already hit deploying this: a service that starts and immediately stops (usually a
+missing [VC++ redistributable](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist),
+surfacing as `ImportError: DLL load failed while importing _greenlet`), and a
+triggered run failing with `BrowserType.launch: Executable doesn't exist` (Chromium
+installed under the wrong Windows account's profile — LocalSystem can't see it).
+
 ## Status
 
 Prototype, under active development. See [DESIGN.md](DESIGN.md) §2 for current success

@@ -14,9 +14,11 @@
     directory the service is started from).
 
     Reuses the same shared uv cache and managed Python install the smoke test set up
-    under `-RootDir` (default `C:\fmlv`), so this doesn't re-download what's already
-    on the box. Run this as yourself, not elevated -- 05-install-app-service.ps1 is
-    the one that needs Administrator.
+    under `-RootDir` (default `C:\fmlv`) -- so this doesn't re-download what's already
+    on the box, but also so it MUST be run elevated: the FMLVSmokeTest service has
+    been writing into that cache as LocalSystem on every start since 02-install-
+    smoketest.ps1 installed it, and an unelevated session -- even under an admin
+    account -- runs with a filtered token that can't touch what SYSTEM has written.
 
     Safe to re-run: `uv sync` and `playwright install` are both idempotent.
 
@@ -34,6 +36,12 @@ $ErrorActionPreference = 'Stop'
 function Write-Section($Text) {
     Write-Host ''
     Write-Host "=== $Text ===" -ForegroundColor Cyan
+}
+
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw 'This script must be run from an elevated PowerShell (Run as Administrator) -- the shared C:\fmlv cache is only writable by SYSTEM/Administrators (see the .DESCRIPTION above).'
 }
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)

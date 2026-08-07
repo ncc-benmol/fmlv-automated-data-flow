@@ -16,7 +16,9 @@ This directory holds two things:
 
 1. Re-run the smoke test's checks below ("Run it") to confirm the VM still works
    exactly as it did on 2026-08-05, since nothing about it should have changed.
-2. Provision the app (no admin needed):
+2. Provision the app (**elevated PowerShell** — the shared `C:\fmlv\uv-cache` has been
+   written to by `FMLVSmokeTest` running as `LocalSystem` on every start since step 1,
+   so an unelevated session, even under an admin account, can't write to it):
    ```powershell
    cd <repo>\deploy\windows
    powershell -ExecutionPolicy Bypass -File .\04-provision-app.ps1

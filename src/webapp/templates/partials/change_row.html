@@ -5,8 +5,6 @@
       <span class="badge high-suspicion" title="Layout changes are rare on an existing product">unusual</span>
     {% elif is_year_field(entry.change.field) %}
       <span class="badge high-suspicion" title="Suggested by the pipeline, not read from the site">possible rollover</span>
-    {% elif is_archive_field(entry.change.field) %}
-      <span class="badge high-suspicion" title="Not found on the manufacturer's site during this run">Propose to Archive</span>
     {% endif %}
   </div>
   <div>

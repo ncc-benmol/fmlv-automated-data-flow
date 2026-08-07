@@ -611,6 +611,7 @@ def test_disappeared_product_shows_propose_to_archive(
     response = client.get(f"/runs/{run.id}")
 
     assert response.status_code == 200
+    assert 'class="badge archiving"' in response.text
     assert "Propose to Archive" in response.text
     assert 'class="product-group archiving-product"' in response.text
 

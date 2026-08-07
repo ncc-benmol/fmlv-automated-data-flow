@@ -8,6 +8,9 @@
       {% else %}
         <span class="badge new">new product</span>
       {% endif %}
+      {% if archiving %}
+        <span class="badge archiving" title="Not found on the manufacturer's site during this run">Propose to Archive</span>
+      {% endif %}
     </h3>
     {% set pending_entries = entries | selectattr('decision', 'none') | list %}
     {% if pending_entries %}

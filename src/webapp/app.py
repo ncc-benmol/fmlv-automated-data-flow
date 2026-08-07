@@ -66,7 +66,6 @@ _templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 # via these globals rather than the DB carrying that classification.
 _templates.env.globals["is_layout_field"] = lambda field: field in LAYOUT_FIELDS
 _templates.env.globals["is_year_field"] = lambda field: field == "year"
-_templates.env.globals["is_archive_field"] = lambda field: field == "archived"
 
 
 #: Everything is stored in UTC (`datetime.now(UTC)` throughout `store/`); this is

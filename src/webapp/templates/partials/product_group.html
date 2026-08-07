@@ -1,4 +1,5 @@
-<div id="product-{{ product.id }}-pending" class="product-group{% if not product.fmlv_product_id %} new-product{% endif %}">
+{% set archiving = entries | selectattr('change.field', 'equalto', 'archived') | list %}
+<div id="product-{{ product.id }}-pending" class="product-group{% if not product.fmlv_product_id %} new-product{% elif archiving %} archiving-product{% endif %}">
   <div class="product-group-header">
     <h3>
       {{ product.manufacturer_range }} — {{ product.model }}

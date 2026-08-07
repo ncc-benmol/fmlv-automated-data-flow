@@ -37,6 +37,11 @@
          on the page at a glance. */
       --new-product-pale: #e3f0fb;
       --new-product-border: #7fb3e0;
+      /* Pale orange for a propose-to-archive card — same idea as the new-product
+         blue, its own colour so the two "pay attention" states read as distinct at
+         a glance. */
+      --archiving-product-pale: #fbebdb;
+      --archiving-product-border: #e0a35f;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -50,6 +55,8 @@
         --brand-green-pale2: #2b3a17;
         --new-product-pale: #16283a;
         --new-product-border: #3d7cae;
+        --archiving-product-pale: #3a2a16;
+        --archiving-product-border: #ae7c3d;
         /* `--brand-green-dark` stays put (it's still used for the always-light
            topbar/footer, which don't flip with the theme) — headings that sit on the
            dark-mode pale-green tile need a brighter green instead, or the text
@@ -105,6 +112,13 @@
     .product-group.new-product {
       background: var(--new-product-pale);
       border-color: var(--new-product-border);
+    }
+    /* Same idea, for a product proposed to be archived (DISAPPEARED from the
+       manufacturer's site this run) — pale orange rather than blue, so it doesn't
+       read as "new" at a glance. */
+    .product-group.archiving-product {
+      background: var(--archiving-product-pale);
+      border-color: var(--archiving-product-border);
     }
     .change-row {
       display: grid;

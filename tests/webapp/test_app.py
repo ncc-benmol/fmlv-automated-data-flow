@@ -612,6 +612,7 @@ def test_disappeared_product_shows_propose_to_archive(
 
     assert response.status_code == 200
     assert "Propose to Archive" in response.text
+    assert 'class="product-group archiving-product"' in response.text
 
 
 def test_accept_all_accepts_every_pending_change_for_one_product(

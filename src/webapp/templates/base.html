@@ -278,6 +278,38 @@
        via the content_shell_class block below, rather than widening every page. */
     .content-shell.wide { max-width: 84rem; }
 
+    .run-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+    }
+    .run-detail-header h1 { margin: 0; }
+
+    .run-filter {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin: 0.5rem 0 1.2rem;
+      font-size: 0.9em;
+    }
+    .run-filter a {
+      text-decoration: none;
+      color: var(--muted);
+      padding: 0.2em 0.1em;
+      border-bottom: 2px solid transparent;
+    }
+    .run-filter a:hover { color: inherit; }
+    .run-filter a.active {
+      color: var(--brand-green-dark);
+      font-weight: 600;
+      border-bottom-color: var(--brand-green);
+    }
+    @media (prefers-color-scheme: dark) {
+      .run-filter a.active { color: var(--brand-green-bright); }
+    }
+
     /* Floating confirmation banner (`showToast()`), for actions like "generate
        upload" that shouldn't navigate the reviewer away from the page they're on. */
     .toast {

@@ -327,6 +327,49 @@ def test_range_selection_is_passed_through_to_the_adapter(
     assert adapter.calls[0]["ranges"] == (("motorhomes/matrix", "Matrix"),)
 
 
+def test_a_range_scoped_run_only_diffs_baseline_rows_from_that_range(
+    data_root: Path, export_path: Path
+) -> None:
+    """A run restricted to one range must not propose archiving other ranges' products.
+
+    `export_path` already has an Adria/Matrix baseline row; add an Adria/Coral one too.
+    A run scoped to `ranges=(("motorhomes/matrix", "Matrix"),)` that scrapes nothing
+    should leave the Coral row alone — it was never in scope for this run — and only
+    the unmatched Matrix row should come back as a proposed archive.
+    """
+    io.write_csv(
+        [
+            *io.read_export(export_path).motorhomes,
+            make_baseline(
+                product_id=4148,
+                manufacturer_range="Coral",
+                model="Coral Supreme 670 SL",
+            ),
+        ],
+        export_path,
+    )
+    adapter = FakeAdapter(products=[])
+
+    summary = run_once(
+        data_root=data_root,
+        export_path=export_path,
+        adapter=adapter,
+        collect_kwargs={"ranges": (("motorhomes/matrix", "Matrix"),)},
+    )
+
+    # Only the Matrix row is in scope — Swift and Coral rows must not be diffed against.
+    assert summary.baseline_count == 1
+    assert summary.kinds["disappeared"] == 1
+
+    connection = store.connect(paths.db_path(root=data_root))
+    try:
+        queue = store.list_change_queue(connection, summary.run.id)
+        archived_ids = {entry.product.fmlv_product_id for entry in queue}
+        assert archived_ids == {4147}
+    finally:
+        connection.close()
+
+
 def test_a_failing_adapter_marks_the_run_failed_and_re_raises(
     data_root: Path, export_path: Path
 ) -> None:

@@ -240,6 +240,7 @@ def execute_run(
     try:
         ranges = (collect_kwargs or {}).get("ranges")
         range_label = ", ".join(label for _path, label in ranges) if ranges else None
+        wanted_range_labels = {label for _path, label in ranges} if ranges else None
         run = store.start_run(
             connection,
             manufacturer_id=manufacturer.manufacturer_id,
@@ -258,6 +259,7 @@ def execute_run(
                 for motorhome in read.motorhomes
                 if motorhome.manufacturer == manufacturer.fmlv_manufacturer
                 and not motorhome.archived
+                and (wanted_range_labels is None or motorhome.manufacturer_range in wanted_range_labels)
             )
 
             # One browser process and one HTTP client for the whole run — the browser

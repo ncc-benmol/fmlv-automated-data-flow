@@ -168,8 +168,14 @@ def create_app(
         return _templates.TemplateResponse(request, "home.html", {})
 
     @app.get("/runs", response_class=HTMLResponse)
-    def run_list(request: Request, connection: ConnectionDep) -> HTMLResponse:
+    def run_list(request: Request, connection: ConnectionDep, limit: str = "10") -> HTMLResponse:
         runs = store.list_runs(connection)
+        if limit != "all":
+            try:
+                runs = runs[: int(limit)]
+            except ValueError:
+                limit = "10"
+                runs = runs[:10]
         # Only a succeeded run has a change queue worth summarising — a running or
         # failed run has no proposed_change rows yet (persist_diff runs at the very
         # end), so skip the query rather than show a misleading "0 pending".
@@ -179,7 +185,9 @@ def create_app(
             if run.status == "succeeded"
         }
         return _templates.TemplateResponse(
-            request, "runs.html", {"runs": runs, "review_summaries": review_summaries}
+            request,
+            "runs.html",
+            {"runs": runs, "review_summaries": review_summaries, "limit": limit},
         )
 
     @app.get("/trigger", response_class=HTMLResponse)

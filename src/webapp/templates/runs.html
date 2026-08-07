@@ -2,7 +2,14 @@
 {% block title %}Runs — FMLV Automated Data Ingestion{% endblock %}
 {% block content_shell_class %}wide{% endblock %}
 {% block content %}
+  <div id="runs-page" hx-get="/runs?limit={{ limit }}" hx-trigger="every 10s" hx-select="#runs-page" hx-target="#runs-page" hx-swap="outerHTML">
   <h1>Runs</h1>
+  <div class="run-filter">
+    <span class="muted">Show:</span>
+    <a href="/runs?limit=10" class="{{ 'active' if limit == '10' }}">Most recent 10</a>
+    <a href="/runs?limit=25" class="{{ 'active' if limit == '25' }}">Most recent 25</a>
+    <a href="/runs?limit=all" class="{{ 'active' if limit == 'all' }}">All</a>
+  </div>
   {% if not runs %}
     <p class="muted">No runs recorded yet.</p>
   {% else %}
@@ -15,8 +22,7 @@
           <th>Trigger</th>
           <th>Status</th>
           <th>Started</th>
-          <th>Finished</th>
-          <th>Pending review</th>
+          <th>Changes pending review</th>
           <th>Primary reviewer</th>
           <th>Upload</th>
         </tr>
@@ -37,12 +43,8 @@
             <td>{{ run.trigger }}</td>
             <td>
               <span class="badge {{ run.status }}">{{ run.status }}</span>
-              {% if run.status == "running" %}
-                <span class="muted">— not yet available for review</span>
-              {% endif %}
             </td>
             <td class="muted">{{ run.started_at|fmt_dt_short }}</td>
-            <td class="muted">{{ run.finished_at|fmt_dt_short }}</td>
             <td>
               {% if not summary %}
                 <span class="muted">—</span>
@@ -67,4 +69,5 @@
       </tbody>
     </table>
   {% endif %}
+  </div>
 {% endblock %}

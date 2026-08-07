@@ -2,10 +2,19 @@
 {% block title %}{{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %} — run #{{ run.id }}{% endblock %}
 {% block content %}
   <p class="muted"><a href="/runs">← All runs</a></p>
-  <h1>
-    {{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %}
-    <span class="badge {{ run.status }}">{{ run.status }}</span>
-  </h1>
+  <div class="run-detail-header">
+    <h1>
+      {{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %}
+      <span class="badge {{ run.status }}">{{ run.status }}</span>
+    </h1>
+    {% if run.status == "succeeded" %}
+      <div id="generate-upload">
+        <form method="post" action="/runs/{{ run.id }}/generate-upload" onsubmit="generateUpload(event, this)">
+          <button type="submit" class="btn btn-primary">Generate upload CSV</button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
   <p class="muted">
     Run #{{ run.id }} · {{ run.trigger }} · started {{ run.started_at|fmt_dt }}
     {% if run.finished_at %}
@@ -14,14 +23,6 @@
   </p>
   {% if run.error_message %}
     <p class="form-error">{{ run.error_message }}</p>
-  {% endif %}
-
-  {% if run.status == "succeeded" %}
-    <div id="generate-upload">
-      <form method="post" action="/runs/{{ run.id }}/generate-upload" onsubmit="generateUpload(event, this)">
-        <button type="submit" class="btn btn-primary">Generate upload CSV</button>
-      </form>
-    </div>
   {% endif %}
 
   <div id="reviewer-bar">

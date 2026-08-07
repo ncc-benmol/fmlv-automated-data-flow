@@ -155,7 +155,7 @@ def test_run_list_shows_a_running_run_without_a_review_link(
 
     assert response.status_code == 200
     assert f'href="/runs/{run.id}"' not in response.text
-    assert "not yet available for review" in response.text
+    assert '<span class="badge running">running</span>' in response.text
 
 
 def test_run_list_shows_pending_count_and_a_generate_upload_button(

@@ -127,11 +127,15 @@ if ($LASTEXITCODE -ne 0) { throw "nssm install failed (exit $LASTEXITCODE)." }
 & $nssmExe set $ServiceName AppRotateOnline 1       | Out-Null
 & $nssmExe set $ServiceName AppRotateBytes 1048576  | Out-Null
 
-# Same shared cache the smoke test and 04-provision-app.ps1 used -- without this the
-# service account gets its own empty cache and re-downloads/rebuilds everything.
+# Same shared cache 04-provision-app.ps1 used -- without this the service account
+# (LocalSystem, whose profile is not the account 04 installed anything under) gets its
+# own empty cache/browser-install and either re-downloads everything or, for
+# PLAYWRIGHT_BROWSERS_PATH specifically, finds no browser at all ("Executable doesn't
+# exist ... Please run playwright install").
 & $nssmExe set $ServiceName AppEnvironmentExtra `
     "UV_CACHE_DIR=$(Join-Path $RootDir 'uv-cache')" `
-    "UV_PYTHON_INSTALL_DIR=$(Join-Path $RootDir 'python')" | Out-Null
+    "UV_PYTHON_INSTALL_DIR=$(Join-Path $RootDir 'python')" `
+    "PLAYWRIGHT_BROWSERS_PATH=$(Join-Path $RootDir 'ms-playwright')" | Out-Null
 
 & $nssmExe set $ServiceName AppExit Default Restart | Out-Null
 & $nssmExe set $ServiceName AppRestartDelay 5000    | Out-Null

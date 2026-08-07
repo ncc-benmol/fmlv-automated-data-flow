@@ -20,6 +20,14 @@
     smoketest.ps1 installed it, and an unelevated session -- even under an admin
     account -- runs with a filtered token that can't touch what SYSTEM has written.
 
+    Playwright's browser cache is pinned to `<RootDir>\ms-playwright` for the same
+    reason, but in the opposite direction: left at its default, Chromium installs
+    under *this account's* profile, and 05-install-app-service.ps1's LocalSystem
+    service would find nothing there. Both this script and that one must agree on
+    `PLAYWRIGHT_BROWSERS_PATH` -- it's set here at install time and again there as
+    the service's environment, matching the existing UV_CACHE_DIR/UV_PYTHON_INSTALL_DIR
+    pattern.
+
     Safe to re-run: `uv sync` and `playwright install` are both idempotent.
 
 .EXAMPLE
@@ -67,9 +75,13 @@ Write-Section 'Configuration'
 } | Format-List
 
 # Same shared cache the smoke test warmed, so the service account (and this sync)
-# don't each pull their own copy of every dependency and Python build.
+# don't each pull their own copy of every dependency and Python build. Playwright's
+# browser cache needs the same treatment and for the same reason: left at its default,
+# it installs under *this* account's profile, but the service runs as LocalSystem,
+# whose profile is a different, empty directory -- it would find nothing there.
 $env:UV_CACHE_DIR = Join-Path $RootDir 'uv-cache'
 $env:UV_PYTHON_INSTALL_DIR = Join-Path $RootDir 'python'
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $RootDir 'ms-playwright'
 
 Write-Section 'uv sync'
 Push-Location $repoRoot

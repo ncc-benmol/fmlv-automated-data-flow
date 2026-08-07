@@ -47,6 +47,26 @@ see the docstring in `05-install-app-service.ps1` for how to switch to a dedicat
 account later without any code change, if `.env` holding NCC credentials under
 LocalSystem ever becomes a concern.
 
+### Troubleshooting the real app
+
+**A triggered run fails immediately with `BrowserType.launch: Executable doesn't
+exist at C:\WINDOWS\system32\config\systemprofile\...\ms-playwright\...`.** The
+service runs as `LocalSystem`, whose profile is that `systemprofile` path, not the
+account `04-provision-app.ps1` was run as — so Chromium installed under *your*
+profile is invisible to it. Both scripts pin `PLAYWRIGHT_BROWSERS_PATH` to
+`C:\fmlv\ms-playwright` for exactly this reason (same pattern as `UV_CACHE_DIR`); if
+you still hit this, re-run `04-provision-app.ps1` (elevated — it reinstalls Chromium
+into the shared path) followed by `05-install-app-service.ps1` (to refresh the
+service's environment), then retry.
+
+**A triggered run fails with a `uv sync`/DLL/import error the first time the service
+actually runs, even though `04-provision-app.ps1` succeeded.** Check
+`C:\fmlv\logs\fmlv-app.err.log` for the real traceback — `ImportError: DLL load
+failed while importing _greenlet` means the VM is missing the [Microsoft Visual C++
+Redistributable (x64)](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist),
+which Playwright's `greenlet` dependency needs. Install it, then re-run
+`05-install-app-service.ps1`.
+
 ---
 
 ## The deployment smoke test (`01`–`03`)

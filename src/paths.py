@@ -1,9 +1,11 @@
-"""Standard on-disk layout for run data.
+"""Standard on-disk layout for run data and config.
 
 Everything the pipeline reads or writes at runtime lives under one `data/` directory
-(see DESIGN.md §5 and §8): the manufacturer registry, downloaded FMLV exports, fetch
-snapshots, the SQLite run store, and generated upload CSVs. This module is the single
-place that knows that layout, so nothing else hard-codes a path string.
+(see DESIGN.md §5 and §8): downloaded FMLV exports, fetch snapshots, the SQLite run
+store, and generated upload CSVs. The manufacturer registry and reviewers list are
+hand-maintained inputs rather than runtime output, so they live under a separate
+`config/` directory instead. This module is the single place that knows both layouts,
+so nothing else hard-codes a path string.
 """
 
 from __future__ import annotations
@@ -22,6 +24,10 @@ _LOCAL_TZ = ZoneInfo("Europe/London")
 #: mutating this constant.
 DATA_DIR = Path("data")
 
+#: Root of hand-maintained config: the manufacturer registry and reviewers list.
+#: Separate from DATA_DIR because these are inputs someone edits, not run output.
+CONFIG_DIR = Path("config")
+
 #: Characters not safe in a Windows path component, collapsed to a single "-".
 _UNSAFE_PATH_CHARS = re.compile(r'[<>:"/\\|?*]+')
 
@@ -36,12 +42,12 @@ def safe_path_component(text: str) -> str:
     return _UNSAFE_PATH_CHARS.sub("-", text.strip()).strip()
 
 
-def registry_path(*, root: Path = DATA_DIR) -> Path:
+def registry_path(*, root: Path = CONFIG_DIR) -> Path:
     """The manufacturer registry CSV — who to visit, where, and in what shape."""
     return root / "manufacturers.csv"
 
 
-def reviewers_path(*, root: Path = DATA_DIR) -> Path:
+def reviewers_path(*, root: Path = CONFIG_DIR) -> Path:
     """The known-reviewers CSV — who is allowed to decide on a proposed change."""
     return root / "reviewers.csv"
 

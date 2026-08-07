@@ -1,4 +1,4 @@
-"""Loading `data/manufacturers.csv`.
+"""Loading `config/manufacturers.csv`.
 
 Mirrors the approach in `product_model.io`: a single bad row is reported as an `Issue`, not
 raised, so one malformed registry entry doesn't stop every other manufacturer from

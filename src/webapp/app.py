@@ -135,16 +135,16 @@ def create_app(
 ) -> FastAPI:
     """Build the review app against the SQLite store at `db_path`.
 
-    `reviewers_path` and `registry_path` default relative to `db_path`'s directory —
-    the standard `data/` layout (`paths.py`) — but can be overridden, the same way
-    tests point `db_path` at a throwaway file. If `reviewers_path` resolves to a file
-    that doesn't exist, the reviewer dropdown is empty and decisions are never gated
-    by name — the behaviour before reviewers.csv existed, so a test or a dev checkout
-    without the file still works.
+    `reviewers_path` and `registry_path` default to the standard `config/` layout
+    (`paths.py`) — independent of where `db_path` lives — but can be overridden, the
+    same way tests point `db_path` at a throwaway file. If `reviewers_path` resolves
+    to a file that doesn't exist, the reviewer dropdown is empty and decisions are
+    never gated by name — the behaviour before reviewers.csv existed, so a test or a
+    dev checkout without the file still works.
     """
     data_root = db_path.parent
-    reviewers_file = reviewers_path or paths.reviewers_path(root=data_root)
-    registry_file = registry_path or paths.registry_path(root=data_root)
+    reviewers_file = reviewers_path or paths.reviewers_path()
+    registry_file = registry_path or paths.registry_path()
 
     app = FastAPI(title="FMLV Automated Data Ingestion")
     app.state.db_path = db_path

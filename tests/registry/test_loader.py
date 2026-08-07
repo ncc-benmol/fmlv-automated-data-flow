@@ -32,7 +32,7 @@ _COLUMNS = (
     "notes",
 )
 
-REAL_REGISTRY = Path(__file__).parents[2] / "data" / "manufacturers.csv"
+REAL_REGISTRY = Path(__file__).parents[2] / "config" / "manufacturers.csv"
 
 
 def write_registry(tmp_path: Path, rows: list[dict[str, str]]) -> Path:

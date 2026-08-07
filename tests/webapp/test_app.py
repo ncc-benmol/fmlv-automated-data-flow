@@ -60,7 +60,15 @@ def db_path(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def client(db_path: Path) -> TestClient:
-    return TestClient(create_app(db_path))
+    # Explicit registry_path/reviewers_path keep this isolated from the real
+    # project's config/ directory — create_app defaults there otherwise.
+    return TestClient(
+        create_app(
+            db_path,
+            registry_path=db_path.parent / "manufacturers.csv",
+            reviewers_path=db_path.parent / "reviewers.csv",
+        )
+    )
 
 
 @pytest.fixture
@@ -629,7 +637,13 @@ def reviewers_path(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def gated_client(db_path: Path, reviewers_path: Path) -> TestClient:
-    return TestClient(create_app(db_path, reviewers_path=reviewers_path))
+    return TestClient(
+        create_app(
+            db_path,
+            reviewers_path=reviewers_path,
+            registry_path=db_path.parent / "manufacturers.csv",
+        )
+    )
 
 
 def test_decide_is_rejected_when_reviewer_is_not_in_the_known_list(

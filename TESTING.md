@@ -32,7 +32,7 @@ need doing before §T3.
       `data/uploads/**` into a tracked tree; the live Adria sweep alone is 34 PDFs.
       `/data/snapshots` was added early (before §T6's live runs); `/data/exports`,
       `/data/uploads` and `/data/run_store.sqlite3` finished off here, before committing
-      — `data/manufacturers.csv` and its README are unaffected and stay tracked.
+      — `config/manufacturers.csv` and its README live outside `data/` and stay tracked.
 - [x] **T-pre-3 — The review app had no server entry point.** `webapp.app.create_app` is
       a factory taking a `db_path`, so `uvicorn webapp.app:app` doesn't work. **Resolved**:
       `webapp/serve.py` builds a module-level `app` against `paths.db_path()` (or
@@ -273,7 +273,7 @@ configuration** (~50 requests).
 
 - [ ] Write down the teardown so a run can be repeated from clean:
       delete `data/run_store.sqlite3`, `data/snapshots/`, `data/uploads/`; keep
-      `data/exports/` and `data/manufacturers.csv`.
+      `data/exports/` and `config/manufacturers.csv`.
 - [ ] `tests/test_cli.py` already covers the wiring *between* phases against a
       `tmp_path` database — the gap every other test left. Once §T3–§T7 pass by hand,
       extend it with the real Adria fixtures and the real export, so the numbers §T3

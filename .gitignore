@@ -9,7 +9,7 @@ wheels/
 # Virtual environments
 .venv
 
-# Runtime data — see data/manufacturers.README.md for what stays tracked
+# Runtime data — see config/manufacturers.README.md for what stays tracked
 /data/snapshots
 /data/exports
 /data/uploads

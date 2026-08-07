@@ -1,7 +1,7 @@
 """The manufacturer registry data model.
 
-One `Manufacturer` per row of `data/manufacturers.csv` — who to visit, where, and in
-what shape. See `data/manufacturers.README.md` for the column-by-column field guide.
+One `Manufacturer` per row of `config/manufacturers.csv` — who to visit, where, and in
+what shape. See `config/manufacturers.README.md` for the column-by-column field guide.
 """
 
 from __future__ import annotations

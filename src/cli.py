@@ -341,8 +341,9 @@ def format_summary(summary: RunSummary) -> str:
 
 def _run_command(args: argparse.Namespace) -> int:
     data_root: Path = args.data_dir
+    config_root: Path = args.config_dir
 
-    registry_file = args.registry or paths.registry_path(root=data_root)
+    registry_file = args.registry or paths.registry_path(root=config_root)
     if not registry_file.exists():
         msg = f"manufacturer registry not found at {registry_file}"
         raise CommandError(msg)
@@ -418,8 +419,9 @@ def _fetch_export_command(args: argparse.Namespace) -> int:
     a traceback.
     """
     data_root: Path = args.data_dir
+    config_root: Path = args.config_dir
 
-    registry_file = args.registry or paths.registry_path(root=data_root)
+    registry_file = args.registry or paths.registry_path(root=config_root)
     if not registry_file.exists():
         msg = f"manufacturer registry not found at {registry_file}"
         raise CommandError(msg)
@@ -432,7 +434,7 @@ def _fetch_export_command(args: argparse.Namespace) -> int:
             f"{manufacturer.fmlv_manufacturer!r} has no ncc_supplier_name set in the "
             f"registry — open the NCC site's 'Export Products by Supplier' dropdown "
             f"(/nova/resources/products) and copy the exact label into "
-            f"data/manufacturers.csv"
+            f"config/manufacturers.csv"
         )
         raise CommandError(msg)
 
@@ -476,6 +478,7 @@ def _generate_upload_command(args: argparse.Namespace) -> int:
     button, added alongside this, is the same rule enforced in the browser).
     """
     data_root: Path = args.data_dir
+    config_root: Path = args.config_dir
     connection = store.connect(paths.db_path(root=data_root))
     try:
         try:
@@ -487,7 +490,7 @@ def _generate_upload_command(args: argparse.Namespace) -> int:
             msg = f"run #{run.id} is {run.status!r}, not 'succeeded' — nothing to upload"
             raise CommandError(msg)
 
-        registry_file = args.registry or paths.registry_path(root=data_root)
+        registry_file = args.registry or paths.registry_path(root=config_root)
         if not registry_file.exists():
             msg = f"manufacturer registry not found at {registry_file}"
             raise CommandError(msg)
@@ -569,10 +572,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"root for exports, snapshots and the run store (default: {paths.DATA_DIR})",
     )
     run_parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=paths.CONFIG_DIR,
+        help=f"root for the manufacturer registry (default: {paths.CONFIG_DIR})",
+    )
+    run_parser.add_argument(
         "--registry",
         type=Path,
         default=None,
-        help="manufacturer registry CSV (default: <data-dir>/manufacturers.csv)",
+        help="manufacturer registry CSV (default: <config-dir>/manufacturers.csv)",
     )
     run_parser.add_argument(
         "--trigger",
@@ -612,10 +621,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"root for exports (default: {paths.DATA_DIR})",
     )
     fetch_export_parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=paths.CONFIG_DIR,
+        help=f"root for the manufacturer registry (default: {paths.CONFIG_DIR})",
+    )
+    fetch_export_parser.add_argument(
         "--registry",
         type=Path,
         default=None,
-        help="manufacturer registry CSV (default: <data-dir>/manufacturers.csv)",
+        help="manufacturer registry CSV (default: <config-dir>/manufacturers.csv)",
     )
     fetch_export_parser.add_argument(
         "--show-browser",
@@ -646,10 +661,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"root for exports and the run store (default: {paths.DATA_DIR})",
     )
     generate_upload_parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=paths.CONFIG_DIR,
+        help=f"root for the manufacturer registry (default: {paths.CONFIG_DIR})",
+    )
+    generate_upload_parser.add_argument(
         "--registry",
         type=Path,
         default=None,
-        help="manufacturer registry CSV (default: <data-dir>/manufacturers.csv)",
+        help="manufacturer registry CSV (default: <config-dir>/manufacturers.csv)",
     )
     generate_upload_parser.set_defaults(handler=_generate_upload_command)
 

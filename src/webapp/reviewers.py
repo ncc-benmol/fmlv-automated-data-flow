@@ -1,4 +1,4 @@
-"""Loading `data/reviewers.csv` — who is allowed to decide on a proposed change.
+"""Loading `config/reviewers.csv` — who is allowed to decide on a proposed change.
 
 Deliberately tiny compared to `registry/loader.py`: two columns, no cross-row checks.
 A missing file is not an error — it just means the app can't populate the reviewer

@@ -170,7 +170,7 @@ Handled by the `archived` Yes/No column, not by deleting rows.
 | Component | Responsibility |
 |---|---|
 | `product_model/` | Canonical model, schema, read/write of FMLV exports, validation rules. The only place that knows about the 68 columns. |
-| `registry/` | Manufacturer list (`data/manufacturers.csv`) — who to visit, where, and in what shape. |
+| `registry/` | Manufacturer list (`config/manufacturers.csv`) — who to visit, where, and in what shape. |
 | `fetch/` | HTTP + headless browser retrieval, snapshotting, content hashing, politeness/rate limiting. |
 | `adapters/` | One module per manufacturer. Turns a snapshot into canonical `Motorhome` objects. The only manufacturer-specific code. |
 | `diff/` | Matching scraped products to existing `product_id`s, then field-level comparison. |

@@ -17,4 +17,4 @@ from .. import paths
 from .app import create_app
 
 db_path = Path(os.environ.get("FMLV_DB_PATH", str(paths.db_path())))
-app = create_app(db_path)  # reviewers.csv / manufacturers.csv resolved relative to db_path's dir
+app = create_app(db_path)  # reviewers.csv / manufacturers.csv resolved from paths.CONFIG_DIR

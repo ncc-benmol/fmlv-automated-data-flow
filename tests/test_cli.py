@@ -148,6 +148,13 @@ def data_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def config_root(tmp_path: Path) -> Path:
+    root = tmp_path / "config"
+    root.mkdir()
+    return root
+
+
+@pytest.fixture
 def export_path(data_root: Path) -> Path:
     """A baseline export holding one Adria product and one from another brand.
 
@@ -582,42 +589,48 @@ def test_summary_reports_the_run(data_root: Path, export_path: Path) -> None:
 
 
 def test_unknown_manufacturer_exits_two_without_a_traceback(
-    data_root: Path, export_path: Path, capsys: pytest.CaptureFixture[str]
+    data_root: Path, config_root: Path, export_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    registry = data_root / "manufacturers.csv"
+    registry = config_root / "manufacturers.csv"
     registry.write_text(
         "manufacturer_id,fmlv_manufacturer,website_url\n3,Adria Mobil,https://example.invalid/\n",
         encoding="utf-8",
     )
 
-    exit_code = main(["run", "Hymer", "--data-dir", str(data_root)])
+    exit_code = main(
+        ["run", "Hymer", "--data-dir", str(data_root), "--config-dir", str(config_root)]
+    )
 
     assert exit_code == 2
     assert "Hymer" in capsys.readouterr().err
 
 
 def test_missing_registry_exits_two(
-    data_root: Path, capsys: pytest.CaptureFixture[str]
+    data_root: Path, config_root: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    exit_code = main(["run", "Adria", "--data-dir", str(data_root)])
+    exit_code = main(
+        ["run", "Adria", "--data-dir", str(data_root), "--config-dir", str(config_root)]
+    )
 
     assert exit_code == 2
     assert "registry not found" in capsys.readouterr().err
 
 
 def test_manufacturer_without_an_adapter_says_which_ones_exist(
-    data_root: Path, capsys: pytest.CaptureFixture[str]
+    data_root: Path, config_root: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Rimor is a real registry row with no adapter yet. It used to be Swift here, until
     # Swift got one — so pick a brand still genuinely unsupported, and expect the
     # message to list whichever adapters do exist rather than naming them one by one.
-    registry = data_root / "manufacturers.csv"
+    registry = config_root / "manufacturers.csv"
     registry.write_text(
         "manufacturer_id,fmlv_manufacturer,website_url\n75,Rimor,https://example.invalid/\n",
         encoding="utf-8",
     )
 
-    exit_code = main(["run", "Rimor", "--data-dir", str(data_root)])
+    exit_code = main(
+        ["run", "Rimor", "--data-dir", str(data_root), "--config-dir", str(config_root)]
+    )
 
     assert exit_code == 2
     error = capsys.readouterr().err
@@ -632,9 +645,9 @@ def test_manufacturer_without_an_adapter_says_which_ones_exist(
 
 
 def test_generate_upload_writes_a_timestamped_csv_from_reviewed_decisions(
-    data_root: Path, export_path: Path, capsys: pytest.CaptureFixture[str]
+    data_root: Path, config_root: Path, export_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    registry = data_root / "manufacturers.csv"
+    registry = config_root / "manufacturers.csv"
     registry.write_text(
         "manufacturer_id,fmlv_manufacturer,website_url\n3,Adria Mobil,https://example.invalid/\n",
         encoding="utf-8",
@@ -657,6 +670,8 @@ def test_generate_upload_writes_a_timestamped_csv_from_reviewed_decisions(
             str(summary.run.id),
             "--data-dir",
             str(data_root),
+            "--config-dir",
+            str(config_root),
             "--export",
             str(export_path),
         ]

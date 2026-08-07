@@ -16,9 +16,9 @@ deferred.
 
 - [x] **[P]** Obtain a real FMLV export and the NCC field guide
 - [x] **[P]** Decide scope: motorhomes only, caravans deferred
-- [x] **[P]** Manufacturer registry template (`data/manufacturers.csv` + README)
+- [x] **[P]** Manufacturer registry template (`config/manufacturers.csv` + README)
 - [x] **[P]** Project design document
-- [x] **[P]** Ben: populate `data/manufacturers.csv` with the pilot manufacturers
+- [x] **[P]** Ben: populate `config/manufacturers.csv` with the pilot manufacturers
 - [x] **[P]** Add dependencies: `pydantic`, `openpyxl`, `httpx`, `pypdf`, `playwright`, `pytest` (drop unused `numpy`)
 - [x] **[P]** Set up `pytest` (`uv run pytest`; `testpaths` configured in `pyproject.toml`)
 - [ ] **[P]** A `just`/`make` task for the common commands (run, sweep, test)
@@ -46,7 +46,7 @@ verifiable against the real Adria export.
 
 ## Phase 2 — Registry and run store
 
-- [x] **[P]** Load and validate `data/manufacturers.csv`; skip `caravan`-only rows for now
+- [x] **[P]** Load and validate `config/manufacturers.csv`; skip `caravan`-only rows for now
       (`registry/loader.py` — a blank `categories` defaults to *included*, with a warning)
 - [x] **[P]** SQLite schema + migrations: `run`, `source_snapshot`, `product`,
       `proposed_change`, `decision`, `verification` (`store/schema.sql`)
@@ -93,7 +93,7 @@ verifiable against the real Adria export.
 Do this **before** committing to an adapter interface — the sites decide the shape.
 
 - [ ] **[P]** Survey 3–5 pilot manufacturer sites: HTML tables? JSON blob? PDF only?
-      JS required? Record findings in `data/manufacturers.csv` — **Adria done** (see
+      JS required? Record findings in `config/manufacturers.csv` — **Adria done** (see
       below), Swift/Sunlight/Morelo/Rimor/Auto-Trail still to go
 - [x] **[P]** Write up the general pattern, if there is one — first pass in
       `docs/adapters/README.md`, based on Adria alone so far; revisit once a second
@@ -230,7 +230,7 @@ Do this **before** committing to an adapter interface — the sites decide the s
       `data/exports/<manufacturer_id>_<manufacturer>/<date>_<manufacturer>_motorhome-campervans.xlsx`,
       and prints progress ("logging in...", "triggering the export download...") so a
       terminal isn't silent for the several seconds a real browser login takes.
-- [x] **[P]** Registry: `ncc_supplier_name` column (`data/manufacturers.csv`,
+- [x] **[P]** Registry: `ncc_supplier_name` column (`config/manufacturers.csv`,
       `registry/models.py`, `registry/loader.py`) — the exact label a manufacturer has
       in the NCC's supplier dropdown, which doesn't always match `fmlv_manufacturer`
       (e.g. `"Adria Mobil"` vs `"Adria Caravans & Motorhomes"`). Filled in for all six
@@ -370,7 +370,7 @@ before debugging FMLV logic on it at the same time.
 Nothing here blocked the work (everything degrades to a warning, never a crash), but
 each needs a human decision or a data fix.
 
-- [ ] **Confirm what `manufacturer_id` actually is.** `data/manufacturers.csv` now has
+- [ ] **Confirm what `manufacturer_id` actually is.** `config/manufacturers.csv` now has
       real values (`3` for Adria Mobil, `125` for Sunlight, `46` for Morelo, `26` for
       Swift, `75` for Rimor, `61` for Auto-Trail) instead of the slug the README
       originally described. These look like NCC-side IDs — please confirm the source

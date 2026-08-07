@@ -47,10 +47,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -319,13 +320,17 @@ def execute_run(
 
         try:
             if refresh_export:
+                fetch_started = time.monotonic()
                 on_progress(
                     f"Fetching latest {manufacturer.fmlv_manufacturer} export from FMLV..."
                 )
                 export_path = _export_fetcher(
                     manufacturer=manufacturer, data_root=data_root, on_progress=on_progress
                 )
-                on_progress(f"Using export {export_path}")
+                on_progress(
+                    f"Using export {export_path} "
+                    f"(FMLV login + download took {time.monotonic() - fetch_started:.1f}s)"
+                )
 
             read = io.read_export(export_path)
             baseline = _dedupe_baseline(
@@ -340,11 +345,18 @@ def execute_run(
             # is launched even for an adapter that won't use it, which the `Adapter`
             # protocol's shape currently requires. Cheap enough at one run per
             # manufacturer; worth revisiting if a sweep ever launches dozens.
+            scrape_started = time.monotonic()
+            on_progress(f"Scraping {manufacturer.fmlv_manufacturer} website...")
             with _fetcher_factory(snapshot_dir) as http, _browser_factory(snapshot_dir) as browser:
                 scraped = adapter.collect(
                     http, browser, snapshot_dir, on_progress=on_progress, **(collect_kwargs or {})
                 )
+            on_progress(
+                f"Scraped {len(scraped)} product(s) "
+                f"(website sweep took {time.monotonic() - scrape_started:.1f}s)"
+            )
 
+            diff_started = time.monotonic()
             diffs = diff_products(scraped, baseline)
             persisted = store.persist_diff(
                 connection,
@@ -352,6 +364,10 @@ def execute_run(
                 manufacturer_id=manufacturer.manufacturer_id,
                 diffs=diffs,
                 bump_year_all=bump_year,
+            )
+            on_progress(
+                f"Compared {len(scraped)} scraped against {len(baseline)} baseline product(s) "
+                f"(diff + persist took {time.monotonic() - diff_started:.1f}s)"
             )
             finished = store.finish_run(connection, run.id)
         except Exception as exc:
@@ -413,6 +429,17 @@ def format_summary(summary: RunSummary) -> str:
 # --------------------------------------------------------------------------- #
 
 
+def _print_with_timestamp(message: str) -> None:
+    """`[14:32:07] message` — so a terminal run shows when each section happened.
+
+    Wall-clock rather than elapsed-since-start: `execute_run` already reports how
+    long the FMLV fetch and the website sweep each took as part of the message text
+    (see its "took Xs" progress lines), so the timestamp here is for lining that up
+    against real time / other logs, not for re-deriving durations by hand.
+    """
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}", flush=True)
+
+
 def _run_command(args: argparse.Namespace) -> int:
     data_root: Path = args.data_dir
     config_root: Path = args.config_dir
@@ -454,9 +481,6 @@ def _run_command(args: argparse.Namespace) -> int:
         msg = f"export not found: {export_path}"
         raise CommandError(msg)
 
-    def report_progress(message: str) -> None:
-        print(message, flush=True)
-
     try:
         summary = execute_run(
             manufacturer=manufacturer,
@@ -466,7 +490,7 @@ def _run_command(args: argparse.Namespace) -> int:
             trigger=args.trigger,
             bump_year=args.bump_year,
             collect_kwargs=collect_kwargs,
-            on_progress=report_progress,
+            on_progress=_print_with_timestamp,
         )
     except Exception as exc:  # noqa: BLE001 — already recorded against the run
         print(f"run failed: {type(exc).__name__}: {exc}", file=sys.stderr)
@@ -500,14 +524,11 @@ def _fetch_export_command(args: argparse.Namespace) -> int:
     registry = loader.load(registry_file)
     manufacturer = find_manufacturer(registry.manufacturers, args.manufacturer)
 
-    def report_progress(message: str) -> None:
-        print(message, flush=True)
-
     dest_path = fetch_export(
         manufacturer=manufacturer,
         data_root=data_root,
         headless=not args.show_browser,
-        on_progress=report_progress,
+        on_progress=_print_with_timestamp,
     )
 
     print(f"downloaded {manufacturer.fmlv_manufacturer} export to {dest_path}")

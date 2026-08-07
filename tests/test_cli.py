@@ -557,6 +557,7 @@ def test_on_progress_is_threaded_through_to_the_adapter(
     )
 
     assert adapter.calls is not None
+    messages.clear()  # drop execute_run's own section-timing lines, not under test here
     adapter.calls[0]["on_progress"]("a progress line")
     assert messages == ["a progress line"]
 

@@ -37,6 +37,7 @@
          on the page at a glance. */
       --new-product-pale: #e3f0fb;
       --new-product-border: #7fb3e0;
+      --new-product-text: #1c4e80;
       /* Pale orange for a propose-to-archive card — same idea as the new-product
          blue, its own colour so the two "pay attention" states read as distinct at
          a glance. */
@@ -55,6 +56,7 @@
         --brand-green-pale2: #2b3a17;
         --new-product-pale: #16283a;
         --new-product-border: #3d7cae;
+        --new-product-text: #7fb8f0;
         --archiving-product-pale: #3a2a16;
         --archiving-product-border: #ae7c3d;
         /* `--brand-green-dark` stays put (it's still used for the always-light
@@ -96,7 +98,7 @@
       border: 1px solid var(--border);
       margin-left: 0.4em;
     }
-    .badge.new { border-color: var(--accept); color: var(--accept); }
+    .badge.new { border-color: var(--new-product-text); color: var(--new-product-text); }
     .badge.archiving { border-color: var(--archiving-product-border); color: var(--archiving-product-border); }
     .badge.high-suspicion { border-color: var(--correct); color: var(--correct); }
     .badge.running { border-color: var(--correct); color: var(--correct); }

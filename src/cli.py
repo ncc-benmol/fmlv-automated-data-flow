@@ -142,6 +142,55 @@ def latest_export(*, root: Path, manufacturer_id: int, manufacturer_name: str) -
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
+def fetch_export(
+    *,
+    manufacturer: Manufacturer,
+    data_root: Path,
+    headless: bool = True,
+    on_progress: Callable[[str], None] = lambda message: None,
+) -> Path:
+    """Log in to the NCC site and download one manufacturer's current export.
+
+    The shared implementation behind `fmlv fetch-export` and, via `execute_run`'s
+    `refresh_export`, the automatic baseline refresh a triggered run does before
+    diffing — so the two never drift apart on what "the current export" means.
+    """
+    if not manufacturer.ncc_supplier_name:
+        msg = (
+            f"{manufacturer.fmlv_manufacturer!r} has no ncc_supplier_name set in the "
+            f"registry — open the NCC site's 'Export Products by Supplier' dropdown "
+            f"(/nova/resources/products) and copy the exact label into "
+            f"config/manufacturers.csv"
+        )
+        raise CommandError(msg)
+
+    try:
+        credentials = NccCredentials.from_env()
+    except NccCredentialsError as exc:
+        raise CommandError(str(exc)) from exc
+
+    safe_name = paths.safe_path_component(manufacturer.fmlv_manufacturer)
+    dest_path = (
+        paths.manufacturer_exports_dir(
+            manufacturer.manufacturer_id, manufacturer.fmlv_manufacturer, root=data_root
+        )
+        / f"{date.today().isoformat()}_{safe_name}_motorhome-campervans.xlsx"
+    )
+
+    try:
+        download_export(
+            credentials,
+            manufacturer.ncc_supplier_name,
+            dest_path,
+            headless=headless,
+            on_progress=on_progress,
+        )
+    except NccExportError as exc:
+        raise CommandError(str(exc)) from exc
+
+    return dest_path
+
+
 def _dedupe_baseline(motorhomes: Iterable[Motorhome]) -> list[Motorhome]:
     """Collapse baseline rows sharing a `(manufacturer_range, model)` to the newest.
 
@@ -219,15 +268,17 @@ def execute_run(
     *,
     manufacturer: Manufacturer,
     adapter: Adapter,
-    export_path: Path,
+    export_path: Path | None = None,
     data_root: Path = paths.DATA_DIR,
     trigger: Trigger = "manual",
     bump_year: bool = False,
+    refresh_export: bool = False,
     collect_kwargs: dict[str, Any] | None = None,
     on_progress: Callable[[str], None] = lambda message: None,
     on_run_started: Callable[[store.Run], None] = lambda run: None,
     _fetcher_factory: Callable[[Path], Fetcher] = Fetcher,
     _browser_factory: Callable[[Path], BrowserFetcher] = BrowserFetcher,
+    _export_fetcher: Callable[..., Path] = fetch_export,
 ) -> RunSummary:
     """Run one manufacturer end to end, recording everything against a `run` row.
 
@@ -235,7 +286,21 @@ def execute_run(
     fetch/diff work begins — a caller that kicks this off on a background thread (the
     review app's "trigger a run" page) can use it to learn the real `run.id` and
     redirect a waiting request there, without waiting for the whole run to finish.
+
+    `refresh_export=True` downloads a fresh baseline from the NCC site before diffing
+    (`fetch_export`, the same thing `fmlv fetch-export` does) instead of diffing
+    against whatever happens to already be on disk — the review app's "trigger a run"
+    page always sets this, since a reviewer expects "trigger a run" to mean "check
+    against the current FMLV data", not "check against whatever the last person
+    downloaded". `export_path` is then optional and, if given anyway, is ignored in
+    favour of the freshly downloaded one. Exactly one of `export_path` and
+    `refresh_export` must be usable, checked before the `run` row is even created —
+    this is a caller mistake, not something to record as a failed run.
     """
+    if export_path is None and not refresh_export:
+        msg = "execute_run needs export_path, or refresh_export=True to fetch one"
+        raise CommandError(msg)
+
     connection = store.connect(paths.db_path(root=data_root))
     try:
         ranges = (collect_kwargs or {}).get("ranges")
@@ -253,6 +318,15 @@ def execute_run(
         snapshot_dir.mkdir(parents=True, exist_ok=True)
 
         try:
+            if refresh_export:
+                on_progress(
+                    f"Fetching latest {manufacturer.fmlv_manufacturer} export from FMLV..."
+                )
+                export_path = _export_fetcher(
+                    manufacturer=manufacturer, data_root=data_root, on_progress=on_progress
+                )
+                on_progress(f"Using export {export_path}")
+
             read = io.read_export(export_path)
             baseline = _dedupe_baseline(
                 motorhome
@@ -412,11 +486,8 @@ def _run_command(args: argparse.Namespace) -> int:
 def _fetch_export_command(args: argparse.Namespace) -> int:
     """`fmlv fetch-export <manufacturer>`: log in to the NCC site and download its export.
 
-    The download itself is `fetch.ncc.download_export`; this handler is just the same
-    registry-resolution and error-reporting wiring `_run_command` uses, plus turning
-    the two ways this can fail for a reason the operator can fix — missing
-    credentials, no `ncc_supplier_name` on record — into a `CommandError` rather than
-    a traceback.
+    Thin wiring over `fetch_export` — registry resolution plus the same error
+    reporting `_run_command` uses.
     """
     data_root: Path = args.data_dir
     config_root: Path = args.config_dir
@@ -429,41 +500,15 @@ def _fetch_export_command(args: argparse.Namespace) -> int:
     registry = loader.load(registry_file)
     manufacturer = find_manufacturer(registry.manufacturers, args.manufacturer)
 
-    if not manufacturer.ncc_supplier_name:
-        msg = (
-            f"{manufacturer.fmlv_manufacturer!r} has no ncc_supplier_name set in the "
-            f"registry — open the NCC site's 'Export Products by Supplier' dropdown "
-            f"(/nova/resources/products) and copy the exact label into "
-            f"config/manufacturers.csv"
-        )
-        raise CommandError(msg)
-
-    try:
-        credentials = NccCredentials.from_env()
-    except NccCredentialsError as exc:
-        raise CommandError(str(exc)) from exc
-
-    safe_name = paths.safe_path_component(manufacturer.fmlv_manufacturer)
-    dest_path = (
-        paths.manufacturer_exports_dir(
-            manufacturer.manufacturer_id, manufacturer.fmlv_manufacturer, root=data_root
-        )
-        / f"{date.today().isoformat()}_{safe_name}_motorhome-campervans.xlsx"
-    )
-
     def report_progress(message: str) -> None:
         print(message, flush=True)
 
-    try:
-        download_export(
-            credentials,
-            manufacturer.ncc_supplier_name,
-            dest_path,
-            headless=not args.show_browser,
-            on_progress=report_progress,
-        )
-    except NccExportError as exc:
-        raise CommandError(str(exc)) from exc
+    dest_path = fetch_export(
+        manufacturer=manufacturer,
+        data_root=data_root,
+        headless=not args.show_browser,
+        on_progress=report_progress,
+    )
 
     print(f"downloaded {manufacturer.fmlv_manufacturer} export to {dest_path}")
     return 0

@@ -232,12 +232,6 @@ def create_app(
             range_name = range_name.strip()
             if range_name:
                 collect_kwargs["ranges"] = resolve_ranges(adapter, [range_name])
-
-            export_path = latest_export(
-                root=app.state.data_root,
-                manufacturer_id=manufacturer.manufacturer_id,
-                manufacturer_name=manufacturer.fmlv_manufacturer,
-            )
         except CommandError as exc:
             return render_error(str(exc))
 
@@ -248,12 +242,19 @@ def create_app(
             run_box["run"] = run
             started.set()
 
+        # `refresh_export=True`: a reviewer triggering a run expects it to check
+        # against the *current* FMLV data, not whichever export happens to already be
+        # on disk — see `execute_run`'s docstring. This downloads a fresh one (the
+        # equivalent of `fmlv fetch-export`) before diffing, inside the background
+        # thread since it needs a real NCC login and can take a while; a run that
+        # fails here (bad credentials, no ncc_supplier_name) is recorded as a failed
+        # run like any other failure, and shows up the same way on the run's page.
         task = asyncio.create_task(
             asyncio.to_thread(
                 execute_run,
                 manufacturer=manufacturer,
                 adapter=adapter,
-                export_path=export_path,
+                refresh_export=True,
                 data_root=app.state.data_root,
                 trigger="manual",
                 collect_kwargs=collect_kwargs,

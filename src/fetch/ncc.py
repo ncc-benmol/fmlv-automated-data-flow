@@ -1,22 +1,33 @@
-"""Logging in to the NCC website and downloading the current FMLV export.
+"""Logging in to the NCC website and downloading one manufacturer's current export.
 
 DESIGN.md §6.2: this is the one piece of NCC-site automation the pipeline does —
-Playwright logs in and downloads the current export, which becomes the baseline for a
-run. The *generated* upload CSV (`output/`) is still uploaded by hand; that human gate
-on the only irreversible step is unaffected by this module.
+Playwright logs in and downloads the current export for one manufacturer, which
+becomes the baseline for a run against that manufacturer. The *generated* upload CSV
+(`output/`) is still uploaded by hand; that human gate on the only irreversible step is
+unaffected by this module.
 
-Unlike a manufacturer adapter (DESIGN.md §5.1's "the only manufacturer-specific
-code"), the NCC site itself has not been surveyed the way Phase 4 surveyed each
-manufacturer — `NccSiteConfig`'s URLs and selectors below are therefore placeholders
-to be confirmed against the real login/export pages, not facts read off them.
-Whether the site even needs this route, versus exposing a proper export API, is still
-open question 2 (DESIGN.md §9). Everything about the flow is a `NccSiteConfig` field
-so confirming the real values is a config change, not a rewrite.
+Surveyed against the real site 2026-08-06 (TODO.md's "For Ben" note is now resolved).
+The login page is a plain form, but there is no "download the whole export" button —
+the export is generated **per manufacturer** via Nova's (the NCC's Laravel admin
+panel) resource actions:
+
+    /nova/resources/products → the "..." actions dropdown → "Export Products by
+    Supplier" → pick a supplier from the dropdown, untick "Only Active and Most Recent
+    Year Products" (we want everything to diff against, not just the live subset) →
+    "Run Action" → a `.zip` download containing `motorhome-campervans.xlsx` and
+    `touring-caravans.xlsx`.
+
+The supplier dropdown's labels don't always match `fmlv_manufacturer` (e.g. "Adria
+Mobil" vs "Adria Caravans & Motorhomes") — that's why the registry carries a separate
+`ncc_supplier_name` column (`registry/models.py`) rather than reusing `fmlv_manufacturer`
+here.
 """
 
 from __future__ import annotations
 
 import os
+import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,6 +44,14 @@ CREDENTIALS_PASSWORD_ENV = "NCC_LOGIN_PASSWORD"
 
 class NccCredentialsError(RuntimeError):
     """Raised when the NCC login credentials aren't available in the environment."""
+
+
+class NccExportError(RuntimeError):
+    """Raised when the downloaded export doesn't contain the file we expect.
+
+    Most likely cause: the supplier dropdown label in `ncc_supplier_name` no longer
+    matches what the site shows, or the zip's internal filename has changed.
+    """
 
 
 @dataclass(frozen=True)
@@ -66,56 +85,111 @@ class NccCredentials:
 class NccSiteConfig:
     """Where the NCC login/export pages are and how to drive them.
 
-    Defaults are placeholders — see the module docstring — pass overrides once the
-    real site has been surveyed rather than trusting these.
+    Surveyed against the real site 2026-08-06 — these are the actual URLs/selectors,
+    not placeholders (unlike the pre-survey version of this module). Still overridable
+    per call, both so tests can point at local fixtures and so a future site redesign
+    is a config change here rather than a rewrite.
     """
 
-    login_url: str = "https://www.findmyleisurevehicle.co.uk/login"
-    export_url: str = "https://www.findmyleisurevehicle.co.uk/exports/motorhome-campervans"
+    login_url: str = "https://findmyleisurevehicle.co.uk/nova/login"
+    products_url: str = "https://findmyleisurevehicle.co.uk/nova/resources/products"
     email_selector: str = 'input[type="email"], input[name="email"]'
     password_selector: str = 'input[type="password"], input[name="password"]'
     login_submit_selector: str = 'button[type="submit"]'
-    download_trigger_selector: str = 'a:has-text("Download"), button:has-text("Download")'
+    actions_dropdown_selector: str = 'button[dusk="index-standalone-action-dropdown"]'
+    export_by_supplier_selector: str = 'text="Export Products by Supplier"'
+    supplier_select_selector: str = "select#exhibitor"
+    #: The "Only Active and Most Recent Year Products" toggle. We want it *off* — the
+    #: baseline for a diff needs everything currently in FMLV, not just the live subset.
+    only_active_toggle_selector: str = '[dusk="only_active_products-default-boolean-field"]'
+    run_action_selector: str = '[dusk="confirm-action-button"]'
+    #: Name of the motorhome/campervan file inside the downloaded zip. The zip also
+    #: contains a `touring-caravans.xlsx` we don't need (DESIGN.md §3: motorhomes and
+    #: campervans only for the prototype).
+    motorhome_export_filename: str = "motorhome-campervans.xlsx"
+
+
+def _ensure_toggle_off(page, selector: str) -> None:
+    """Click the "Only Active..." toggle if it's currently on.
+
+    Nova renders this as a custom `role="checkbox"` element, not a native input, so
+    state is read from `data-state` (`"checked"` / `"unchecked"`) rather than
+    `checked`. Idempotent — if the toggle already reflects the last run's state,
+    clicking it unconditionally would flip it the wrong way.
+    """
+    if page.get_attribute(selector, "data-state") == "checked":
+        page.click(selector)
 
 
 def download_export(
     credentials: NccCredentials,
+    supplier_name: str,
     dest_path: Path | str,
     *,
     config: NccSiteConfig = NccSiteConfig(),
     headless: bool = True,
     executable_path: str | None = None,
+    on_progress: Callable[[str], None] = lambda message: None,
 ) -> Path:
-    """Log in to the NCC site and download the current motorhome/campervan export.
+    """Log in to the NCC site and download one manufacturer's current export.
 
-    A fresh browser is launched and closed for this one action rather than reusing a
-    long-lived instance the way `BrowserFetcher` does for many manufacturer-page
-    fetches — a run needs this exactly once, to obtain the baseline (DESIGN.md §5).
+    `supplier_name` must match a label in the site's own "Export Products by Supplier"
+    dropdown exactly — see `registry.Manufacturer.ncc_supplier_name`. A fresh browser
+    is launched and closed for this one action rather than reusing a long-lived
+    instance the way `BrowserFetcher` does for many manufacturer-page fetches — a run
+    needs this exactly once, to obtain the baseline (DESIGN.md §5).
 
-    Returns `dest_path` (parents created if needed) once the download has landed.
-    `executable_path` overrides which Chromium binary Playwright launches — normally
-    left as `None` so Playwright uses the browser installed for the pinned version
-    (see `playwright install chromium`, TODO.md Phase 3); tests pass it explicitly to
-    target a specific local build.
+    `on_progress` fires at the two points worth narrating to someone watching a
+    terminal — this whole call otherwise blocks silently for several seconds while a
+    real browser drives a real login — following the same convention as
+    `adapters.adria.collect`'s `on_progress`.
+
+    Returns `dest_path` (parents created if needed) once the `.xlsx` has been
+    extracted from the downloaded zip. `executable_path` overrides which Chromium
+    binary Playwright launches — normally left as `None` so Playwright uses the
+    browser installed for the pinned version (see `playwright install chromium`,
+    TODO.md Phase 3); tests pass it explicitly to target a specific local build.
     """
     dest_path = Path(dest_path)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+    zip_path = dest_path.with_suffix(".zip")
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless, executable_path=executable_path)
         try:
             page = browser.new_page()
+            on_progress(f"logging in to {config.login_url}")
             page.goto(config.login_url)
             page.fill(config.email_selector, credentials.email)
             page.fill(config.password_selector, credentials.password)
             with page.expect_navigation():
                 page.click(config.login_submit_selector)
 
-            page.goto(config.export_url)
+            page.goto(config.products_url)
+            page.click(config.actions_dropdown_selector)
+            page.click(config.export_by_supplier_selector)
+            page.select_option(config.supplier_select_selector, label=supplier_name)
+            _ensure_toggle_off(page, config.only_active_toggle_selector)
+
+            on_progress(f"triggering the export download for {supplier_name!r}")
             with page.expect_download() as download_info:
-                page.click(config.download_trigger_selector)
-            download_info.value.save_as(dest_path)
+                page.click(config.run_action_selector)
+            download_info.value.save_as(zip_path)
         finally:
             browser.close()
+
+    try:
+        with zipfile.ZipFile(zip_path) as archive:
+            try:
+                data = archive.read(config.motorhome_export_filename)
+            except KeyError as exc:
+                msg = (
+                    f"{config.motorhome_export_filename!r} not found in the downloaded "
+                    f"export for {supplier_name!r} — zip contains: {archive.namelist()}"
+                )
+                raise NccExportError(msg) from exc
+        dest_path.write_bytes(data)
+    finally:
+        zip_path.unlink(missing_ok=True)
 
     return dest_path

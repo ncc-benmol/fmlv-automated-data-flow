@@ -25,19 +25,29 @@ pipeline noticing the season, not from anything read off the manufacturer's site
 the same proposal, for every product of the manufacturer rather than only the
 seasonally plausible ones. Both routes converge here deliberately — a globally
 requested rollover is still reviewed and accepted per product, and the pipeline
-still never writes `year` on its own.
+still never writes `year` on its own. Neither route proposes a bump unless the
+baseline's `year` is exactly today's year — `year_rollover.can_bump_year` gates it,
+so a product already sitting at `current_year + 1` (bumped and accepted earlier) or
+still showing some older, stale year is never offered one.
+
+`ChangeKind.DISAPPEARED` **is** persisted here, as a proposed `field="archived"`
+change (old `False` -> new `True`) rather than being dropped: a product missing from
+a manufacturer's latest sweep is exactly the "should this be archived?" question a
+reviewer needs put in front of them, not silence. It goes through the same
+accept/reject/correct machinery, `source_url=None`, as the pipeline's own inference
+rather than something read off the site.
 """
 
 from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from ..diff.classify import ChangeKind, ProductDiff
 from ..diff.compare import field_value
-from ..diff.year_rollover import bump_year
+from ..diff.year_rollover import bump_year, can_bump_year
 from . import products as products_store
 from .decisions import Decision
 from .products import Product
@@ -48,6 +58,12 @@ YEAR_ROLLOVER_SNIPPET = (
     "Suggested by the pipeline: a change was detected during the June-September "
     "model-year rollover window (DESIGN.md §6.9), not read from the "
     "manufacturer's site."
+)
+
+#: `source_snippet` for a propose-to-archive suggestion — a `DISAPPEARED` product.
+ARCHIVE_SNIPPET = (
+    "Not found on the manufacturer's site during this run's latest sweep — "
+    "proposing to archive this product."
 )
 
 #: How `_serialize` joins a multi-valued field (e.g. `bed_types`) into one TEXT column.
@@ -97,6 +113,14 @@ class ChangeQueueEntry:
 
 
 @dataclass(frozen=True)
+class RunReviewSummary:
+    """Review status of one run's change queue, for the runs overview page."""
+
+    pending_count: int
+    primary_reviewer: str | None
+
+
+@dataclass(frozen=True)
 class PersistResult:
     """A summary of what persisting one run's diff did — for a run-completion message."""
 
@@ -104,6 +128,7 @@ class PersistResult:
     verified: int = 0
     suppressed_rejections: int = 0
     year_rollover_proposed: int = 0
+    archive_proposed: int = 0
 
 
 def _now() -> str:
@@ -193,6 +218,53 @@ def record_verification(
     connection.commit()
 
 
+def run_review_summary(connection: sqlite3.Connection, run_id: int) -> RunReviewSummary:
+    """How much of a run's change queue is left to review, and who's reviewed most of it.
+
+    `primary_reviewer` is whichever named reviewer has the most decisions recorded on
+    this run (ties broken alphabetically) — a simple "who's mainly been through this"
+    signal for the runs overview page, not a permissions concept. `None` if nothing on
+    the run has been decided yet.
+    """
+    pending_row = connection.execute(
+        """
+        SELECT COUNT(*) AS pending
+        FROM proposed_change
+        LEFT JOIN decision ON decision.id = (
+            SELECT id FROM decision AS latest
+            WHERE latest.proposed_change_id = proposed_change.id
+            ORDER BY latest.decided_at DESC, latest.id DESC
+            LIMIT 1
+        )
+        WHERE proposed_change.run_id = ? AND decision.id IS NULL
+        """,
+        (run_id,),
+    ).fetchone()
+
+    reviewer_row = connection.execute(
+        """
+        SELECT decision.decided_by AS reviewer, COUNT(*) AS n
+        FROM proposed_change
+        JOIN decision ON decision.id = (
+            SELECT id FROM decision AS latest
+            WHERE latest.proposed_change_id = proposed_change.id
+            ORDER BY latest.decided_at DESC, latest.id DESC
+            LIMIT 1
+        )
+        WHERE proposed_change.run_id = ? AND decision.decided_by IS NOT NULL
+        GROUP BY decision.decided_by
+        ORDER BY n DESC, reviewer ASC
+        LIMIT 1
+        """,
+        (run_id,),
+    ).fetchone()
+
+    return RunReviewSummary(
+        pending_count=pending_row["pending"],
+        primary_reviewer=reviewer_row["reviewer"] if reviewer_row is not None else None,
+    )
+
+
 def persist_diff(
     connection: sqlite3.Connection,
     *,
@@ -200,25 +272,56 @@ def persist_diff(
     manufacturer_id: int,
     diffs: list[ProductDiff],
     bump_year_all: bool = False,
+    today: date | None = None,
 ) -> PersistResult:
     """Persist one run's worth of `diff_products` output.
 
     Upserts the product identity mapping (`store.products.upsert_seen`) for every
-    matched or new product, then records `proposed_change`/`verification` rows.
-    `DISAPPEARED` products are skipped entirely — see the module docstring.
+    matched, new or disappeared product, then records `proposed_change`/`verification`
+    rows. `DISAPPEARED` products get a propose-to-archive change — see the module
+    docstring — rather than being skipped.
 
     `bump_year_all` proposes a `year` bump for every existing product, not just the
     seasonally eligible ones — DESIGN.md §6.9 route 1, requested explicitly by a human
     when triggering the run. A genuinely new product is never given one: it has no
-    baseline year to bump.
+    baseline year to bump. Either route is capped by `year_rollover.can_bump_year`
+    (`today`, injectable for tests, defaults to the real today).
     """
     proposed = 0
     verified = 0
     suppressed = 0
     year_rollover_proposed = 0
+    archive_proposed = 0
 
     for diff in diffs:
         if diff.kind == ChangeKind.DISAPPEARED:
+            assert diff.baseline is not None
+            product = products_store.upsert_seen(
+                connection,
+                manufacturer_id=manufacturer_id,
+                fmlv_product_id=diff.fmlv_product_id,
+                manufacturer_range=diff.baseline.manufacturer_range,
+                model=diff.baseline.model,
+                run_id=run_id,
+            )
+            new_value = _serialize(True)
+            if was_previously_rejected(
+                connection, product_id=product.id, field="archived", new_value=new_value
+            ):
+                suppressed += 1
+            else:
+                record_proposed_change(
+                    connection,
+                    run_id=run_id,
+                    product_id=product.id,
+                    field="archived",
+                    old_value=_serialize(diff.baseline.archived),
+                    new_value=new_value,
+                    source_url=None,
+                    source_snippet=ARCHIVE_SNIPPET,
+                )
+                proposed += 1
+                archive_proposed += 1
             continue
 
         assert diff.extracted is not None
@@ -271,6 +374,7 @@ def persist_diff(
             and diff.baseline is not None
             and diff.baseline.year is not None
             and not any(change.field == "year" for change in diff.changes)
+            and can_bump_year(diff.baseline.year, today=today)
         ):
             new_value = _serialize(bump_year(diff.baseline).year)
             if was_previously_rejected(
@@ -300,6 +404,7 @@ def persist_diff(
         verified=verified,
         suppressed_rejections=suppressed,
         year_rollover_proposed=year_rollover_proposed,
+        archive_proposed=archive_proposed,
     )
 
 

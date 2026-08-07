@@ -54,3 +54,52 @@ def extract_text(path: Path | str) -> ExtractedPdf:
         for index, page in enumerate(reader.pages, start=1)
     ]
     return ExtractedPdf(file_path=path, pages=pages)
+
+
+@dataclass(frozen=True)
+class TextItem:
+    """One run of text on a page, with the position it was drawn at.
+
+    `x` increases left-to-right and `y` bottom-to-top, in PDF user-space points.
+    """
+
+    x: float
+    y: float
+    text: str
+
+
+def extract_positioned_text(path: Path | str, page_number: int) -> list[TextItem]:
+    """Every text run on one page, with coordinates, in the order the page draws them.
+
+    `extract_text` is enough whenever reading order carries the meaning. Two things it
+    loses, both of which a spec table needs:
+
+    * **Where a run sits.** pypdf emits runs in content-stream order, which is not
+      always left-to-right. Morelo's price list has pages where the two side-by-side
+      model names are drawn right column first, so pairing names to value columns by
+      reading order silently swaps two products' weights and prices. Coordinates are
+      the only reliable way to recover the real column order — with the caveat that
+      pypdf reports some runs at (0, 0) when it cannot place them, so callers should
+      filter on `y` rather than trust every coordinate (see `docs/adapters/morelo.md`).
+    * **Where one run ends and the next begins.** Joined into a line, `CLIFF 540 V` and
+      `CLIFF 540` followed by `V` are indistinguishable. Sunlight's model headers are
+      one run per model, so the runs themselves carry the split that the text cannot
+      (see `docs/adapters/sunlight.md`).
+
+    Order is the page's own, deliberately: it is the one thing that cannot be
+    reconstructed afterwards, whereas any caller wanting left-to-right can sort on `x`
+    — and should do so explicitly, since whether that is even correct depends on the
+    document.
+    """
+    reader = PdfReader(Path(path))
+    page = reader.pages[page_number - 1]
+
+    items: list[TextItem] = []
+
+    def visit(text: str, _cm: object, tm: list[float], *_rest: object) -> None:
+        stripped = text.strip()
+        if stripped:
+            items.append(TextItem(x=tm[4], y=tm[5], text=stripped))
+
+    page.extract_text(visitor_text=visit)
+    return items

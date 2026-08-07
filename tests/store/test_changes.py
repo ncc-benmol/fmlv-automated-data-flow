@@ -119,7 +119,7 @@ def test_new_product_persists_every_extracted_field_with_no_old_value(
     assert queue[0].product.fmlv_product_id is None
 
 
-def test_disappeared_product_is_not_persisted(
+def test_disappeared_product_proposes_archiving_it(
     connection: sqlite3.Connection, run_id: int
 ) -> None:
     baseline = make_baseline()
@@ -129,9 +129,41 @@ def test_disappeared_product_is_not_persisted(
         connection, run_id=run_id, manufacturer_id=3, diffs=diffs
     )
 
-    assert result.proposed == 0
+    assert result.proposed == 1
+    assert result.archive_proposed == 1
     assert result.verified == 0
-    assert store.list_change_queue(connection, run_id) == []
+    queue = store.list_change_queue(connection, run_id)
+    assert len(queue) == 1
+    entry = queue[0]
+    assert entry.change.field == "archived"
+    assert entry.change.old_value == "False"
+    assert entry.change.new_value == "True"
+    assert entry.change.source_url is None
+    assert entry.product.fmlv_product_id == 4147
+
+
+def test_rejected_archive_proposal_is_not_re_proposed_next_run(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    baseline = make_baseline()
+    first_diffs = diff_products([], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=first_diffs)
+
+    [entry] = store.list_change_queue(connection, run_id)
+    store.record_decision(
+        connection, proposed_change_id=entry.change.id, action="reject", decided_by="ben"
+    )
+
+    second_run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    second_diffs = diff_products([], [baseline])
+    result = store.persist_diff(
+        connection, run_id=second_run.id, manufacturer_id=3, diffs=second_diffs
+    )
+
+    assert result.proposed == 0
+    assert result.suppressed_rejections == 1
 
 
 def test_rejected_change_is_not_re_proposed_next_run(
@@ -221,6 +253,60 @@ def test_year_rollover_not_proposed_outside_the_window(
     assert not any(entry.change.field == "year" for entry in queue)
 
 
+def test_year_rollover_not_proposed_when_baseline_is_already_at_the_cap(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    # Already one year ahead of "today" — bumping again would overshoot the cap.
+    baseline = make_baseline(year=2027)
+    extracted = make_extracted(rrp_pounds=93920)
+    diffs = diff_products([extracted], [baseline], today=date(2026, 7, 15))
+
+    result = store.persist_diff(
+        connection, run_id=run_id, manufacturer_id=3, diffs=diffs, today=date(2026, 7, 15)
+    )
+
+    assert result.year_rollover_proposed == 0
+    queue = store.list_change_queue(connection, run_id)
+    assert not any(entry.change.field == "year" for entry in queue)
+
+
+def test_year_rollover_not_proposed_when_baseline_year_is_stale(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    # Baseline is two years behind "today" — not a plausible rollover, just stale data.
+    baseline = make_baseline(year=2024)
+    extracted = make_extracted(rrp_pounds=93920)
+    diffs = diff_products([extracted], [baseline], today=date(2026, 7, 15))
+
+    result = store.persist_diff(
+        connection, run_id=run_id, manufacturer_id=3, diffs=diffs, today=date(2026, 7, 15)
+    )
+
+    assert result.year_rollover_proposed == 0
+    queue = store.list_change_queue(connection, run_id)
+    assert not any(entry.change.field == "year" for entry in queue)
+
+
+def test_bump_year_all_also_respects_the_cap(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    baseline = make_baseline(year=2027)
+    extracted = make_extracted(rrp_pounds=93950)  # identical to baseline, no other change
+    diffs = diff_products([extracted], [baseline], today=date(2026, 1, 15))
+
+    result = store.persist_diff(
+        connection,
+        run_id=run_id,
+        manufacturer_id=3,
+        diffs=diffs,
+        bump_year_all=True,
+        today=date(2026, 1, 15),
+    )
+
+    assert result.year_rollover_proposed == 0
+    assert result.proposed == 0
+
+
 def test_rejected_year_rollover_is_not_re_proposed(
     connection: sqlite3.Connection, run_id: int
 ) -> None:
@@ -263,4 +349,43 @@ def test_change_queue_reflects_a_decision_once_made(
     [updated] = store.list_change_queue(connection, run_id)
     assert updated.decision is not None
     assert updated.decision.action == "accept"
-    assert updated.decision.decided_by == "ben"
+
+
+def test_run_review_summary_before_anything_is_decided(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    baseline = make_baseline()
+    extracted = make_extracted(rrp_pounds=93920)
+    diffs = diff_products([extracted], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    summary = store.run_review_summary(connection, run_id)
+
+    assert summary.pending_count == 1
+    assert summary.primary_reviewer is None
+
+
+def test_run_review_summary_counts_pending_and_finds_the_busiest_reviewer(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    first_baseline = make_baseline(product_id=4147, model="Supreme 670 DC")
+    second_baseline = make_baseline(product_id=8195, model="670 SL 60Y")
+    first_extracted = make_extracted(rrp_pounds=93920, model="Supreme 670 DC")
+    second_extracted = make_extracted(rrp_pounds=81000, model="670 SL 60Y")
+    diffs = diff_products(
+        [first_extracted, second_extracted], [first_baseline, second_baseline]
+    )
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    [first_entry, second_entry] = store.list_change_queue(connection, run_id)
+    store.record_decision(
+        connection, proposed_change_id=first_entry.change.id, action="accept", decided_by="ben"
+    )
+    store.record_decision(
+        connection, proposed_change_id=second_entry.change.id, action="accept", decided_by="ben"
+    )
+
+    summary = store.run_review_summary(connection, run_id)
+
+    assert summary.pending_count == 0
+    assert summary.primary_reviewer == "ben"

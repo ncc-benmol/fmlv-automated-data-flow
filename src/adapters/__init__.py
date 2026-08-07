@@ -14,14 +14,27 @@ still-open question of what `manufacturer_id` actually is or whether it is stabl
 
 from __future__ import annotations
 
-from . import adria
+from . import adria, morelo, sunlight, swift
 from .base import Adapter, ExtractedMotorhome, Provenance
 
 ADAPTERS: dict[str, Adapter] = {
     adria.MANUFACTURER: adria,
+    morelo.MANUFACTURER: morelo,
+    sunlight.MANUFACTURER: sunlight,
+    swift.MANUFACTURER: swift,
 }
 
-__all__ = ["ADAPTERS", "Adapter", "ExtractedMotorhome", "Provenance", "adapter_for", "adria"]
+__all__ = [
+    "ADAPTERS",
+    "Adapter",
+    "ExtractedMotorhome",
+    "Provenance",
+    "adapter_for",
+    "adria",
+    "morelo",
+    "sunlight",
+    "swift",
+]
 
 
 def adapter_for(fmlv_manufacturer: str) -> Adapter | None:

@@ -2,10 +2,19 @@
 {% block title %}{{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %} — run #{{ run.id }}{% endblock %}
 {% block content %}
   <p class="muted"><a href="/runs">← All runs</a></p>
-  <h1>
-    {{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %}
-    <span class="badge {{ run.status }}">{{ run.status }}</span>
-  </h1>
+  <div class="run-detail-header">
+    <h1>
+      {{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %}
+      <span class="badge {{ run.status }}">{{ run.status }}</span>
+    </h1>
+    {% if run.status == "succeeded" %}
+      <div id="generate-upload">
+        <form method="post" action="/runs/{{ run.id }}/generate-upload" onsubmit="generateUpload(event, this)">
+          <button type="submit" class="btn btn-primary">Generate upload CSV</button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
   <p class="muted">
     Run #{{ run.id }} · {{ run.trigger }} · started {{ run.started_at|fmt_dt }}
     {% if run.finished_at %}
@@ -35,19 +44,10 @@
     <p class="muted">Nothing waiting on a decision.</p>
   {% else %}
     {% for product_id, group in pending|groupby('product.id') %}
-      <div class="product-group">
-        <h3>
-          {{ group[0].product.manufacturer_range }} — {{ group[0].product.model }}
-          {% if group[0].product.fmlv_product_id %}
-            <span class="muted">#{{ group[0].product.fmlv_product_id }}</span>
-          {% else %}
-            <span class="badge new">new product</span>
-          {% endif %}
-        </h3>
-        {% for entry in group %}
-          {% include "partials/change_row.html" %}
-        {% endfor %}
-      </div>
+      {% set product = group[0].product %}
+      {% set entries = group %}
+      {% set error = None %}
+      {% include "partials/product_group.html" %}
     {% endfor %}
   {% endif %}
 

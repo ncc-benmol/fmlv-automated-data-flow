@@ -17,9 +17,11 @@ from typing import Any
 import pytest
 
 from src import paths, store
+from src.adapters import ADAPTERS
 from src.adapters.base import ExtractedMotorhome, Provenance
 from src.cli import (
     CommandError,
+    _dedupe_baseline,
     execute_run,
     find_manufacturer,
     format_summary,
@@ -48,6 +50,7 @@ def make_manufacturer(**overrides: Any) -> Manufacturer:
         "models_index_url": None,
         "price_list_url": None,
         "brochure_url": None,
+        "ncc_supplier_name": "Adria Caravans & Motorhomes",
         "specs_format": "mixed",
         "needs_javascript": TriState.YES,
         "login_required": False,
@@ -210,23 +213,38 @@ def test_ambiguous_manufacturer_asks_for_the_id() -> None:
 
 
 def test_latest_export_picks_the_most_recently_modified(data_root: Path) -> None:
-    exports = paths.exports_dir(root=data_root)
-    (exports / "old").mkdir(parents=True)
-    (exports / "new").mkdir(parents=True)
-    older = exports / "old" / "export.csv"
-    newer = exports / "new" / "export.xlsx"
+    exports = paths.manufacturer_exports_dir(3, "Adria Mobil", root=data_root)
+    exports.mkdir(parents=True)
+    older = exports / "2026-08-03_Adria-Mobil_motorhome-campervans.csv"
+    newer = exports / "2026-08-04_Adria-Mobil_motorhome-campervans.xlsx"
     older.write_text("old", encoding="utf-8")
     newer.write_text("new", encoding="utf-8")
     import os
 
     os.utime(older, (1_000_000, 1_000_000))
 
-    assert latest_export(root=data_root) == newer
+    assert (
+        latest_export(root=data_root, manufacturer_id=3, manufacturer_name="Adria Mobil")
+        == newer
+    )
+
+
+def test_latest_export_ignores_a_different_manufacturers_export(data_root: Path) -> None:
+    # A real bug found during Phase 7: downloading manufacturer A's export must not
+    # let it be silently picked up as manufacturer B's baseline.
+    other = paths.manufacturer_exports_dir(26, "Swift Group Ltd", root=data_root)
+    other.mkdir(parents=True)
+    (other / "2026-08-04_Swift-Group-Ltd_motorhome-campervans.xlsx").write_text(
+        "swift", encoding="utf-8"
+    )
+
+    with pytest.raises(CommandError, match="--export"):
+        latest_export(root=data_root, manufacturer_id=3, manufacturer_name="Adria Mobil")
 
 
 def test_latest_export_with_nothing_downloaded_is_a_command_error(data_root: Path) -> None:
     with pytest.raises(CommandError, match="--export"):
-        latest_export(root=data_root)
+        latest_export(root=data_root, manufacturer_id=3, manufacturer_name="Adria Mobil")
 
 
 def test_resolve_ranges_selects_by_label_case_insensitively() -> None:
@@ -309,6 +327,49 @@ def test_range_selection_is_passed_through_to_the_adapter(
     assert adapter.calls[0]["ranges"] == (("motorhomes/matrix", "Matrix"),)
 
 
+def test_a_range_scoped_run_only_diffs_baseline_rows_from_that_range(
+    data_root: Path, export_path: Path
+) -> None:
+    """A run restricted to one range must not propose archiving other ranges' products.
+
+    `export_path` already has an Adria/Matrix baseline row; add an Adria/Coral one too.
+    A run scoped to `ranges=(("motorhomes/matrix", "Matrix"),)` that scrapes nothing
+    should leave the Coral row alone — it was never in scope for this run — and only
+    the unmatched Matrix row should come back as a proposed archive.
+    """
+    io.write_csv(
+        [
+            *io.read_export(export_path).motorhomes,
+            make_baseline(
+                product_id=4148,
+                manufacturer_range="Coral",
+                model="Coral Supreme 670 SL",
+            ),
+        ],
+        export_path,
+    )
+    adapter = FakeAdapter(products=[])
+
+    summary = run_once(
+        data_root=data_root,
+        export_path=export_path,
+        adapter=adapter,
+        collect_kwargs={"ranges": (("motorhomes/matrix", "Matrix"),)},
+    )
+
+    # Only the Matrix row is in scope — Swift and Coral rows must not be diffed against.
+    assert summary.baseline_count == 1
+    assert summary.kinds["disappeared"] == 1
+
+    connection = store.connect(paths.db_path(root=data_root))
+    try:
+        queue = store.list_change_queue(connection, summary.run.id)
+        archived_ids = {entry.product.fmlv_product_id for entry in queue}
+        assert archived_ids == {4147}
+    finally:
+        connection.close()
+
+
 def test_a_failing_adapter_marks_the_run_failed_and_re_raises(
     data_root: Path, export_path: Path
 ) -> None:
@@ -325,6 +386,85 @@ def test_a_failing_adapter_marks_the_run_failed_and_re_raises(
         assert run.finished_at is not None
     finally:
         connection.close()
+
+
+def test_dedupe_baseline_keeps_the_newer_of_two_rows_sharing_range_and_model() -> None:
+    """The real Swift case: 'Escape 674' listed twice under different product_ids."""
+    older = make_baseline(product_id=1765, year=2025)
+    newer = make_baseline(product_id=7614, year=2026)
+
+    deduped = _dedupe_baseline([older, newer])
+
+    assert deduped == [newer]
+
+
+def test_dedupe_baseline_breaks_a_year_tie_by_keeping_the_first_seen() -> None:
+    first = make_baseline(product_id=1765, year=2026)
+    second = make_baseline(product_id=7614, year=2026)
+
+    assert _dedupe_baseline([first, second]) == [first]
+
+
+def test_dedupe_baseline_leaves_rows_with_no_duplicate_untouched() -> None:
+    a = make_baseline(product_id=1, manufacturer_range="Escape", model="640")
+    b = make_baseline(product_id=2, manufacturer_range="Escape", model="674")
+
+    assert _dedupe_baseline([a, b]) == [a, b]
+
+
+def test_dedupe_baseline_passes_through_rows_with_no_model_untouched() -> None:
+    blank_a = make_baseline(product_id=1, model=None)
+    blank_b = make_baseline(product_id=2, model=None)
+
+    assert _dedupe_baseline([blank_a, blank_b]) == [blank_a, blank_b]
+
+
+def test_a_run_collapses_a_duplicate_baseline_row_instead_of_proposing_to_archive_it(
+    data_root: Path,
+) -> None:
+    """End to end: the older duplicate must not surface as a DISAPPEARED/archive
+    proposal once the newer one has matched the scraped product."""
+    path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
+    io.write_csv(
+        [
+            make_baseline(product_id=1765, year=2025, mro_kilograms=3251),
+            make_baseline(product_id=7614, year=2026, mro_kilograms=3251),
+        ],
+        path,
+    )
+    adapter = FakeAdapter(products=[make_extracted(mro_kilograms=3490)])
+
+    summary = run_once(data_root=data_root, export_path=path, adapter=adapter)
+
+    assert summary.baseline_count == 1
+    assert summary.kinds["disappeared"] == 0
+    assert summary.persisted.archive_proposed == 0
+    connection = store.connect(paths.db_path(root=data_root))
+    try:
+        queue = store.list_change_queue(connection, summary.run.id)
+        assert queue[0].product.fmlv_product_id == 7614
+        assert not any(entry.change.field == "archived" for entry in queue)
+    finally:
+        connection.close()
+
+
+def test_archived_baseline_rows_are_excluded_from_the_baseline(
+    data_root: Path,
+) -> None:
+    """An archived row must not be diffed against — it's already off FMLV."""
+    path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
+    io.write_csv(
+        [
+            make_baseline(),
+            make_baseline(product_id=4148, model="Old 670 DC", archived=True),
+        ],
+        path,
+    )
+    adapter = FakeAdapter(products=[make_extracted()])
+
+    summary = run_once(data_root=data_root, export_path=path, adapter=adapter)
+
+    assert summary.baseline_count == 1
 
 
 def test_a_second_run_reuses_the_same_product_rows(data_root: Path, export_path: Path) -> None:
@@ -468,15 +608,82 @@ def test_missing_registry_exits_two(
 def test_manufacturer_without_an_adapter_says_which_ones_exist(
     data_root: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    # Rimor is a real registry row with no adapter yet. It used to be Swift here, until
+    # Swift got one — so pick a brand still genuinely unsupported, and expect the
+    # message to list whichever adapters do exist rather than naming them one by one.
     registry = data_root / "manufacturers.csv"
     registry.write_text(
-        "manufacturer_id,fmlv_manufacturer,website_url\n26,Swift Group Ltd,https://example.invalid/\n",
+        "manufacturer_id,fmlv_manufacturer,website_url\n75,Rimor,https://example.invalid/\n",
         encoding="utf-8",
     )
 
-    exit_code = main(["run", "Swift Group Ltd", "--data-dir", str(data_root)])
+    exit_code = main(["run", "Rimor", "--data-dir", str(data_root)])
 
     assert exit_code == 2
     error = capsys.readouterr().err
     assert "no adapter written" in error
-    assert "Adria Mobil" in error
+    for supported in ADAPTERS:
+        assert supported in error
+
+
+# --------------------------------------------------------------------------- #
+# `generate-upload`
+# --------------------------------------------------------------------------- #
+
+
+def test_generate_upload_writes_a_timestamped_csv_from_reviewed_decisions(
+    data_root: Path, export_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    registry = data_root / "manufacturers.csv"
+    registry.write_text(
+        "manufacturer_id,fmlv_manufacturer,website_url\n3,Adria Mobil,https://example.invalid/\n",
+        encoding="utf-8",
+    )
+    summary = run_once(
+        data_root=data_root,
+        export_path=export_path,
+        adapter=FakeAdapter(products=[make_extracted(rrp_pounds=94950)]),
+    )
+    connection = store.connect(paths.db_path(root=data_root))
+    for entry in store.list_change_queue(connection, summary.run.id):
+        store.record_decision(
+            connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
+        )
+    connection.close()
+
+    exit_code = main(
+        [
+            "generate-upload",
+            str(summary.run.id),
+            "--data-dir",
+            str(data_root),
+            "--export",
+            str(export_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert "wrote 1 product(s)" in capsys.readouterr().out
+    written = list(paths.uploads_dir(root=data_root).glob(f"run{summary.run.id}_*.csv"))
+    assert len(written) == 1
+    assert written[0].name.startswith(f"run{summary.run.id}_")
+
+
+def test_generate_upload_refuses_a_run_that_has_not_succeeded(
+    data_root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    registry = data_root / "manufacturers.csv"
+    registry.write_text(
+        "manufacturer_id,fmlv_manufacturer,website_url\n3,Adria Mobil,https://example.invalid/\n",
+        encoding="utf-8",
+    )
+    connection = store.connect(paths.db_path(root=data_root))
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    connection.close()
+
+    exit_code = main(["generate-upload", str(run.id), "--data-dir", str(data_root)])
+
+    assert exit_code == 2
+    assert "not 'succeeded'" in capsys.readouterr().err

@@ -47,6 +47,7 @@ def make_manufacturer(**overrides: object) -> Manufacturer:
         "models_index_url": None,
         "price_list_url": None,
         "brochure_url": None,
+        "ncc_supplier_name": "Adria Caravans & Motorhomes",
         "specs_format": "mixed",
         "needs_javascript": TriState.YES,
         "login_required": False,
@@ -236,6 +237,27 @@ def test_accepted_year_rollover_bumps_only_the_year(
     assert motorhome.rrp_pounds == 93950
 
 
+def test_accepted_archive_proposal_sets_archived_true(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    baseline = make_baseline()
+    diffs = diff_products([], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    [entry] = store.list_change_queue(connection, run_id)
+    assert entry.change.field == "archived"
+    store.record_decision(
+        connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
+    )
+
+    [motorhome] = build_upload_motorhomes(
+        connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
+    )
+
+    assert motorhome.archived is True
+    assert motorhome.product_id == 4147
+
+
 def test_generate_upload_writes_a_csv_in_fmlv_column_order_and_carries_product_id(
     connection: sqlite3.Connection, run_id: int, tmp_path: Path
 ) -> None:
@@ -261,7 +283,15 @@ def test_generate_upload_writes_a_csv_in_fmlv_column_order_and_carries_product_i
     assert result.path == csv_path
     assert csv_path.exists()
 
-    read_back = read_csv(csv_path)
+    # The FMLV upload site expects the header on row 3 and data from row 4, so the
+    # file starts with two blank rows — `read_csv` alone can't parse that layout, only
+    # the FMLV site is meant to.
+    lines = csv_path.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == ""
+    assert lines[1] == ""
+    assert lines[2].startswith("product_id,")
+
+    read_back = read_csv(csv_path, skip_leading_blank_rows=2)
     assert len(read_back.motorhomes) == 1
     assert read_back.motorhomes[0].product_id == 4147
     assert read_back.motorhomes[0].rrp_pounds == 93920

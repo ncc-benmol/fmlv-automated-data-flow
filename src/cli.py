@@ -8,11 +8,24 @@ against the baseline export, and persist the result for the review app (DESIGN.m
 
 Four decisions worth knowing about:
 
-* **The baseline is filtered to one manufacturer before diffing.**
-  `diff.match_products` requires this and nothing enforces it — an unfiltered baseline
-  would let one brand's product match another brand's row. The filter is
-  `Motorhome.manufacturer == Manufacturer.fmlv_manufacturer`, which is precisely what
-  that registry column exists to guarantee.
+* **The baseline is filtered to one manufacturer before diffing, archived rows are
+  dropped, and same-range/model duplicates are collapsed to the newest model year.**
+  `diff.match_products` requires the manufacturer filter and nothing enforces it — an
+  unfiltered baseline would let one brand's product match another brand's row. The
+  filter is `Motorhome.manufacturer == Manufacturer.fmlv_manufacturer`, which is
+  precisely what that registry column exists to guarantee. Rows with `archived=Yes`
+  are excluded too: they're gone from FMLV already, so there's nothing to diff a
+  scraped product against. `_dedupe_baseline` handles a third case found on a real
+  Swift run: the export can carry two *non-archived* rows for the same
+  `manufacturer_range`/`model` under different `product_id`s (an older listing FMLV
+  never archived when the newer one was added). Left alone, one scraped product
+  matches one of the two, the other goes unmatched and is proposed for archiving —
+  but `store.products.upsert_seen`'s range/model fallback then folds that archive
+  proposal onto the *same* product row as the match's field changes, since the two
+  duplicates are indistinguishable by range/model alone. Keeping only the row with
+  the higher `year` (ties broken by leaving the first one seen) avoids ever creating
+  the DISAPPEARED half of that pair; the discarded duplicates are exactly what a
+  human would call archived, so this is a baseline-quality fix, not a matching one.
 
 * **A run that raises is still recorded**, as `status='failed'` with the message,
   rather than left stuck at `'running'` forever. Whatever was snapshotted before the
@@ -34,9 +47,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections import Counter
-from collections.abc import Callable, Sequence
+from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +59,10 @@ from .adapters import Adapter, adapter_for
 from .diff import diff_products
 from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
+from .fetch.ncc import NccCredentials, NccCredentialsError, NccExportError, download_export
+from .output import generate_upload
 from .product_model import io
+from .product_model.model import Motorhome
 from .registry import Manufacturer, loader
 from .store.runs import Trigger
 
@@ -99,14 +116,18 @@ def find_manufacturer(manufacturers: Sequence[Manufacturer], needle: str) -> Man
     raise CommandError(msg)
 
 
-def latest_export(*, root: Path) -> Path:
-    """The most recently modified FMLV export under `data/exports/`.
+def latest_export(*, root: Path, manufacturer_id: int, manufacturer_name: str) -> Path:
+    """The most recently modified FMLV export for one manufacturer.
 
-    Phase 7's Playwright download writes a dated directory per download, so "newest
-    file wins" is the right default for a scheduled run; `--export` overrides it when
-    testing against one specific baseline.
+    `fetch/ncc.py`'s download is per-manufacturer (the NCC site offers exports no
+    other way), so the search is scoped to that manufacturer's own subdirectory under
+    `data/exports/` — otherwise a stale export downloaded for a *different*
+    manufacturer could silently become today's baseline. `fetch-export` names each
+    download `<date>_<manufacturer>_motorhome-campervans.xlsx` directly in that
+    subdirectory (no per-date nesting), so "newest file wins" is the right default for
+    a scheduled run; `--export` overrides it when testing against one specific baseline.
     """
-    directory = paths.exports_dir(root=root)
+    directory = paths.manufacturer_exports_dir(manufacturer_id, manufacturer_name, root=root)
     candidates = [
         path
         for path in directory.rglob("*")
@@ -115,10 +136,40 @@ def latest_export(*, root: Path) -> Path:
     if not candidates:
         msg = (
             f"no {' or '.join(EXPORT_SUFFIXES)} export found under {directory} — "
-            f"download one first, or point at it with --export"
+            f"run `fmlv fetch-export` first, or point at one with --export"
         )
         raise CommandError(msg)
     return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def _dedupe_baseline(motorhomes: Iterable[Motorhome]) -> list[Motorhome]:
+    """Collapse baseline rows sharing a `(manufacturer_range, model)` to the newest.
+
+    See the module docstring's third bullet for why this exists — a real Swift export
+    had two non-archived rows both named "Escape 674" under different `product_id`s.
+    Ties (equal or both-`None` `year`) keep whichever row was seen first, which is
+    arbitrary but stable. Rows with no `manufacturer_range` or no `model` can't be
+    compared this way and are passed through untouched rather than being collapsed
+    into each other by a shared blank key.
+    """
+    groups: dict[tuple[str, str], list[Motorhome]] = defaultdict(list)
+    passthrough: list[Motorhome] = []
+    order: list[tuple[str, str]] = []
+    for motorhome in motorhomes:
+        if not motorhome.manufacturer_range or not motorhome.model:
+            passthrough.append(motorhome)
+            continue
+        key = (motorhome.manufacturer_range, motorhome.model)
+        if key not in groups:
+            order.append(key)
+        groups[key].append(motorhome)
+
+    deduped = [
+        max(group, key=lambda motorhome: motorhome.year if motorhome.year is not None else -1)
+        for key in order
+        for group in (groups[key],)
+    ]
+    return passthrough + deduped
 
 
 def resolve_ranges(adapter: Adapter, wanted: Sequence[str]) -> tuple[tuple[str, str], ...]:
@@ -189,6 +240,7 @@ def execute_run(
     try:
         ranges = (collect_kwargs or {}).get("ranges")
         range_label = ", ".join(label for _path, label in ranges) if ranges else None
+        wanted_range_labels = {label for _path, label in ranges} if ranges else None
         run = store.start_run(
             connection,
             manufacturer_id=manufacturer.manufacturer_id,
@@ -202,11 +254,13 @@ def execute_run(
 
         try:
             read = io.read_export(export_path)
-            baseline = [
+            baseline = _dedupe_baseline(
                 motorhome
                 for motorhome in read.motorhomes
                 if motorhome.manufacturer == manufacturer.fmlv_manufacturer
-            ]
+                and not motorhome.archived
+                and (wanted_range_labels is None or motorhome.manufacturer_range in wanted_range_labels)
+            )
 
             # One browser process and one HTTP client for the whole run — the browser
             # is launched even for an adapter that won't use it, which the `Adapter`
@@ -266,6 +320,10 @@ def format_summary(summary: RunSummary) -> str:
     ]
     if persisted.year_rollover_proposed:
         lines.append(f"              of which {persisted.year_rollover_proposed} are year bumps")
+    if persisted.archive_proposed:
+        lines.append(
+            f"              of which {persisted.archive_proposed} are propose-to-archive"
+        )
     lines.append(f"  verified    {persisted.verified} fields checked and unchanged")
     if persisted.suppressed_rejections:
         lines.append(
@@ -312,7 +370,11 @@ def _run_command(args: argparse.Namespace) -> int:
     if args.ranges:
         collect_kwargs["ranges"] = resolve_ranges(adapter, args.ranges)
 
-    export_path: Path = args.export or latest_export(root=data_root)
+    export_path: Path = args.export or latest_export(
+        root=data_root,
+        manufacturer_id=manufacturer.manufacturer_id,
+        manufacturer_name=manufacturer.fmlv_manufacturer,
+    )
     if not export_path.exists():
         msg = f"export not found: {export_path}"
         raise CommandError(msg)
@@ -341,6 +403,139 @@ def _run_command(args: argparse.Namespace) -> int:
             f"warning: the export has no rows for {manufacturer.fmlv_manufacturer!r}, so "
             f"every scraped product was classified as new — check the export and that "
             f"the registry's fmlv_manufacturer matches its 'manufacturer' column",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def _fetch_export_command(args: argparse.Namespace) -> int:
+    """`fmlv fetch-export <manufacturer>`: log in to the NCC site and download its export.
+
+    The download itself is `fetch.ncc.download_export`; this handler is just the same
+    registry-resolution and error-reporting wiring `_run_command` uses, plus turning
+    the two ways this can fail for a reason the operator can fix — missing
+    credentials, no `ncc_supplier_name` on record — into a `CommandError` rather than
+    a traceback.
+    """
+    data_root: Path = args.data_dir
+
+    registry_file = args.registry or paths.registry_path(root=data_root)
+    if not registry_file.exists():
+        msg = f"manufacturer registry not found at {registry_file}"
+        raise CommandError(msg)
+
+    registry = loader.load(registry_file)
+    manufacturer = find_manufacturer(registry.manufacturers, args.manufacturer)
+
+    if not manufacturer.ncc_supplier_name:
+        msg = (
+            f"{manufacturer.fmlv_manufacturer!r} has no ncc_supplier_name set in the "
+            f"registry — open the NCC site's 'Export Products by Supplier' dropdown "
+            f"(/nova/resources/products) and copy the exact label into "
+            f"data/manufacturers.csv"
+        )
+        raise CommandError(msg)
+
+    try:
+        credentials = NccCredentials.from_env()
+    except NccCredentialsError as exc:
+        raise CommandError(str(exc)) from exc
+
+    safe_name = paths.safe_path_component(manufacturer.fmlv_manufacturer)
+    dest_path = (
+        paths.manufacturer_exports_dir(
+            manufacturer.manufacturer_id, manufacturer.fmlv_manufacturer, root=data_root
+        )
+        / f"{date.today().isoformat()}_{safe_name}_motorhome-campervans.xlsx"
+    )
+
+    def report_progress(message: str) -> None:
+        print(message, flush=True)
+
+    try:
+        download_export(
+            credentials,
+            manufacturer.ncc_supplier_name,
+            dest_path,
+            headless=not args.show_browser,
+            on_progress=report_progress,
+        )
+    except NccExportError as exc:
+        raise CommandError(str(exc)) from exc
+
+    print(f"downloaded {manufacturer.fmlv_manufacturer} export to {dest_path}")
+    return 0
+
+
+def _generate_upload_command(args: argparse.Namespace) -> int:
+    """`fmlv generate-upload <run_id>`: build the upload CSV from a run's decisions.
+
+    Deliberately its own command rather than something `run` does automatically —
+    the CSV should only be produced once a reviewer has actually been through the
+    change queue, not the moment a run finishes (the review app's "Generate upload"
+    button, added alongside this, is the same rule enforced in the browser).
+    """
+    data_root: Path = args.data_dir
+    connection = store.connect(paths.db_path(root=data_root))
+    try:
+        try:
+            run = store.get_run(connection, args.run_id)
+        except KeyError as exc:
+            raise CommandError(str(exc)) from exc
+
+        if run.status != "succeeded":
+            msg = f"run #{run.id} is {run.status!r}, not 'succeeded' — nothing to upload"
+            raise CommandError(msg)
+
+        registry_file = args.registry or paths.registry_path(root=data_root)
+        if not registry_file.exists():
+            msg = f"manufacturer registry not found at {registry_file}"
+            raise CommandError(msg)
+        registry = loader.load(registry_file)
+        manufacturer = find_manufacturer(registry.manufacturers, str(run.manufacturer_id))
+
+        export_path: Path = args.export or latest_export(
+            root=data_root,
+            manufacturer_id=manufacturer.manufacturer_id,
+            manufacturer_name=manufacturer.fmlv_manufacturer,
+        )
+        if not export_path.exists():
+            msg = f"export not found: {export_path}"
+            raise CommandError(msg)
+
+        read = io.read_export(export_path)
+        baseline = _dedupe_baseline(
+            motorhome
+            for motorhome in read.motorhomes
+            if motorhome.manufacturer == manufacturer.fmlv_manufacturer
+            and not motorhome.archived
+        )
+
+        queue = store.list_change_queue(connection, run.id)
+        pending = sum(1 for entry in queue if entry.decision is None)
+        if pending:
+            print(
+                f"warning: {pending} change(s) on run #{run.id} are still awaiting a "
+                f"decision — the upload will only include what's already been reviewed",
+                file=sys.stderr,
+            )
+
+        result = generate_upload(
+            connection,
+            run_id=run.id,
+            manufacturer=manufacturer,
+            baseline=baseline,
+            path=paths.upload_csv_path(run.id, root=data_root),
+        )
+    finally:
+        connection.close()
+
+    print(f"wrote {len(result.motorhomes)} product(s) to {result.path}")
+    for issue in result.issues:
+        print(f"  {issue.severity}: {issue.message}", file=sys.stderr)
+    if result.has_errors:
+        print(
+            "warning: the CSV has validation errors — review before uploading",
             file=sys.stderr,
         )
     return 0
@@ -401,6 +596,62 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     run_parser.set_defaults(handler=_run_command)
+
+    fetch_export_parser = subparsers.add_parser(
+        "fetch-export",
+        help="log in to the NCC site and download one manufacturer's current export",
+    )
+    fetch_export_parser.add_argument(
+        "manufacturer",
+        help="registry name, display name or manufacturer_id — e.g. 'Adria', 'Adria Mobil', 3",
+    )
+    fetch_export_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=paths.DATA_DIR,
+        help=f"root for exports (default: {paths.DATA_DIR})",
+    )
+    fetch_export_parser.add_argument(
+        "--registry",
+        type=Path,
+        default=None,
+        help="manufacturer registry CSV (default: <data-dir>/manufacturers.csv)",
+    )
+    fetch_export_parser.add_argument(
+        "--show-browser",
+        action="store_true",
+        help="run non-headless, for debugging against the real site",
+    )
+    fetch_export_parser.set_defaults(handler=_fetch_export_command)
+
+    generate_upload_parser = subparsers.add_parser(
+        "generate-upload",
+        help="build the upload-ready CSV from a run's reviewed decisions",
+    )
+    generate_upload_parser.add_argument(
+        "run_id",
+        type=int,
+        help="the run whose reviewed changes should be built into an upload CSV",
+    )
+    generate_upload_parser.add_argument(
+        "--export",
+        type=Path,
+        default=None,
+        help="baseline FMLV export to apply decisions on top of (default: newest under data/exports/)",
+    )
+    generate_upload_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=paths.DATA_DIR,
+        help=f"root for exports and the run store (default: {paths.DATA_DIR})",
+    )
+    generate_upload_parser.add_argument(
+        "--registry",
+        type=Path,
+        default=None,
+        help="manufacturer registry CSV (default: <data-dir>/manufacturers.csv)",
+    )
+    generate_upload_parser.set_defaults(handler=_generate_upload_command)
 
     return parser
 

@@ -102,6 +102,19 @@
       border-top: 1px solid var(--border);
     }
     .change-row:first-of-type { border-top: none; }
+    .product-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+    }
+    .product-group-header h3 { margin: 0; }
+    .accept-all-form { display: inline-block; }
+    /* Same type as the other buttons (font/weight/size all inherited from .btn) — just
+       less vertical padding, so it doesn't grow taller than the heading beside it and
+       overlap the change-row divider directly underneath. */
+    .accept-all-form .btn { padding-top: 0.3em; padding-bottom: 0.3em; }
     .field-name {
       font-weight: 600;
       /* Field names are single unbroken tokens (e.g. mh_passenger_seats_inc_driver) —
@@ -140,7 +153,8 @@
         border-color: #b98900;
       }
     }
-    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .decision-form button {
+    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .decision-form button,
+    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .accept-all-form button {
       opacity: 0.5;
       pointer-events: none;
     }
@@ -259,6 +273,68 @@
     }
     .home-links a:hover { border-color: var(--brand-green); }
     .home-links .title { font-weight: 700; color: var(--home-link-title); }
+
+    /* Wider variant of .content-shell, opted into per-page (e.g. the runs table)
+       via the content_shell_class block below, rather than widening every page. */
+    .content-shell.wide { max-width: 84rem; }
+
+    .run-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+    }
+    .run-detail-header h1 { margin: 0; }
+
+    .run-filter {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin: 0.5rem 0 1.2rem;
+      font-size: 0.9em;
+    }
+    .run-filter a {
+      text-decoration: none;
+      color: var(--muted);
+      padding: 0.2em 0.1em;
+      border-bottom: 2px solid transparent;
+    }
+    .run-filter a:hover { color: inherit; }
+    .run-filter a.active {
+      color: var(--brand-green-dark);
+      font-weight: 600;
+      border-bottom-color: var(--brand-green);
+    }
+    @media (prefers-color-scheme: dark) {
+      .run-filter a.active { color: var(--brand-green-bright); }
+    }
+
+    /* Floating confirmation banner (`showToast()`), for actions like "generate
+       upload" that shouldn't navigate the reviewer away from the page they're on. */
+    .toast {
+      position: fixed;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      max-width: min(90vw, 40rem);
+      background: var(--brand-green-dark);
+      color: #fff;
+      padding: 0.8rem 1.2rem;
+      border-radius: 0.6rem;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+      font-size: 0.95em;
+      overflow-wrap: anywhere;
+    }
+    .toast.error { background: var(--reject); }
+    .toast a { color: #fff; text-decoration: underline; }
+    .toast code {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 0.1em 0.4em;
+      border-radius: 0.25em;
+      user-select: all;
+    }
   </style>
 </head>
 <body>
@@ -273,7 +349,8 @@
       </nav>
     </div>
   </header>
-  <main class="content-shell">
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <main class="content-shell {% block content_shell_class %}{% endblock %}">
     <div class="content-card">
       {% block content %}{% endblock %}
     </div>
@@ -284,5 +361,57 @@
       <a href="https://findmyleisurevehicle.co.uk/" target="_blank" rel="noopener">findmyleisurevehicle.co.uk ↗</a>
     </div>
   </footer>
+  <script>
+    // Floating confirmation/error banner, used by generateUpload() below — kept
+    // deliberately separate from HTMX's row-swapping (used for decisions) since this
+    // has no single row to swap into on either the runs list or the run detail page.
+    let toastTimer;
+    function showToast(html, isError) {
+      const toast = document.getElementById("toast");
+      toast.innerHTML = html;
+      toast.classList.toggle("error", Boolean(isError));
+      toast.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.hidden = true; }, 10000);
+    }
+
+    // Posts a "generate upload" form via fetch instead of a normal submit, so the
+    // reviewer stays on whichever page (runs list or run detail) they clicked from.
+    async function generateUpload(event, form) {
+      event.preventDefault();
+      let data;
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          headers: { "Accept": "application/json" },
+        });
+        data = await response.json();
+      } catch (err) {
+        showToast("Could not reach the server to generate the upload CSV.", true);
+        return;
+      }
+      if (!data.ok) {
+        showToast(data.error || "Could not generate the upload CSV.", true);
+        return;
+      }
+      const count = data.count === 1 ? "1 product" : `${data.count} product(s)`;
+      // Plain text, not a file:// link — Chrome (and most browsers) blocks a served
+      // page from navigating to a local file/folder link, so the reliable option is
+      // this app's own download route instead of trying to hand off to Explorer.
+      const filename = escapeHtml(data.filename);
+      const downloadLink = `<a href="${data.download_url}" download>Download</a>`;
+      let message = `Generated upload CSV (${count}): <code>${filename}</code> — ${downloadLink}`;
+      if (data.has_errors) {
+        message += " — validation errors found, check before uploading.";
+      }
+      showToast(message, data.has_errors);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
 </body>
 </html>

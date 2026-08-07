@@ -32,7 +32,10 @@ class Manufacturer:
 
     `manufacturer_id` is the NCC-assigned identifier Ben has populated the registry
     with — not a slug we invented (see the open question this raised in TODO.md about
-    confirming what system it comes from).
+    confirming what system it comes from). `ncc_supplier_name` is a separate identity
+    again: the exact label this manufacturer has in the NCC site's own "Export Products
+    by Supplier" dropdown (`fetch/ncc.py`), which doesn't always match
+    `fmlv_manufacturer` (e.g. `"Adria Mobil"` vs `"Adria Caravans & Motorhomes"`).
     """
 
     manufacturer_id: int
@@ -47,6 +50,7 @@ class Manufacturer:
     models_index_url: str | None
     price_list_url: str | None
     brochure_url: str | None
+    ncc_supplier_name: str | None
     specs_format: str
     needs_javascript: TriState
     login_required: bool

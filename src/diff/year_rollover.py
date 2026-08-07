@@ -49,3 +49,16 @@ def bump_year(motorhome: Motorhome) -> Motorhome:
     if motorhome.year is None:
         return motorhome
     return motorhome.model_copy(update={"year": motorhome.year + 1})
+
+
+def can_bump_year(year: int, *, today: date | None = None) -> bool:
+    """Whether `year` is eligible for a bump: exactly `today`'s year, no other value.
+
+    Both rollover routes only ever propose turning *this* year's model into next
+    year's — a product already sitting at `current_year + 1` (e.g. bumped and
+    accepted on an earlier run) must not be offered another bump, and neither should
+    one still showing some older year, which is stale data worth a reviewer's
+    attention rather than a rollover guess. `today` is injectable for tests.
+    """
+    current_year = (today or date.today()).year
+    return year == current_year

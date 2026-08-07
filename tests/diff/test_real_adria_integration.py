@@ -27,6 +27,7 @@ from src.product_model.io import read_xlsx
 FIXTURES = Path(__file__).parent.parent / "adapters" / "fixtures"
 BASELINE_EXPORT = (
     Path(__file__).parent.parent.parent
+    / "resources"
     / "csv-examples"
     / "1785753111-adria-caravans-motorhomes-product-exports"
     / "motorhome-campervans.xlsx"

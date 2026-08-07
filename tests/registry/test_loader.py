@@ -20,6 +20,7 @@ _COLUMNS = (
     "models_index_url",
     "price_list_url",
     "brochure_url",
+    "ncc_supplier_name",
     "specs_format",
     "needs_javascript",
     "login_required",

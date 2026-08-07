@@ -72,8 +72,10 @@ _STR_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-#: Plain boolean layout fields (DESIGN.md §4.3's "plain yes/no" pair).
-_BOOL_FIELDS: frozenset[str] = frozenset({"rear_garage", "microwave"})
+#: Plain boolean fields: `rear_garage`/`microwave` are DESIGN.md §4.3's "plain yes/no"
+#: layout pair; `archived` is the propose-to-archive route for a `DISAPPEARED`
+#: product (`store/changes.py`) — a carry-through field, but one a proposal can touch.
+_BOOL_FIELDS: frozenset[str] = frozenset({"rear_garage", "microwave", "archived"})
 
 #: Single-select layout groups (DESIGN.md §4.3), field name -> enum class.
 _ENUM_FIELDS: dict[str, type[ColumnEnum]] = {
@@ -215,9 +217,12 @@ class UploadResult:
 def write_upload_csv(motorhomes: list[Motorhome], path: Path | str) -> list[Issue]:
     """Validate then write the upload CSV. Never blocks the write — see `validation.py`:
     problems are reported as data so a reviewer can see exactly what's wrong with which
-    row, not silently dropped or raised past the point where they'd be useful."""
+    row, not silently dropped or raised past the point where they'd be useful.
+
+    Two blank rows precede the header: the FMLV upload site expects the header on row
+    3 and data from row 4."""
     issues = validate_all(motorhomes)
-    write_fmlv_csv(motorhomes, path)
+    write_fmlv_csv(motorhomes, path, leading_blank_rows=2)
     return issues
 
 
@@ -232,7 +237,7 @@ def generate_upload(
     """Build and write one run's approved changes as an upload-ready CSV.
 
     `path` is the caller's choice — `paths.upload_csv_path(run_id)` is the standard
-    location (DESIGN.md §5: `data/uploads/<run>/…csv`).
+    location (DESIGN.md §5: `data/uploads/run<run>_<date>_<time>_motorhome-campervans.csv`).
     """
     motorhomes = build_upload_motorhomes(
         connection, run_id=run_id, manufacturer=manufacturer, baseline=baseline

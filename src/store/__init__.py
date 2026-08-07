@@ -16,7 +16,7 @@ from .changes import (
 from .db import connect
 from .decisions import Decision, get_decision, latest_decision, record_decision
 from .products import Product, get_product, list_products, upsert_seen
-from .runs import Run, fail_run, finish_run, get_run, list_runs, start_run
+from .runs import Run, fail_run, finish_run, get_run, list_run_manufacturers, list_runs, start_run
 
 __all__ = [
     "ChangeQueueEntry",
@@ -36,6 +36,7 @@ __all__ = [
     "latest_decision",
     "list_change_queue",
     "list_products",
+    "list_run_manufacturers",
     "list_runs",
     "persist_diff",
     "record_decision",

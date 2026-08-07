@@ -2,16 +2,40 @@
 {% block title %}Runs — FMLV Automated Data Ingestion{% endblock %}
 {% block content_shell_class %}wide{% endblock %}
 {% block content %}
-  <div id="runs-page" hx-get="/runs?limit={{ limit }}" hx-trigger="every 10s" hx-select="#runs-page" hx-target="#runs-page" hx-swap="outerHTML">
+  {% set qs = "&manufacturer_id=%s&status=%s"|format(selected_manufacturer_id or "", selected_status or "") %}
+  <div id="runs-page" hx-get="/runs?limit={{ limit }}{{ qs }}" hx-trigger="every 10s" hx-select="#runs-page" hx-target="#runs-page" hx-swap="outerHTML">
   <h1>Runs</h1>
   <div class="run-filter">
     <span class="muted">Show:</span>
-    <a href="/runs?limit=10" class="{{ 'active' if limit == '10' }}">Most recent 10</a>
-    <a href="/runs?limit=25" class="{{ 'active' if limit == '25' }}">Most recent 25</a>
-    <a href="/runs?limit=all" class="{{ 'active' if limit == 'all' }}">All</a>
+    <a href="/runs?limit=10{{ qs }}" class="{{ 'active' if limit == '10' }}">Most recent 10</a>
+    <a href="/runs?limit=25{{ qs }}" class="{{ 'active' if limit == '25' }}">Most recent 25</a>
+    <a href="/runs?limit=all{{ qs }}" class="{{ 'active' if limit == 'all' }}">All</a>
   </div>
+  <form method="get" action="/runs" class="run-filter">
+    <span class="muted">Filter:</span>
+    <input type="hidden" name="limit" value="{{ limit }}">
+    <select name="manufacturer_id" onchange="this.form.submit()">
+      <option value="">All manufacturers</option>
+      {% for m_id, m_name in manufacturers %}
+        <option value="{{ m_id }}" {{ "selected" if selected_manufacturer_id == m_id }}>{{ m_name }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All statuses</option>
+      <option value="running" {{ "selected" if selected_status == "running" }}>Running</option>
+      <option value="succeeded" {{ "selected" if selected_status == "succeeded" }}>Succeeded</option>
+      <option value="failed" {{ "selected" if selected_status == "failed" }}>Failed</option>
+    </select>
+    {% if selected_manufacturer_id or selected_status %}
+      <a href="/runs?limit={{ limit }}">Clear filter</a>
+    {% endif %}
+  </form>
   {% if not runs %}
-    <p class="muted">No runs recorded yet.</p>
+    {% if selected_manufacturer_id or selected_status %}
+      <p class="muted">No runs match this filter.</p>
+    {% else %}
+      <p class="muted">No runs recorded yet.</p>
+    {% endif %}
   {% else %}
     <table>
       <thead>

@@ -106,6 +106,46 @@ def test_list_runs_filters_by_manufacturer(connection: sqlite3.Connection) -> No
     assert adria_runs[0].fmlv_manufacturer == "Adria Mobil"
 
 
+def test_list_runs_filters_by_status(connection: sqlite3.Connection) -> None:
+    running = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    finished = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    store.finish_run(connection, finished.id)
+
+    running_only = store.list_runs(connection, status="running")
+    assert [run.id for run in running_only] == [running.id]
+
+
+def test_list_runs_combines_manufacturer_and_status_filters(
+    connection: sqlite3.Connection,
+) -> None:
+    store.start_run(connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual")
+    morelo = store.start_run(
+        connection, manufacturer_id=46, fmlv_manufacturer="Morelo", trigger="manual"
+    )
+    store.finish_run(connection, morelo.id)
+
+    matches = store.list_runs(connection, manufacturer_id=46, status="succeeded")
+    assert [run.id for run in matches] == [morelo.id]
+    assert store.list_runs(connection, manufacturer_id=3, status="succeeded") == []
+
+
+def test_list_run_manufacturers_returns_distinct_pairs_alphabetically(
+    connection: sqlite3.Connection,
+) -> None:
+    store.start_run(connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual")
+    store.start_run(connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual")
+    store.start_run(connection, manufacturer_id=46, fmlv_manufacturer="Morelo", trigger="manual")
+
+    assert store.list_run_manufacturers(connection) == [
+        (3, "Adria Mobil"),
+        (46, "Morelo"),
+    ]
+
+
 def test_invalid_trigger_is_rejected_by_the_schema(connection: sqlite3.Connection) -> None:
     with pytest.raises(sqlite3.IntegrityError):
         connection.execute(

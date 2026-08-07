@@ -104,13 +104,39 @@ def get_run(connection: sqlite3.Connection, run_id: int) -> Run:
     return Run.from_row(row)
 
 
-def list_runs(connection: sqlite3.Connection, *, manufacturer_id: int | None = None) -> list[Run]:
-    """List runs, most recent first, optionally scoped to one manufacturer."""
-    if manufacturer_id is None:
-        rows = connection.execute("SELECT * FROM run ORDER BY started_at DESC").fetchall()
-    else:
-        rows = connection.execute(
-            "SELECT * FROM run WHERE manufacturer_id = ? ORDER BY started_at DESC",
-            (manufacturer_id,),
-        ).fetchall()
+def list_runs(
+    connection: sqlite3.Connection,
+    *,
+    manufacturer_id: int | None = None,
+    status: RunStatus | None = None,
+) -> list[Run]:
+    """List runs, most recent first, optionally scoped to one manufacturer and/or status."""
+    clauses: list[str] = []
+    params: list[object] = []
+    if manufacturer_id is not None:
+        clauses.append("manufacturer_id = ?")
+        params.append(manufacturer_id)
+    if status is not None:
+        clauses.append("status = ?")
+        params.append(status)
+
+    query = "SELECT * FROM run"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY started_at DESC"
+
+    rows = connection.execute(query, params).fetchall()
     return [Run.from_row(row) for row in rows]
+
+
+def list_run_manufacturers(connection: sqlite3.Connection) -> list[tuple[int, str]]:
+    """Distinct `(manufacturer_id, fmlv_manufacturer)` pairs that have at least one run.
+
+    For the runs page's manufacturer filter — drawn from run history rather than the
+    registry, so it only ever offers manufacturers there's actually something to filter
+    to, and stays correct even if the registry changes later.
+    """
+    rows = connection.execute(
+        "SELECT DISTINCT manufacturer_id, fmlv_manufacturer FROM run ORDER BY fmlv_manufacturer"
+    ).fetchall()
+    return [(row["manufacturer_id"], row["fmlv_manufacturer"]) for row in rows]

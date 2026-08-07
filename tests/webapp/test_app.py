@@ -194,6 +194,75 @@ def test_run_list_shows_the_primary_reviewer_once_something_is_decided(
     assert "none" in response.text  # nothing left pending
 
 
+def test_run_list_filters_by_manufacturer(client: TestClient, db_path: Path) -> None:
+    connection = store.connect(db_path)
+    adria = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    store.finish_run(connection, adria.id)
+    swift = store.start_run(
+        connection, manufacturer_id=26, fmlv_manufacturer="Swift Group Ltd", trigger="manual"
+    )
+    store.finish_run(connection, swift.id)
+    connection.close()
+
+    response = client.get("/runs", params={"manufacturer_id": 3})
+
+    assert response.status_code == 200
+    assert f">#{adria.id}<" in response.text
+    assert f">#{swift.id}<" not in response.text
+    assert "No runs match this filter" not in response.text
+
+
+def test_run_list_filters_by_status(client: TestClient, db_path: Path) -> None:
+    connection = store.connect(db_path)
+    running = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    finished = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    store.finish_run(connection, finished.id)
+    connection.close()
+
+    response = client.get("/runs", params={"status": "running"})
+
+    assert response.status_code == 200
+    assert f">#{running.id}<" in response.text
+    assert f">#{finished.id}<" not in response.text
+
+
+def test_run_list_with_no_matches_says_so_without_claiming_no_runs_at_all(
+    client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = client.get("/runs", params={"status": "failed"})
+
+    assert response.status_code == 200
+    assert "No runs match this filter" in response.text
+    assert "No runs recorded yet" not in response.text
+
+
+def test_run_list_ignores_an_unknown_status_value(client: TestClient, db_path: Path) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = client.get("/runs", params={"status": "bogus"})
+
+    assert response.status_code == 200
+    assert f"#{run.id}" in response.text
+
+
 def test_generate_upload_route_writes_a_csv_and_reports_it_as_json(
     client: TestClient, run_ready_for_upload: int
 ) -> None:

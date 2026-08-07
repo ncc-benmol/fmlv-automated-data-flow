@@ -167,9 +167,28 @@ def create_app(
     def home(request: Request) -> HTMLResponse:
         return _templates.TemplateResponse(request, "home.html", {})
 
+    _RUN_STATUSES = ("running", "succeeded", "failed")
+
     @app.get("/runs", response_class=HTMLResponse)
-    def run_list(request: Request, connection: ConnectionDep, limit: str = "10") -> HTMLResponse:
-        runs = store.list_runs(connection)
+    def run_list(
+        request: Request,
+        connection: ConnectionDep,
+        limit: str = "10",
+        manufacturer_id: str = "",
+        status: str | None = None,
+    ) -> HTMLResponse:
+        if status not in _RUN_STATUSES:
+            status = None  # an unknown/empty value means "all statuses", not an error
+
+        # A plain str param (like `limit`) rather than `int | None`, deliberately: the
+        # filter form's "All manufacturers" option submits an empty string, which
+        # FastAPI would reject as an invalid int before this handler ever ran.
+        try:
+            manufacturer_id_filter: int | None = int(manufacturer_id) if manufacturer_id else None
+        except ValueError:
+            manufacturer_id_filter = None
+
+        runs = store.list_runs(connection, manufacturer_id=manufacturer_id_filter, status=status)
         if limit != "all":
             try:
                 runs = runs[: int(limit)]
@@ -187,7 +206,14 @@ def create_app(
         return _templates.TemplateResponse(
             request,
             "runs.html",
-            {"runs": runs, "review_summaries": review_summaries, "limit": limit},
+            {
+                "runs": runs,
+                "review_summaries": review_summaries,
+                "limit": limit,
+                "manufacturers": store.list_run_manufacturers(connection),
+                "selected_manufacturer_id": manufacturer_id_filter,
+                "selected_status": status,
+            },
         )
 
     @app.get("/trigger", response_class=HTMLResponse)

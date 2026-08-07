@@ -219,8 +219,9 @@ def write_upload_csv(motorhomes: list[Motorhome], path: Path | str) -> list[Issu
     problems are reported as data so a reviewer can see exactly what's wrong with which
     row, not silently dropped or raised past the point where they'd be useful.
 
-    Two blank rows precede the header: the FMLV upload site expects the header on row
-    3 and data from row 4."""
+    Two rows, each holding a single `-`, precede the header: the FMLV upload site
+    expects the header on row 3 and data from row 4, and won't parse the file
+    correctly if those two rows are genuinely empty."""
     issues = validate_all(motorhomes)
     write_fmlv_csv(motorhomes, path, leading_blank_rows=2)
     return issues

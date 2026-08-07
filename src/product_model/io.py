@@ -317,8 +317,9 @@ def write_csv(
 ) -> None:
     """Write motorhomes as a CSV in the exact FMLV upload column order.
 
-    `leading_blank_rows` writes that many empty rows before the header — the FMLV
-    upload site expects the header on row 3 and data from row 4, i.e.
+    `leading_blank_rows` writes that many rows, each holding a single `-`, before the
+    header — the FMLV upload site expects the header on row 3 and data from row 4, and
+    won't parse the file correctly if those two rows are genuinely empty, i.e.
     `leading_blank_rows=2` (see `output.write_upload_csv`). Defaults to 0 so every
     other caller (round-tripping, tests) still gets a plain CSV with the header on
     row 1.
@@ -328,7 +329,7 @@ def write_csv(
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=schema.COLUMNS)
         for _ in range(leading_blank_rows):
-            handle.write("\n")
+            handle.write("-\n")
         writer.writeheader()
         for motorhome in motorhomes:
             writer.writerow(motorhome_to_row(motorhome))

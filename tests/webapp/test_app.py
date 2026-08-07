@@ -232,6 +232,51 @@ def test_run_list_filters_by_status(client: TestClient, db_path: Path) -> None:
     assert f">#{finished.id}<" not in response.text
 
 
+def test_run_list_filters_by_start_date(client: TestClient, db_path: Path) -> None:
+    # Fixed, midday-UTC timestamps rather than store.start_run's "now" -- keeps this
+    # deterministic regardless of the test machine's timezone or time of day, and
+    # avoids the local-date boundary the filter itself has to handle near midnight.
+    connection = store.connect(db_path)
+    connection.executemany(
+        """
+        INSERT INTO run (manufacturer_id, fmlv_manufacturer, trigger, status, started_at)
+        VALUES (?, ?, 'manual', 'succeeded', ?)
+        """,
+        [
+            (3, "Adria Mobil", "2026-03-15T12:00:00+00:00"),
+            (3, "Adria Mobil", "2026-03-16T12:00:00+00:00"),
+        ],
+    )
+    connection.commit()
+    run_15 = connection.execute(
+        "SELECT id FROM run WHERE started_at = '2026-03-15T12:00:00+00:00'"
+    ).fetchone()["id"]
+    run_16 = connection.execute(
+        "SELECT id FROM run WHERE started_at = '2026-03-16T12:00:00+00:00'"
+    ).fetchone()["id"]
+    connection.close()
+
+    response = client.get("/runs", params={"start_date": "2026-03-15"})
+
+    assert response.status_code == 200
+    assert f">#{run_15}<" in response.text
+    assert f">#{run_16}<" not in response.text
+
+
+def test_run_list_ignores_an_unparseable_start_date(client: TestClient, db_path: Path) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = client.get("/runs", params={"start_date": "not-a-date"})
+
+    assert response.status_code == 200
+    assert f">#{run.id}<" in response.text
+
+
 def test_run_list_with_no_matches_says_so_without_claiming_no_runs_at_all(
     client: TestClient, db_path: Path
 ) -> None:

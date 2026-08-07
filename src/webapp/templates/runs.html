@@ -2,7 +2,7 @@
 {% block title %}Runs — FMLV Automated Data Ingestion{% endblock %}
 {% block content_shell_class %}wide{% endblock %}
 {% block content %}
-  {% set qs = "&manufacturer_id=%s&status=%s"|format(selected_manufacturer_id or "", selected_status or "") %}
+  {% set qs = "&manufacturer_id=%s&status=%s&start_date=%s"|format(selected_manufacturer_id or "", selected_status or "", selected_start_date or "") %}
   <div id="runs-page" hx-get="/runs?limit={{ limit }}{{ qs }}" hx-trigger="every 10s" hx-select="#runs-page" hx-target="#runs-page" hx-swap="outerHTML">
   <h1>Runs</h1>
   <div class="run-filter">
@@ -26,12 +26,13 @@
       <option value="succeeded" {{ "selected" if selected_status == "succeeded" }}>Succeeded</option>
       <option value="failed" {{ "selected" if selected_status == "failed" }}>Failed</option>
     </select>
-    {% if selected_manufacturer_id or selected_status %}
+    <input type="date" name="start_date" value="{{ selected_start_date }}" onchange="this.form.submit()">
+    {% if selected_manufacturer_id or selected_status or selected_start_date %}
       <a href="/runs?limit={{ limit }}">Clear filter</a>
     {% endif %}
   </form>
   {% if not runs %}
-    {% if selected_manufacturer_id or selected_status %}
+    {% if selected_manufacturer_id or selected_status or selected_start_date %}
       <p class="muted">No runs match this filter.</p>
     {% else %}
       <p class="muted">No runs recorded yet.</p>

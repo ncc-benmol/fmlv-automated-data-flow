@@ -30,7 +30,7 @@ import asyncio
 import sqlite3
 import threading
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated
 from zoneinfo import ZoneInfo
@@ -176,19 +176,38 @@ def create_app(
         limit: str = "10",
         manufacturer_id: str = "",
         status: str | None = None,
+        start_date: str = "",
     ) -> HTMLResponse:
         if status not in _RUN_STATUSES:
             status = None  # an unknown/empty value means "all statuses", not an error
 
-        # A plain str param (like `limit`) rather than `int | None`, deliberately: the
-        # filter form's "All manufacturers" option submits an empty string, which
-        # FastAPI would reject as an invalid int before this handler ever ran.
+        # Plain str params (like `limit`) rather than `int | None`/`date | None`,
+        # deliberately: the filter form's "cleared" state submits an empty string for
+        # each, which FastAPI would reject outright as an invalid int/date before this
+        # handler ever ran.
         try:
             manufacturer_id_filter: int | None = int(manufacturer_id) if manufacturer_id else None
         except ValueError:
             manufacturer_id_filter = None
 
+        try:
+            start_date_filter: date | None = date.fromisoformat(start_date) if start_date else None
+        except ValueError:
+            start_date_filter = None
+
         runs = store.list_runs(connection, manufacturer_id=manufacturer_id_filter, status=status)
+        if start_date_filter is not None:
+            # Filtered here rather than in the SQL `store.list_runs` runs on, against
+            # the *local* calendar date — matching what the "Started" column actually
+            # shows a reviewer (`_format_datetime_short`, Europe/London) rather than
+            # the UTC date `started_at` is stored in, which would occasionally disagree
+            # with the displayed date near midnight.
+            runs = [
+                run
+                for run in runs
+                if datetime.fromisoformat(run.started_at).astimezone(_LOCAL_TZ).date()
+                == start_date_filter
+            ]
         if limit != "all":
             try:
                 runs = runs[: int(limit)]
@@ -213,6 +232,7 @@ def create_app(
                 "manufacturers": store.list_run_manufacturers(connection),
                 "selected_manufacturer_id": manufacturer_id_filter,
                 "selected_status": status,
+                "selected_start_date": start_date_filter.isoformat() if start_date_filter else "",
             },
         )
 

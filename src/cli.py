@@ -60,6 +60,7 @@ from .diff import diff_products
 from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
 from .fetch.ncc import NccCredentials, NccCredentialsError, NccExportError, download_export
+from .output import generate_upload
 from .product_model import io
 from .product_model.model import Motorhome
 from .registry import Manufacturer, loader
@@ -464,6 +465,80 @@ def _fetch_export_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _generate_upload_command(args: argparse.Namespace) -> int:
+    """`fmlv generate-upload <run_id>`: build the upload CSV from a run's decisions.
+
+    Deliberately its own command rather than something `run` does automatically —
+    the CSV should only be produced once a reviewer has actually been through the
+    change queue, not the moment a run finishes (the review app's "Generate upload"
+    button, added alongside this, is the same rule enforced in the browser).
+    """
+    data_root: Path = args.data_dir
+    connection = store.connect(paths.db_path(root=data_root))
+    try:
+        try:
+            run = store.get_run(connection, args.run_id)
+        except KeyError as exc:
+            raise CommandError(str(exc)) from exc
+
+        if run.status != "succeeded":
+            msg = f"run #{run.id} is {run.status!r}, not 'succeeded' — nothing to upload"
+            raise CommandError(msg)
+
+        registry_file = args.registry or paths.registry_path(root=data_root)
+        if not registry_file.exists():
+            msg = f"manufacturer registry not found at {registry_file}"
+            raise CommandError(msg)
+        registry = loader.load(registry_file)
+        manufacturer = find_manufacturer(registry.manufacturers, str(run.manufacturer_id))
+
+        export_path: Path = args.export or latest_export(
+            root=data_root,
+            manufacturer_id=manufacturer.manufacturer_id,
+            manufacturer_name=manufacturer.fmlv_manufacturer,
+        )
+        if not export_path.exists():
+            msg = f"export not found: {export_path}"
+            raise CommandError(msg)
+
+        read = io.read_export(export_path)
+        baseline = _dedupe_baseline(
+            motorhome
+            for motorhome in read.motorhomes
+            if motorhome.manufacturer == manufacturer.fmlv_manufacturer
+            and not motorhome.archived
+        )
+
+        queue = store.list_change_queue(connection, run.id)
+        pending = sum(1 for entry in queue if entry.decision is None)
+        if pending:
+            print(
+                f"warning: {pending} change(s) on run #{run.id} are still awaiting a "
+                f"decision — the upload will only include what's already been reviewed",
+                file=sys.stderr,
+            )
+
+        result = generate_upload(
+            connection,
+            run_id=run.id,
+            manufacturer=manufacturer,
+            baseline=baseline,
+            path=paths.upload_csv_path(run.id, root=data_root),
+        )
+    finally:
+        connection.close()
+
+    print(f"wrote {len(result.motorhomes)} product(s) to {result.path}")
+    for issue in result.issues:
+        print(f"  {issue.severity}: {issue.message}", file=sys.stderr)
+    if result.has_errors:
+        print(
+            "warning: the CSV has validation errors — review before uploading",
+            file=sys.stderr,
+        )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fmlv",
@@ -546,6 +621,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="run non-headless, for debugging against the real site",
     )
     fetch_export_parser.set_defaults(handler=_fetch_export_command)
+
+    generate_upload_parser = subparsers.add_parser(
+        "generate-upload",
+        help="build the upload-ready CSV from a run's reviewed decisions",
+    )
+    generate_upload_parser.add_argument(
+        "run_id",
+        type=int,
+        help="the run whose reviewed changes should be built into an upload CSV",
+    )
+    generate_upload_parser.add_argument(
+        "--export",
+        type=Path,
+        default=None,
+        help="baseline FMLV export to apply decisions on top of (default: newest under data/exports/)",
+    )
+    generate_upload_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=paths.DATA_DIR,
+        help=f"root for exports and the run store (default: {paths.DATA_DIR})",
+    )
+    generate_upload_parser.add_argument(
+        "--registry",
+        type=Path,
+        default=None,
+        help="manufacturer registry CSV (default: <data-dir>/manufacturers.csv)",
+    )
+    generate_upload_parser.set_defaults(handler=_generate_upload_command)
 
     return parser
 

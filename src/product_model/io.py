@@ -268,8 +268,10 @@ def _rows_from_xlsx(path: Path) -> Iterable[dict[str, Any]]:
         workbook.close()
 
 
-def _rows_from_csv(path: Path) -> Iterable[dict[str, Any]]:
+def _rows_from_csv(path: Path, *, skip_leading_blank_rows: int = 0) -> Iterable[dict[str, Any]]:
     with path.open(newline="", encoding="utf-8-sig") as handle:
+        for _ in range(skip_leading_blank_rows):
+            next(handle)
         yield from csv.DictReader(handle)
 
 
@@ -288,9 +290,14 @@ def read_xlsx(path: Path | str) -> ReadResult:
     return read_rows(_rows_from_xlsx(Path(path)))
 
 
-def read_csv(path: Path | str) -> ReadResult:
-    """Read a motorhome/campervan export (or a generated upload CSV) saved as `.csv`."""
-    return read_rows(_rows_from_csv(Path(path)))
+def read_csv(path: Path | str, *, skip_leading_blank_rows: int = 0) -> ReadResult:
+    """Read a motorhome/campervan export (or a generated upload CSV) saved as `.csv`.
+
+    `skip_leading_blank_rows` mirrors `write_csv`'s parameter of the same name, for
+    reading back a generated upload CSV (header on row 3) rather than a plain export
+    (header on row 1, the default).
+    """
+    return read_rows(_rows_from_csv(Path(path), skip_leading_blank_rows=skip_leading_blank_rows))
 
 
 def read_export(path: Path | str) -> ReadResult:
@@ -305,12 +312,23 @@ def read_export(path: Path | str) -> ReadResult:
     raise ValueError(msg)
 
 
-def write_csv(motorhomes: Iterable[Motorhome], path: Path | str) -> None:
-    """Write motorhomes as a CSV in the exact FMLV upload column order."""
+def write_csv(
+    motorhomes: Iterable[Motorhome], path: Path | str, *, leading_blank_rows: int = 0
+) -> None:
+    """Write motorhomes as a CSV in the exact FMLV upload column order.
+
+    `leading_blank_rows` writes that many empty rows before the header — the FMLV
+    upload site expects the header on row 3 and data from row 4, i.e.
+    `leading_blank_rows=2` (see `output.write_upload_csv`). Defaults to 0 so every
+    other caller (round-tripping, tests) still gets a plain CSV with the header on
+    row 1.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=schema.COLUMNS)
+        for _ in range(leading_blank_rows):
+            handle.write("\n")
         writer.writeheader()
         for motorhome in motorhomes:
             writer.writerow(motorhome_to_row(motorhome))

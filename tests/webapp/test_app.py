@@ -15,9 +15,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from src import store
+from src import paths, store
 from src.adapters.base import ExtractedMotorhome, Provenance
 from src.diff.classify import diff_products
+from src.product_model import io
 from src.product_model.model import Motorhome
 from src.webapp import create_app
 
@@ -81,6 +82,38 @@ def run_with_one_change(db_path: Path) -> tuple[int, int]:
         connection.close()
 
 
+@pytest.fixture
+def run_ready_for_upload(db_path: Path) -> int:
+    """A succeeded, fully-reviewed run, plus the registry/export files its manufacturer
+    needs — everything `generate_upload_route` looks up besides the change queue
+    itself. Returns the run id."""
+    data_root = db_path.parent
+    (data_root / "manufacturers.csv").write_text(
+        "manufacturer_id,fmlv_manufacturer,website_url\n3,Adria Mobil,https://example.invalid/\n",
+        encoding="utf-8",
+    )
+    connection = store.connect(db_path)
+    try:
+        run = store.start_run(
+            connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+        )
+        baseline = make_baseline()
+        extracted = make_extracted(rrp_pounds=93920)
+        diffs = diff_products([extracted], [baseline])
+        store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+        for entry in store.list_change_queue(connection, run.id):
+            store.record_decision(
+                connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
+            )
+        store.finish_run(connection, run.id)
+    finally:
+        connection.close()
+
+    export_dir = paths.manufacturer_exports_dir(3, "Adria Mobil", root=data_root)
+    io.write_csv([baseline], export_dir / "2026-08-01_Adria-Mobil_motorhome-campervans.csv")
+    return run.id
+
+
 def test_home_page_links_to_trigger_and_runs(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
@@ -123,6 +156,88 @@ def test_run_list_shows_a_running_run_without_a_review_link(
     assert response.status_code == 200
     assert f'href="/runs/{run.id}"' not in response.text
     assert "not yet available for review" in response.text
+
+
+def test_run_list_shows_pending_count_and_a_generate_upload_button(
+    client: TestClient, run_with_one_change: tuple[int, int]
+) -> None:
+    run_id, _change_id = run_with_one_change
+
+    response = client.get("/runs")
+
+    assert response.status_code == 200
+    assert "1 pending" in response.text
+    assert f'action="/runs/{run_id}/generate-upload"' in response.text
+
+
+def test_run_list_shows_the_primary_reviewer_once_something_is_decided(
+    client: TestClient, run_with_one_change: tuple[int, int]
+) -> None:
+    run_id, change_id = run_with_one_change
+    client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "accept", "reviewer_name": "ben"},
+    )
+
+    response = client.get("/runs")
+
+    assert response.status_code == 200
+    assert "ben" in response.text
+    assert "none" in response.text  # nothing left pending
+
+
+def test_generate_upload_route_writes_a_csv_and_reports_it_as_json(
+    client: TestClient, run_ready_for_upload: int
+) -> None:
+    run_id = run_ready_for_upload
+
+    response = client.post(f"/runs/{run_id}/generate-upload")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is True
+    assert data["count"] == 1
+    assert data["filename"].startswith(f"run{run_id}_")
+    assert data["download_url"] == f"/runs/{run_id}/uploads/{data['filename']}"
+    assert data["folder_url"].startswith("file:")
+
+
+def test_generate_upload_route_refuses_a_run_that_has_not_succeeded(
+    client: TestClient, db_path: Path
+) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    connection.close()
+
+    response = client.post(f"/runs/{run.id}/generate-upload")
+
+    assert response.status_code == 409
+    assert response.json()["ok"] is False
+
+
+def test_downloading_a_generated_upload_serves_the_file(
+    client: TestClient, run_ready_for_upload: int
+) -> None:
+    run_id = run_ready_for_upload
+    filename = client.post(f"/runs/{run_id}/generate-upload").json()["filename"]
+
+    response = client.get(f"/runs/{run_id}/uploads/{filename}")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+
+
+def test_downloading_an_upload_for_the_wrong_run_id_404s(
+    client: TestClient, run_ready_for_upload: int
+) -> None:
+    run_id = run_ready_for_upload
+    filename = client.post(f"/runs/{run_id}/generate-upload").json()["filename"]
+
+    response = client.get(f"/runs/{run_id + 1}/uploads/{filename}")
+
+    assert response.status_code == 404
 
 
 def test_a_running_run_shows_the_in_progress_page_not_the_queue(
@@ -397,6 +512,9 @@ def test_accept_all_accepts_every_pending_change_for_one_product(
 
     assert response.status_code == 200
     assert response.text.count("decision-accept") == 2
+    # A single click both decides everything and hides the "Accept all" button —
+    # previously the button stayed put, wrongly implying a second click was needed.
+    assert "accept-all-form" not in response.text
 
     connection = store.connect(db_path)
     decisions = [store.latest_decision(connection, e.change.id) for e in queue]

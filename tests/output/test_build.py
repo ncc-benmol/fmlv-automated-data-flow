@@ -283,7 +283,15 @@ def test_generate_upload_writes_a_csv_in_fmlv_column_order_and_carries_product_i
     assert result.path == csv_path
     assert csv_path.exists()
 
-    read_back = read_csv(csv_path)
+    # The FMLV upload site expects the header on row 3 and data from row 4, so the
+    # file starts with two blank rows — `read_csv` alone can't parse that layout, only
+    # the FMLV site is meant to.
+    lines = csv_path.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == ""
+    assert lines[1] == ""
+    assert lines[2].startswith("product_id,")
+
+    read_back = read_csv(csv_path, skip_leading_blank_rows=2)
     assert len(read_back.motorhomes) == 1
     assert read_back.motorhomes[0].product_id == 4147
     assert read_back.motorhomes[0].rrp_pounds == 93920

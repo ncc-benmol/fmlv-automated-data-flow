@@ -113,6 +113,14 @@ class ChangeQueueEntry:
 
 
 @dataclass(frozen=True)
+class RunReviewSummary:
+    """Review status of one run's change queue, for the runs overview page."""
+
+    pending_count: int
+    primary_reviewer: str | None
+
+
+@dataclass(frozen=True)
 class PersistResult:
     """A summary of what persisting one run's diff did — for a run-completion message."""
 
@@ -208,6 +216,53 @@ def record_verification(
         (run_id, product_id, field, _now()),
     )
     connection.commit()
+
+
+def run_review_summary(connection: sqlite3.Connection, run_id: int) -> RunReviewSummary:
+    """How much of a run's change queue is left to review, and who's reviewed most of it.
+
+    `primary_reviewer` is whichever named reviewer has the most decisions recorded on
+    this run (ties broken alphabetically) — a simple "who's mainly been through this"
+    signal for the runs overview page, not a permissions concept. `None` if nothing on
+    the run has been decided yet.
+    """
+    pending_row = connection.execute(
+        """
+        SELECT COUNT(*) AS pending
+        FROM proposed_change
+        LEFT JOIN decision ON decision.id = (
+            SELECT id FROM decision AS latest
+            WHERE latest.proposed_change_id = proposed_change.id
+            ORDER BY latest.decided_at DESC, latest.id DESC
+            LIMIT 1
+        )
+        WHERE proposed_change.run_id = ? AND decision.id IS NULL
+        """,
+        (run_id,),
+    ).fetchone()
+
+    reviewer_row = connection.execute(
+        """
+        SELECT decision.decided_by AS reviewer, COUNT(*) AS n
+        FROM proposed_change
+        JOIN decision ON decision.id = (
+            SELECT id FROM decision AS latest
+            WHERE latest.proposed_change_id = proposed_change.id
+            ORDER BY latest.decided_at DESC, latest.id DESC
+            LIMIT 1
+        )
+        WHERE proposed_change.run_id = ? AND decision.decided_by IS NOT NULL
+        GROUP BY decision.decided_by
+        ORDER BY n DESC, reviewer ASC
+        LIMIT 1
+        """,
+        (run_id,),
+    ).fetchone()
+
+    return RunReviewSummary(
+        pending_count=pending_row["pending"],
+        primary_reviewer=reviewer_row["reviewer"] if reviewer_row is not None else None,
+    )
 
 
 def persist_diff(

@@ -8,7 +8,8 @@
         <span class="badge new">new product</span>
       {% endif %}
     </h3>
-    {% if entries %}
+    {% set pending_entries = entries | selectattr('decision', 'none') | list %}
+    {% if pending_entries %}
       <form
         class="accept-all-form"
         hx-post="/runs/{{ run.id }}/products/{{ product.id }}/accept-all"

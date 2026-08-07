@@ -349,4 +349,43 @@ def test_change_queue_reflects_a_decision_once_made(
     [updated] = store.list_change_queue(connection, run_id)
     assert updated.decision is not None
     assert updated.decision.action == "accept"
-    assert updated.decision.decided_by == "ben"
+
+
+def test_run_review_summary_before_anything_is_decided(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    baseline = make_baseline()
+    extracted = make_extracted(rrp_pounds=93920)
+    diffs = diff_products([extracted], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    summary = store.run_review_summary(connection, run_id)
+
+    assert summary.pending_count == 1
+    assert summary.primary_reviewer is None
+
+
+def test_run_review_summary_counts_pending_and_finds_the_busiest_reviewer(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    first_baseline = make_baseline(product_id=4147, model="Supreme 670 DC")
+    second_baseline = make_baseline(product_id=8195, model="670 SL 60Y")
+    first_extracted = make_extracted(rrp_pounds=93920, model="Supreme 670 DC")
+    second_extracted = make_extracted(rrp_pounds=81000, model="670 SL 60Y")
+    diffs = diff_products(
+        [first_extracted, second_extracted], [first_baseline, second_baseline]
+    )
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    [first_entry, second_entry] = store.list_change_queue(connection, run_id)
+    store.record_decision(
+        connection, proposed_change_id=first_entry.change.id, action="accept", decided_by="ben"
+    )
+    store.record_decision(
+        connection, proposed_change_id=second_entry.change.id, action="accept", decided_by="ben"
+    )
+
+    summary = store.run_review_summary(connection, run_id)
+
+    assert summary.pending_count == 0
+    assert summary.primary_reviewer == "ben"

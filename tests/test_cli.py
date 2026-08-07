@@ -581,3 +581,66 @@ def test_manufacturer_without_an_adapter_says_which_ones_exist(
     assert "no adapter written" in error
     for supported in ADAPTERS:
         assert supported in error
+
+
+# --------------------------------------------------------------------------- #
+# `generate-upload`
+# --------------------------------------------------------------------------- #
+
+
+def test_generate_upload_writes_a_timestamped_csv_from_reviewed_decisions(
+    data_root: Path, export_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    registry = data_root / "manufacturers.csv"
+    registry.write_text(
+        "manufacturer_id,fmlv_manufacturer,website_url\n3,Adria Mobil,https://example.invalid/\n",
+        encoding="utf-8",
+    )
+    summary = run_once(
+        data_root=data_root,
+        export_path=export_path,
+        adapter=FakeAdapter(products=[make_extracted(rrp_pounds=94950)]),
+    )
+    connection = store.connect(paths.db_path(root=data_root))
+    for entry in store.list_change_queue(connection, summary.run.id):
+        store.record_decision(
+            connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
+        )
+    connection.close()
+
+    exit_code = main(
+        [
+            "generate-upload",
+            str(summary.run.id),
+            "--data-dir",
+            str(data_root),
+            "--export",
+            str(export_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert "wrote 1 product(s)" in capsys.readouterr().out
+    written = list(paths.uploads_dir(root=data_root).glob(f"run{summary.run.id}_*.csv"))
+    assert len(written) == 1
+    assert written[0].name.startswith(f"run{summary.run.id}_")
+
+
+def test_generate_upload_refuses_a_run_that_has_not_succeeded(
+    data_root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    registry = data_root / "manufacturers.csv"
+    registry.write_text(
+        "manufacturer_id,fmlv_manufacturer,website_url\n3,Adria Mobil,https://example.invalid/\n",
+        encoding="utf-8",
+    )
+    connection = store.connect(paths.db_path(root=data_root))
+    run = store.start_run(
+        connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+    )
+    connection.close()
+
+    exit_code = main(["generate-upload", str(run.id), "--data-dir", str(data_root)])
+
+    assert exit_code == 2
+    assert "not 'succeeded'" in capsys.readouterr().err

@@ -9,7 +9,13 @@ place that knows that layout, so nothing else hard-codes a path string.
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+#: Matches the review app's own display convention (`webapp/app.py`'s `_LOCAL_TZ`) —
+#: the upload filename's timestamp should read the same way to a UK-based reviewer.
+_LOCAL_TZ = ZoneInfo("Europe/London")
 
 #: Root of all runtime data. Pass a different `root` to any function here (e.g. a
 #: tmp_path in tests, or a different mount point in the container) rather than
@@ -71,9 +77,20 @@ def uploads_dir(*, root: Path = DATA_DIR) -> Path:
     return root / "uploads"
 
 
-def upload_csv_path(run_id: int, *, root: Path = DATA_DIR) -> Path:
-    """Where one run's generated upload CSV is written (DESIGN.md §5: `data/uploads/<run>/…csv`)."""
-    return uploads_dir(root=root) / str(run_id) / "motorhome-campervans.csv"
+def upload_csv_path(
+    run_id: int, *, generated_at: datetime | None = None, root: Path = DATA_DIR
+) -> Path:
+    """Where one run's generated upload CSV is written.
+
+    The filename embeds when it was generated, to the nearest minute in UK local
+    time: `data/uploads/run<run>_<date>_<time>_motorhome-campervans.csv`. Generating
+    twice from the same run therefore never silently overwrites an earlier CSV —
+    each generation gets its own file, and the reviewer can see at a glance how
+    fresh (or stale) a given upload is.
+    """
+    when = (generated_at or datetime.now(_LOCAL_TZ)).astimezone(_LOCAL_TZ)
+    stamp = when.strftime("%Y-%m-%d_%H%M")
+    return uploads_dir(root=root) / f"run{run_id}_{stamp}_motorhome-campervans.csv"
 
 
 def db_path(*, root: Path = DATA_DIR) -> Path:

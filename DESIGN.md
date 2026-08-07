@@ -159,7 +159,7 @@ Handled by the `archived` Yes/No column, not by deleting rows.
    reviewer: accept / reject / correct, per field
         │
         ▼  (6) emit CSV in exact FMLV column order
-   data/uploads/<run>/…csv  →  human uploads to NCC site
+   data/uploads/run<run>_<date>_<time>_…csv  →  human uploads to NCC site
         │
         ▼
    SQLite: runs, products seen, decisions, rejections, content hashes

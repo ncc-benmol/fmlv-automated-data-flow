@@ -240,6 +240,13 @@ Do this **before** committing to an adapter interface — the sites decide the s
       `cli.latest_export(manufacturer_id=...)` fix a real bug the old single shared
       `data/exports/` directory had: downloading manufacturer A's export and then
       running manufacturer B would have silently used A's stale file as B's baseline.
+- [x] **[P]** CLI and review-app entry points to generate the upload CSV, kept
+      deliberately separate from `run`/the run-trigger so a CSV is never produced
+      before a reviewer has actually decided anything — `fmlv generate-upload <run_id>`
+      (`cli.py:_generate_upload_command`) and a "Generate upload CSV" button on the run
+      detail page (`webapp/app.py:generate_upload_route`, `GET /runs/{id}/upload.csv`
+      to download it), both wrapping the existing `output.generate_upload`. Warns
+      (doesn't block) if changes on the run are still pending a decision.
 - [ ] **[F]** Automated upload — deliberately manual for now
 - [ ] **[F]** Confirm upload validation rules with whoever runs the site (open question 3)
 

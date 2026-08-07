@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Runs — FMLV Automated Data Ingestion{% endblock %}
+{% block content_shell_class %}wide{% endblock %}
 {% block content %}
   <h1>Runs</h1>
   {% if not runs %}
@@ -15,10 +16,14 @@
           <th>Status</th>
           <th>Started</th>
           <th>Finished</th>
+          <th>Pending review</th>
+          <th>Primary reviewer</th>
+          <th>Upload</th>
         </tr>
       </thead>
       <tbody>
         {% for run in runs %}
+          {% set summary = review_summaries.get(run.id) %}
           <tr>
             <td class="muted">#{{ run.id }}</td>
             <td>
@@ -38,6 +43,25 @@
             </td>
             <td class="muted">{{ run.started_at|fmt_dt_short }}</td>
             <td class="muted">{{ run.finished_at|fmt_dt_short }}</td>
+            <td>
+              {% if not summary %}
+                <span class="muted">—</span>
+              {% elif summary.pending_count %}
+                <span class="badge high-suspicion">{{ summary.pending_count }} pending</span>
+              {% else %}
+                <span class="muted">none</span>
+              {% endif %}
+            </td>
+            <td class="muted">{{ summary.primary_reviewer if summary else "—" }}</td>
+            <td>
+              {% if run.status == "succeeded" %}
+                <form method="post" action="/runs/{{ run.id }}/generate-upload" onsubmit="generateUpload(event, this)">
+                  <button type="submit" class="btn btn-primary">Generate upload</button>
+                </form>
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
           </tr>
         {% endfor %}
       </tbody>

@@ -16,6 +16,14 @@
     <p class="form-error">{{ run.error_message }}</p>
   {% endif %}
 
+  {% if run.status == "succeeded" %}
+    <div id="generate-upload">
+      <form method="post" action="/runs/{{ run.id }}/generate-upload" onsubmit="generateUpload(event, this)">
+        <button type="submit" class="btn btn-primary">Generate upload CSV</button>
+      </form>
+    </div>
+  {% endif %}
+
   <div id="reviewer-bar">
     <label for="reviewer-name">Reviewing as:</label>
     {% if reviewers %}

@@ -36,14 +36,23 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from starlette.requests import Request
 from starlette.templating import Jinja2Templates
 
 from .. import paths, store
 from ..adapters import adapter_for
-from ..cli import CommandError, execute_run, find_manufacturer, latest_export, resolve_ranges
+from ..cli import (
+    CommandError,
+    _dedupe_baseline,
+    execute_run,
+    find_manufacturer,
+    latest_export,
+    resolve_ranges,
+)
 from ..diff.compare import LAYOUT_FIELDS
+from ..output import generate_upload
+from ..product_model import io
 from ..registry import loader
 from ..store.decisions import Action
 from .reviewers import load_reviewers
@@ -161,7 +170,17 @@ def create_app(
     @app.get("/runs", response_class=HTMLResponse)
     def run_list(request: Request, connection: ConnectionDep) -> HTMLResponse:
         runs = store.list_runs(connection)
-        return _templates.TemplateResponse(request, "runs.html", {"runs": runs})
+        # Only a succeeded run has a change queue worth summarising — a running or
+        # failed run has no proposed_change rows yet (persist_diff runs at the very
+        # end), so skip the query rather than show a misleading "0 pending".
+        review_summaries = {
+            run.id: store.run_review_summary(connection, run.id)
+            for run in runs
+            if run.status == "succeeded"
+        }
+        return _templates.TemplateResponse(
+            request, "runs.html", {"runs": runs, "review_summaries": review_summaries}
+        )
 
     @app.get("/trigger", response_class=HTMLResponse)
     def trigger_form(request: Request) -> HTMLResponse:
@@ -263,6 +282,88 @@ def create_app(
             },
         )
 
+    @app.post("/runs/{run_id}/generate-upload")
+    def generate_upload_route(run_id: int, connection: ConnectionDep) -> JSONResponse:
+        """Build the upload CSV from whatever has been decided on this run so far.
+
+        A deliberately separate action from triggering a run (`/trigger`) — the CSV
+        should only be produced once a reviewer chooses to, not automatically the
+        moment a run finishes, so it always reflects a human's actual decisions.
+
+        Returns JSON rather than a page: both the runs list and the run detail page
+        call this without navigating away, showing the result in a floating banner
+        instead (`base.html`'s `generateUpload()`/`showToast()`).
+        """
+        run = _run_or_404(connection, run_id)
+        if run.status != "succeeded":
+            return JSONResponse(
+                {"ok": False, "error": f"run #{run.id} is {run.status!r}, not 'succeeded'."},
+                status_code=409,
+            )
+
+        try:
+            registry_result = loader.load(app.state.registry_path)
+            manufacturer = find_manufacturer(
+                registry_result.manufacturers, str(run.manufacturer_id)
+            )
+            export_path = latest_export(
+                root=app.state.data_root,
+                manufacturer_id=manufacturer.manufacturer_id,
+                manufacturer_name=manufacturer.fmlv_manufacturer,
+            )
+        except CommandError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=422)
+
+        read = io.read_export(export_path)
+        baseline = _dedupe_baseline(
+            motorhome
+            for motorhome in read.motorhomes
+            if motorhome.manufacturer == manufacturer.fmlv_manufacturer
+            and not motorhome.archived
+        )
+        result = generate_upload(
+            connection,
+            run_id=run.id,
+            manufacturer=manufacturer,
+            baseline=baseline,
+            path=paths.upload_csv_path(run.id, root=app.state.data_root),
+        )
+
+        # `as_uri()` on the resolved parent directory gives a `file:///C:/...` link —
+        # opening it hands off to File Explorer on whatever machine the browser is
+        # running on. There's no standard browser-hyperlink scheme for "select this
+        # one file" (that's `explorer.exe /select,`, a shell command, not a URI), so
+        # this opens the containing folder and the banner names the file to look for.
+        folder_url = result.path.parent.resolve().as_uri()
+        return JSONResponse(
+            {
+                "ok": True,
+                "path": str(result.path),
+                "filename": result.path.name,
+                "count": len(result.motorhomes),
+                "has_errors": result.has_errors,
+                "issues": [f"{issue.severity}: {issue.message}" for issue in result.issues],
+                "download_url": f"/runs/{run.id}/uploads/{result.path.name}",
+                "folder_url": folder_url,
+            }
+        )
+
+    @app.get("/runs/{run_id}/uploads/{filename}")
+    def download_upload(run_id: int, filename: str) -> FileResponse:
+        """Download one previously generated upload CSV for this run.
+
+        `filename` must be exactly one `paths.upload_csv_path` produced for this run
+        (checked by prefix, and that it resolves inside `uploads_dir` with no path
+        separators) — each generation gets its own timestamped file, so there can be
+        more than one for a given run.
+        """
+        if "/" in filename or "\\" in filename or not filename.startswith(f"run{run_id}_"):
+            raise HTTPException(status_code=404, detail="upload CSV not found")
+        path = paths.uploads_dir(root=app.state.data_root) / filename
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="upload CSV not found")
+        return FileResponse(path, filename=filename, media_type="text/csv")
+
     @app.post("/runs/{run_id}/changes/{change_id}/decide", response_class=HTMLResponse)
     def decide(
         request: Request,
@@ -324,9 +425,11 @@ def create_app(
     ) -> HTMLResponse:
         """Accept every still-pending change for one product in one click.
 
-        Only the changes that were pending *when the button was pressed* are decided
-        and re-rendered — matching `decide`'s one-row-at-a-time response shape, just
-        for a whole product's group instead of a single row.
+        Only the changes that were pending *when the button was pressed* are decided,
+        but the whole product's group (decided and freshly-decided alike) is
+        re-rendered, so the "Accept all" button — which `product_group.html` only
+        shows while something in the group is still pending — disappears the moment
+        nothing is left to decide, rather than needing a second click to catch up.
         """
         run = _run_or_404(connection, run_id)
         queue = store.list_change_queue(connection, run_id)
@@ -350,12 +453,12 @@ def create_app(
                     decided_by=reviewer_name or None,
                 )
 
-        change_ids = {e.change.id for e in target_entries}
+        # The whole product's group, not just the entries just decided — so a second
+        # render (e.g. the button re-appearing before an htmx swap lands) still shows
+        # every row for the product rather than only the ones this request touched.
         queue_after = store.list_change_queue(connection, run_id)
-        entries = [e for e in queue_after if e.change.id in change_ids]
-        product = entries[0].product if entries else next(
-            e.product for e in queue_after if e.product.id == product_id
-        )
+        entries = [e for e in queue_after if e.product.id == product_id]
+        product = entries[0].product
         return _templates.TemplateResponse(
             request,
             "partials/product_group.html",

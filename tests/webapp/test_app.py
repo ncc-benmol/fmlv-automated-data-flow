@@ -199,7 +199,7 @@ def test_generate_upload_route_writes_a_csv_and_reports_it_as_json(
     assert data["count"] == 1
     assert data["filename"].startswith(f"run{run_id}_")
     assert data["download_url"] == f"/runs/{run_id}/uploads/{data['filename']}"
-    assert data["folder_url"].startswith("file:")
+    assert "folder_url" not in data
 
 
 def test_generate_upload_route_refuses_a_run_that_has_not_succeeded(

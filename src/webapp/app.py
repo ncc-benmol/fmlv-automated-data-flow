@@ -329,12 +329,11 @@ def create_app(
             path=paths.upload_csv_path(run.id, root=app.state.data_root),
         )
 
-        # `as_uri()` on the resolved parent directory gives a `file:///C:/...` link —
-        # opening it hands off to File Explorer on whatever machine the browser is
-        # running on. There's no standard browser-hyperlink scheme for "select this
-        # one file" (that's `explorer.exe /select,`, a shell command, not a URI), so
-        # this opens the containing folder and the banner names the file to look for.
-        folder_url = result.path.parent.resolve().as_uri()
+        # No folder/file:// link — Chrome (and most browsers) blocks navigation to
+        # local file:// URIs from a served page, so a clickable "open Explorer" link
+        # doesn't reliably work. The filename (shown as plain text) plus this app's
+        # own download route is the option that works regardless of which machine the
+        # reviewer's browser is on.
         return JSONResponse(
             {
                 "ok": True,
@@ -344,7 +343,6 @@ def create_app(
                 "has_errors": result.has_errors,
                 "issues": [f"{issue.severity}: {issue.message}" for issue in result.issues],
                 "download_url": f"/runs/{run.id}/uploads/{result.path.name}",
-                "folder_url": folder_url,
             }
         )
 

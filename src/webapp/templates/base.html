@@ -297,6 +297,12 @@
     }
     .toast.error { background: var(--reject); }
     .toast a { color: #fff; text-decoration: underline; }
+    .toast code {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 0.1em 0.4em;
+      border-radius: 0.25em;
+      user-select: all;
+    }
   </style>
 </head>
 <body>
@@ -357,12 +363,22 @@
         return;
       }
       const count = data.count === 1 ? "1 product" : `${data.count} product(s)`;
-      const folderLink = `<a href="${data.folder_url}">${data.path}</a>`;
-      let message = `Generated upload CSV (${count}): ${folderLink}`;
+      // Plain text, not a file:// link — Chrome (and most browsers) blocks a served
+      // page from navigating to a local file/folder link, so the reliable option is
+      // this app's own download route instead of trying to hand off to Explorer.
+      const filename = escapeHtml(data.filename);
+      const downloadLink = `<a href="${data.download_url}" download>Download</a>`;
+      let message = `Generated upload CSV (${count}): <code>${filename}</code> — ${downloadLink}`;
       if (data.has_errors) {
         message += " — validation errors found, check before uploading.";
       }
       showToast(message, data.has_errors);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
     }
   </script>
 </body>

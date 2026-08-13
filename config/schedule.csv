@@ -1,3 +1,3 @@
 schedule_id,manufacturer_id,ranges,first_run,frequency_value,frequency_unit,enabled,notes
 adria-full-weekly,3,,2026-08-15 03:00,7,days,true,Full Adria sweep - every range, once a week
-adria-matrix-daily,3,Matrix,2026-08-13 10:45,1,days,true,"Single range test - daily"
+adria-matrix-daily,3,Matrix,2026-08-13 11:05,1,days,true,"Single range test - daily"

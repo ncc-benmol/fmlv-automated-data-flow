@@ -2,6 +2,7 @@
 
 from .changes import (
     ChangeQueueEntry,
+    MISSING_FIELD_SNIPPET,
     PersistResult,
     ProposedChange,
     RunReviewSummary,
@@ -21,6 +22,7 @@ from .runs import Run, fail_run, finish_run, get_run, list_run_manufacturers, li
 __all__ = [
     "ChangeQueueEntry",
     "Decision",
+    "MISSING_FIELD_SNIPPET",
     "PersistResult",
     "Product",
     "ProposedChange",

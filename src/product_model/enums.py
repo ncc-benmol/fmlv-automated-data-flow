@@ -1,7 +1,7 @@
 """Grouped layout attributes from the FMLV motorhome schema.
 
 The export represents these as ~40 independent Yes/No columns, but the field guide
-(`csv-examples/field_guide_motorhome.csv`) shows they are really constrained groups:
+(`config/field_guide_motorhome.csv`) shows they are really constrained groups:
 most are "select YES against ONE option", one (bed types) is "select YES against ALL
 that apply", and refrigeration is "do not put YES in both columns".
 

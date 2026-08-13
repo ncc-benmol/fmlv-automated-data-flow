@@ -414,6 +414,11 @@ def format_summary(summary: RunSummary) -> str:
         lines.append(
             f"              of which {persisted.archive_proposed} are propose-to-archive"
         )
+    if persisted.missing_field_proposed:
+        lines.append(
+            f"              of which {persisted.missing_field_proposed} are "
+            "in-scope fields not found this run"
+        )
     lines.append(f"  verified    {persisted.verified} fields checked and unchanged")
     if persisted.suppressed_rejections:
         lines.append(

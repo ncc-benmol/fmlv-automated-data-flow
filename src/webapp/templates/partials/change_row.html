@@ -1,18 +1,28 @@
-<div id="change-{{ entry.change.id }}" class="change-row">
+{% set missing = is_missing_field(entry.change) %}
+<div id="change-{{ entry.change.id }}" class="change-row{% if missing %} missing-field-row{% endif %}">
   <div class="field-name">
     {{ entry.change.field }}
-    {% if is_layout_field(entry.change.field) %}
+    {% if missing %}
+      <span class="badge missing-field" title="Marked in-scope for automated collection, but not found on the manufacturer's site this run">not found this run</span>
+    {% elif is_layout_field(entry.change.field) %}
       <span class="badge high-suspicion" title="Layout changes are rare on an existing product">unusual</span>
     {% elif is_year_field(entry.change.field) %}
       <span class="badge high-suspicion" title="Suggested by the pipeline, not read from the site">possible rollover</span>
     {% endif %}
   </div>
   <div>
-    <div class="value-diff">
-      <span class="old">{{ entry.change.old_value if entry.change.old_value is not none else "—" }}</span>
-      →
-      <span class="new">{{ entry.change.new_value if entry.change.new_value is not none else "—" }}</span>
-    </div>
+    {% if missing %}
+      <div class="value-diff">
+        <span class="muted">current value:</span>
+        <span class="old">{{ entry.change.old_value if entry.change.old_value is not none else "—" }}</span>
+      </div>
+    {% else %}
+      <div class="value-diff">
+        <span class="old">{{ entry.change.old_value if entry.change.old_value is not none else "—" }}</span>
+        →
+        <span class="new">{{ entry.change.new_value if entry.change.new_value is not none else "—" }}</span>
+      </div>
+    {% endif %}
     {% if entry.change.source_url or entry.change.source_snippet %}
       <div class="provenance">
         {% if entry.change.source_url %}
@@ -30,9 +40,27 @@
   <div>
     {% if entry.decision %}
       <div class="decision decision-{{ entry.decision.action }}">
-        {{ entry.decision.action }}{% if entry.decision.action == "correct" %} → {{ entry.decision.corrected_value }}{% endif %}
+        {% if missing and entry.decision.action == "accept" %}
+          kept existing value
+        {% elif entry.decision.action == "correct" %}
+          {{ entry.decision.action }} → {{ entry.decision.corrected_value }}
+        {% else %}
+          {{ entry.decision.action }}
+        {% endif %}
         <div class="muted">{{ entry.decision.decided_by or "unknown" }} · {{ entry.decision.decided_at|fmt_dt }}</div>
       </div>
+    {% elif missing %}
+      <form
+        class="decision-form"
+        hx-post="/runs/{{ run.id }}/changes/{{ entry.change.id }}/decide"
+        hx-target="#change-{{ entry.change.id }}"
+        hx-swap="outerHTML"
+        hx-include="#reviewer-name"
+      >
+        <button type="submit" name="action" value="accept" class="btn btn-accept">Keep existing value</button>
+        <input type="text" name="corrected_value" placeholder="replacement value">
+        <button type="submit" name="action" value="correct" class="btn btn-correct">Replace</button>
+      </form>
     {% else %}
       <form
         class="decision-form"

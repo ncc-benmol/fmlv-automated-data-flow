@@ -96,17 +96,37 @@ class FieldChange:
     high_suspicion: bool
 
 
+@dataclass(frozen=True)
+class MissingField:
+    """An in-scope field the adapter didn't find on a matched, existing product.
+
+    `schema.IN_SCOPE` fields are a requirement for every update, unlike other
+    fields where "the adapter never looked" is silently fine. `old_value` is the
+    baseline's current figure — offered to the reviewer to confirm/keep or
+    replace, rather than the field just going unchecked (the user's ask this
+    feature implements).
+    """
+
+    field: str
+    old_value: Any
+
+
 def compare_fields(
     baseline: Motorhome, extracted: ExtractedMotorhome
-) -> tuple[list[FieldChange], list[str]]:
+) -> tuple[list[FieldChange], list[str], list[MissingField]]:
     """Diff every field the adapter extracted against a matched baseline product.
 
-    Returns `(changes, confirmed_fields)`. `changes` are fields whose scraped value
-    differs; `confirmed_fields` were checked and matched exactly — DESIGN.md §6.5
-    treats that as a first-class result too, not silence.
+    Returns `(changes, confirmed_fields, missing_fields)`. `changes` are fields
+    whose scraped value differs; `confirmed_fields` were checked and matched
+    exactly — DESIGN.md §6.5 treats that as a first-class result too, not
+    silence. `missing_fields` are `schema.IN_SCOPE` fields the adapter has no
+    value for at all (still `None` on `extracted.motorhome`) even though the
+    baseline has one — an in-scope field must be actively confirmed or replaced,
+    not left unchecked, unlike an out-of-scope field the adapter never visited.
     """
     changes: list[FieldChange] = []
     confirmed: list[str] = []
+    missing: list[MissingField] = []
 
     for field_path in extracted.provenance:
         old_value = field_value(baseline, field_path)
@@ -125,7 +145,17 @@ def compare_fields(
                 high_suspicion=priority == "layout",
             )
         )
-    return changes, confirmed
+
+    for field_path in schema.IN_SCOPE:
+        if field_path in extracted.provenance:
+            continue  # already handled above
+        old_value = field_value(baseline, field_path)
+        new_value = field_value(extracted.motorhome, field_path)
+        if old_value is None or new_value is not None:
+            continue  # nothing on record, or the adapter found a value some other way
+        missing.append(MissingField(field=field_path, old_value=old_value))
+
+    return changes, confirmed, missing
 
 
 def sort_changes(changes: Iterable[FieldChange]) -> list[FieldChange]:

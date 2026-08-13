@@ -101,6 +101,7 @@
     .badge.new { border-color: var(--new-product-text); color: var(--new-product-text); }
     .badge.archiving { border-color: var(--archiving-product-border); color: var(--archiving-product-border); }
     .badge.high-suspicion { border-color: var(--correct); color: var(--correct); }
+    .badge.missing-field { border-color: var(--correct); color: var(--correct); }
     .badge.running { border-color: var(--correct); color: var(--correct); }
     .badge.failed { border-color: var(--reject); color: var(--reject); }
     .badge.succeeded { border-color: var(--accept); color: var(--accept); }
@@ -132,6 +133,13 @@
       border-top: 1px solid var(--border);
     }
     .change-row:first-of-type { border-top: none; }
+    /* An in-scope field the adapter couldn't find this run (schema.IN_SCOPE) —
+       same amber as the high-suspicion badge, tinted subtly so a run with several
+       of these reads as "needs attention" without competing with the new/archiving
+       product-level tinting. */
+    .change-row.missing-field-row {
+      background: color-mix(in srgb, var(--correct) 8%, transparent);
+    }
     .product-group-header {
       display: flex;
       justify-content: space-between;

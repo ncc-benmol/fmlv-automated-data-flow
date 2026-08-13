@@ -61,7 +61,7 @@ dimension sets) and are deferred to a later phase. The manufacturer registry car
 ## 4. The FMLV data model
 
 Derived from a real Adria export (`csv-examples/…/motorhome-campervans.xlsx`, 42 products)
-and the NCC's own field guide (`csv-examples/field_guide_motorhome.csv`).
+and the NCC's own field guide (`config/field_guide_motorhome.csv`).
 
 ### 4.1 Grain and identity
 

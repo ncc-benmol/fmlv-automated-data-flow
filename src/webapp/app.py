@@ -78,6 +78,12 @@ _templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 # via these globals rather than the DB carrying that classification.
 _templates.env.globals["is_layout_field"] = lambda field: field in LAYOUT_FIELDS
 _templates.env.globals["is_year_field"] = lambda field: field == "year"
+# A `MissingField` proposal (store.changes.persist_diff) always has `old_value ==
+# new_value` and this exact snippet — same "match on the snippet text" trick as the
+# archive/year-rollover proposals above, since there's no DB column for "why".
+_templates.env.globals["is_missing_field"] = (
+    lambda change: change.source_snippet == store.MISSING_FIELD_SNIPPET
+)
 
 
 #: Everything is stored in UTC (`datetime.now(UTC)` throughout `store/`); this is

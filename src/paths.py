@@ -52,6 +52,11 @@ def reviewers_path(*, root: Path = CONFIG_DIR) -> Path:
     return root / "reviewers.csv"
 
 
+def schedule_path(*, root: Path = CONFIG_DIR) -> Path:
+    """The run schedule CSV — which manufacturers/ranges run automatically, and when."""
+    return root / "schedule.csv"
+
+
 def snapshot_dir(manufacturer_id: int, run_id: int, *, root: Path = DATA_DIR) -> Path:
     """Where fetched pages/files for one manufacturer's run are snapshotted."""
     return root / "snapshots" / str(manufacturer_id) / str(run_id)

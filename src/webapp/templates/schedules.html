@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Schedule — FMLV Automated Data Ingestion{% endblock %}
+{% block content_shell_class %}wide{% endblock %}
+{% block content %}
+  <h1>Schedule</h1>
+  <p class="muted">
+    Read-only — edit <code>config/schedule.csv</code> to add, remove or pause a
+    schedule (see <code>config/schedule.README.md</code>). Changes take effect on the
+    next scheduler check, no restart needed.
+  </p>
+
+  {% for message in registry_errors %}
+    <p class="form-error">{{ message }}</p>
+  {% endfor %}
+  {% for message in schedule_errors %}
+    <p class="form-error">{{ message }}</p>
+  {% endfor %}
+
+  {% if not rows %}
+    <p class="muted">No schedule entries yet — add a row to config/schedule.csv.</p>
+  {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Schedule</th>
+          <th>Manufacturer</th>
+          <th>Scope</th>
+          <th>Frequency</th>
+          <th>Status</th>
+          <th>Last triggered</th>
+          <th>Next due</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.entry.schedule_id }}</td>
+            <td>{{ row.manufacturer_name }}</td>
+            <td>{{ row.range_display }}</td>
+            <td>{{ row.frequency_display }}</td>
+            <td>
+              {% if not row.entry.enabled %}
+                <span class="badge">paused</span>
+              {% elif row.error %}
+                <span class="badge failed">error</span>
+              {% elif row.is_due %}
+                <span class="badge running">due now</span>
+              {% else %}
+                <span class="badge succeeded">enabled</span>
+              {% endif %}
+            </td>
+            <td class="muted">
+              {{ row.last_triggered_at|fmt_dt_short if row.last_triggered_at else "never" }}
+            </td>
+            <td class="muted">
+              {% if row.error %}
+                {{ row.error }}
+              {% elif row.entry.enabled %}
+                {{ row.next_due_at|fmt_dt_short }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endblock %}

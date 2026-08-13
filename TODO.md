@@ -350,17 +350,35 @@ before debugging FMLV logic on it at the same time.
       multi-minute silent run was the original complaint)
 - [ ] **[P]** CLI: `sweep` — every runnable manufacturer with an adapter, in
       `pilot_priority` order (`registry.active_motorhome_manufacturers` already returns
-      exactly that list; `adapters.adapter_for` returns `None` for the ones to skip)
-- [ ] **[P]** Scheduled sweep via **Windows Task Scheduler** (was: cron) — a task running
-      `uv run fmlv sweep` as the service account, checked in as a `schtasks` /
-      `Register-ScheduledTask` script under `deploy\windows\` so it isn't a click-path
-      no one can reproduce
+      exactly that list; `adapters.adapter_for` returns `None` for the ones to skip).
+      Still useful as an ad hoc "run everything now" command — no longer the mechanism
+      recurring runs depend on, see below
+- [x] **[P]** ~~Scheduled sweep via Windows Task Scheduler~~ — superseded. Built instead:
+      a per-manufacturer/range schedule with finer control than a blanket sweep —
+      `config/schedule.csv` (see `config/schedule.README.md` for the field guide),
+      loaded by `src/scheduling/` (`loader.py`, `engine.py`). Whether an entry is due
+      is computed fresh each time
+      from `schedule.csv` plus the existing `run` table's history — no separate
+      "last run" state to keep in sync. `create_app` (`webapp/app.py`) starts an
+      in-process APScheduler `BackgroundScheduler` on the FastAPI `lifespan`, ticking
+      every 5 minutes (`check_schedule`) and firing `execute_run(trigger="scheduled")`
+      for anything due; the `/schedules` page (read-only) shows every entry, its
+      resolved scope, and when it last ran / is next due. Chosen over a separate
+      Windows Task Scheduler job on the assumption the web app is already expected to
+      run continuously on the server — one process instead of two, and the "next due"
+      calculation and the code that actually triggers a run share the same range
+      resolution (`cli.resolve_ranges`) so they can't drift apart. A run that fails
+      is not retried early; the next attempt waits for the normal interval
 - [ ] **[P]** README covering how to run it, for whoever inherits it — must cover the
-      Windows service: start/stop, where the logs are, what to do after a reboot
-- [ ] **[F]** Heavier scheduling through August–September peak season
-- [ ] **[F]** Failure alerting (email/Slack) when a run or an adapter breaks — a failed
-      Scheduled Task is silent by default, so this matters more here than it would
-      under a supervised container
+      Windows service (start/stop, where the logs are, what to do after a reboot) *and*
+      how to edit `config/schedule.csv` to add/pause/remove an automated run
+- [ ] **[F]** Heavier scheduling through August–September peak season — schedule.csv
+      already supports this (add more/tighter entries), just needs deciding what the
+      actual cadence should be during peak
+- [ ] **[F]** Failure alerting (email/Slack) when a run or an adapter breaks — now
+      applies to `check_schedule` too, not just a Scheduled Task: a failed scheduled
+      run currently only shows up as a `[schedule:...] failed: ...` line in the
+      server's own log output and on `/runs`, nothing pushes it to a human
 - [ ] **[F]** Backup of the SQLite file — confirm whether the VM-level backup covers it,
       or whether a scheduled `VACUUM INTO` copy is needed
 

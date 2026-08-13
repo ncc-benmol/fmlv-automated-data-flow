@@ -22,6 +22,16 @@ it can't run inline in the request. It's handed to a worker thread via
 `asyncio.to_thread`; the request waits only for `execute_run`'s `on_run_started`
 callback to fire (an in-process DB insert, near-instant) and then redirects to the new
 run's detail page, which shows "in progress" until the background thread finishes.
+
+A scheduled run (`config/schedule.csv`, DESIGN.md's original plan for this was a
+separate Windows Task Scheduler job) is instead driven from *inside* this same
+process: `create_app` starts an APScheduler `BackgroundScheduler` on the FastAPI
+`lifespan`, polling `_check_schedule` every `schedule_check_interval_minutes`. That
+scheduler runs jobs on its own worker thread pool — not the asyncio event loop this
+app otherwise runs on — so `_check_schedule` calls `execute_run` directly rather than
+via `asyncio.to_thread`, the same way a synchronous CLI invocation would. One process
+covers both "review this in a browser" and "keep the schedule ticking", rather than
+running a separate always-on scheduler service alongside it.
 """
 
 from __future__ import annotations
@@ -30,17 +40,19 @@ import asyncio
 import sqlite3
 import threading
 from collections.abc import Iterator
-from datetime import date, datetime
+from contextlib import asynccontextmanager
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, Form, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from starlette.requests import Request
 from starlette.templating import Jinja2Templates
 
-from .. import paths, store
+from .. import paths, scheduling, store
 from ..adapters import adapter_for
 from ..cli import (
     CommandError,
@@ -126,29 +138,116 @@ def _run_or_404(connection: sqlite3.Connection, run_id: int) -> store.Run:
         raise HTTPException(status_code=404, detail=f"no run with id {run_id}") from None
 
 
+def check_schedule(app: FastAPI) -> list[scheduling.ScheduleEntry]:
+    """One scheduler tick: trigger every schedule entry that's due right now.
+
+    Re-reads `schedule.csv` and the manufacturer registry from disk on every call, so
+    an edit to either takes effect on the next tick with no restart needed. Runs
+    `execute_run` synchronously, the same pipeline `/trigger` and the CLI's `fmlv run`
+    use, just with `trigger="scheduled"` and nothing waiting on the result — called
+    from the APScheduler job `create_app` registers, and directly from tests that want
+    to exercise a tick without waiting on the real interval.
+    """
+    registry_result = loader.load(app.state.registry_path)
+    by_id = {m.manufacturer_id: m for m in registry_result.manufacturers}
+    schedule_result = scheduling.load(app.state.schedule_path)
+
+    connection = store.connect(app.state.db_path)
+    try:
+        triggered: list[scheduling.ScheduleEntry] = []
+        for entry in schedule_result.entries:
+            if not entry.enabled:
+                continue
+            manufacturer = by_id.get(entry.manufacturer_id)
+            if manufacturer is None:
+                continue
+            adapter = adapter_for(manufacturer.fmlv_manufacturer)
+            if adapter is None:
+                continue
+
+            status = scheduling.describe(entry, adapter=adapter, connection=connection)
+            if status.error or not status.is_due:
+                continue
+            if scheduling.has_run_in_progress(
+                connection, manufacturer_id=manufacturer.manufacturer_id
+            ):
+                continue
+
+            collect_kwargs: dict[str, object] = {}
+            if entry.ranges:
+                collect_kwargs["ranges"] = resolve_ranges(adapter, entry.ranges)
+
+            def _on_progress(message: str, schedule_id: str = entry.schedule_id) -> None:
+                print(f"[schedule:{schedule_id}] {message}")
+
+            try:
+                execute_run(
+                    manufacturer=manufacturer,
+                    adapter=adapter,
+                    refresh_export=True,
+                    data_root=app.state.data_root,
+                    trigger="scheduled",
+                    collect_kwargs=collect_kwargs,
+                    on_progress=_on_progress,
+                )
+            except Exception as exc:  # noqa: BLE001 — execute_run already records this against the run
+                print(f"[schedule:{entry.schedule_id}] failed: {type(exc).__name__}: {exc}")
+            triggered.append(entry)
+        return triggered
+    finally:
+        connection.close()
+
+
 def create_app(
     db_path: Path,
     *,
     reviewers_path: Path | None = None,
     registry_path: Path | None = None,
+    schedule_path: Path | None = None,
+    enable_scheduler: bool = True,
+    schedule_check_interval_minutes: int = 5,
 ) -> FastAPI:
     """Build the review app against the SQLite store at `db_path`.
 
-    `reviewers_path` and `registry_path` default to the standard `config/` layout
-    (`paths.py`) — independent of where `db_path` lives — but can be overridden, the
-    same way tests point `db_path` at a throwaway file. If `reviewers_path` resolves
-    to a file that doesn't exist, the reviewer dropdown is empty and decisions are
-    never gated by name — the behaviour before reviewers.csv existed, so a test or a
-    dev checkout without the file still works.
+    `reviewers_path`, `registry_path` and `schedule_path` default to the standard
+    `config/` layout (`paths.py`) — independent of where `db_path` lives — but can be
+    overridden, the same way tests point `db_path` at a throwaway file. If
+    `reviewers_path` resolves to a file that doesn't exist, the reviewer dropdown is
+    empty and decisions are never gated by name — the behaviour before reviewers.csv
+    existed, so a test or a dev checkout without the file still works.
+
+    `enable_scheduler=False` builds the app without starting the background scheduler
+    at all — for tests that exercise `/schedules` or the manual `/trigger` flow and
+    don't want a real `execute_run` firing on a timer underneath them. Tests that do
+    want to exercise a tick call `check_schedule(app)` directly rather than waiting on
+    the real interval.
     """
     data_root = db_path.parent
     reviewers_file = reviewers_path or paths.reviewers_path()
     registry_file = registry_path or paths.registry_path()
+    schedule_file = schedule_path or paths.schedule_path()
 
-    app = FastAPI(title="FMLV Automated Data Ingestion")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        scheduler = BackgroundScheduler()
+        if enable_scheduler:
+            scheduler.add_job(
+                lambda: check_schedule(app),
+                "interval",
+                minutes=schedule_check_interval_minutes,
+            )
+            scheduler.start()
+        app.state.scheduler = scheduler
+        try:
+            yield
+        finally:
+            scheduler.shutdown(wait=False)
+
+    app = FastAPI(title="FMLV Automated Data Ingestion", lifespan=lifespan)
     app.state.db_path = db_path
     app.state.data_root = data_root
     app.state.registry_path = registry_file
+    app.state.schedule_path = schedule_file
     app.state.reviewers = load_reviewers(reviewers_file)
     app.state.reviewer_names_lower = {r.name.lower() for r in app.state.reviewers}
     # Holds references to in-flight background run tasks so they aren't garbage
@@ -232,6 +331,70 @@ def create_app(
                 "selected_manufacturer_id": manufacturer_id_filter,
                 "selected_status": status,
                 "selected_start_date": start_date_filter.isoformat() if start_date_filter else "",
+            },
+        )
+
+    @app.get("/schedules", response_class=HTMLResponse)
+    def schedule_list(request: Request, connection: ConnectionDep) -> HTMLResponse:
+        registry_result = loader.load(app.state.registry_path)
+        registry_by_id = {m.manufacturer_id: m for m in registry_result.manufacturers}
+
+        schedule_result = scheduling.load(app.state.schedule_path)
+        schedule_errors = [
+            issue.message for issue in schedule_result.issues if issue.severity == "error"
+        ]
+
+        rows = []
+        for entry in schedule_result.entries:
+            manufacturer = registry_by_id.get(entry.manufacturer_id)
+            display_name = (
+                (manufacturer.fmlv_display_name or manufacturer.fmlv_manufacturer)
+                if manufacturer
+                else f"manufacturer_id {entry.manufacturer_id}"
+            )
+            adapter = adapter_for(manufacturer.fmlv_manufacturer) if manufacturer else None
+
+            if manufacturer is None:
+                error = f"no manufacturer_id {entry.manufacturer_id} in the registry"
+                status = None
+            elif adapter is None:
+                error = f"no adapter written for {manufacturer.fmlv_manufacturer!r} yet"
+                status = None
+            else:
+                status = scheduling.describe(entry, adapter=adapter, connection=connection)
+                error = status.error
+
+            rows.append(
+                {
+                    "entry": entry,
+                    "manufacturer_name": display_name,
+                    "range_display": ", ".join(entry.ranges) if entry.ranges else "All ranges",
+                    "frequency_display": (
+                        f"every {entry.frequency_value} "
+                        f"{entry.frequency_unit.value[:-1] if entry.frequency_value == 1 else entry.frequency_unit.value}"
+                    ),
+                    "last_triggered_at": status.last_triggered_at.isoformat()
+                    if status and status.last_triggered_at
+                    else None,
+                    "next_due_at": status.next_due_at.isoformat()
+                    if status and status.next_due_at
+                    else None,
+                    "is_due": bool(status and status.is_due),
+                    "error": error,
+                }
+            )
+
+        return _templates.TemplateResponse(
+            request,
+            "schedules.html",
+            {
+                "rows": rows,
+                "registry_errors": [
+                    issue.message
+                    for issue in registry_result.issues
+                    if issue.severity == "error"
+                ],
+                "schedule_errors": schedule_errors,
             },
         )
 

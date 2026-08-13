@@ -325,8 +325,8 @@ Tables, in outline:
 | Concern | Decision |
 |---|---|
 | Runtime | Python 3.14 via `uv`, running directly on a **Windows Server VM** provided by the client's IT (see §8.2). No container. |
-| Triggers | Manual "run manufacturer X" from the UI/CLI, **and** a scheduled sweep via **Windows Task Scheduler**. |
-| Cadence | Weekly or monthly in quiet months; **August–September is peak season** for model-year changes and warrants more frequent runs. |
+| Triggers | Manual "run manufacturer X" from the UI/CLI, **and** an automated schedule read from `config/schedule.csv` and run by an in-process scheduler inside the review app itself (§8.4) — not an OS-level job. |
+| Cadence | Per schedule.csv entry, one manufacturer (and optionally one or more ranges) at a time. Weekly or monthly in quiet months; **August–September is peak season** for model-year changes and warrants tighter frequencies, set per entry rather than globally. |
 | Headless browser | Playwright available for JS-rendered sites. `playwright install chromium` is run once on the VM as part of provisioning (~115 MB) rather than baked into an image. |
 | Persistence | A `data\` directory on the VM: exports, snapshots, SQLite file, generated uploads. Backed up by whatever backs up the VM. |
 | Secrets | Anthropic API key and NCC credentials from a `.env` file on the VM, readable only by the service account. Never committed. |
@@ -340,7 +340,7 @@ Target is **under £5/month, £20 ceiling**. Three mechanisms, in order of impac
    re-parsed and never sent to a model. In a steady month most pages are unchanged.
 3. **Model tiering, if the fallback is ever used** — Claude Haiku 4.5 ($1/$5 per MTok) for
    clean structured content, Claude Sonnet 5 ($3/$15; introductory $2/$10 until
-   2026-08-31) for PDFs and messy pages, and the Batch API (−50%) for scheduled sweeps
+   2026-08-31) for PDFs and messy pages, and the Batch API (−50%) for scheduled runs
    where latency does not matter.
 
 ### 8.2 Deployment target: Windows Server VM
@@ -360,7 +360,7 @@ What it changes, concretely:
 | Dockerfile, `docker run`, image registry | `uv sync` from a checkout on the VM |
 | Container restart policy | **NSSM** wrapping `uvicorn` as a Windows service, set to auto-start |
 | Docker volume for `data/` | A directory on the VM's data disk |
-| `cron` for the scheduled sweep | Windows Task Scheduler running the `fmlv sweep` CLI |
+| `cron` for the scheduled sweep | Nothing OS-level at all — an in-process APScheduler inside the review app (§8.4), reading `config/schedule.csv` |
 | Container logs / `docker logs` | NSSM's stdout/stderr redirection to rotating files under `logs\` |
 | Environment variables passed by the container runtime | `.env` file on disk, plus NSSM's `AppEnvironmentExtra` |
 
@@ -398,14 +398,59 @@ Python 3.14.6.
 One finding needs fixing before the real deployment: **the VM's clock is set to Pacific
 time**, not UK time. Everything this application *stores* is UTC-aware, so no data would
 be wrong, but `§6.9`'s June–September rollover window is computed from the **local** date
-and would open and close a day late for part of each day, and scheduled sweeps would run
-eight hours off. Fixed on the host (`tzutil /s "GMT Standard Time"`), not in code.
+and would open and close a day late for part of each day, and scheduled runs would fire
+eight hours off `schedule.csv`'s `first_run` times. Fixed on the host
+(`tzutil /s "GMT Standard Time"`), not in code.
 
 A second finding carries into the real deployment: **the VM is dual-homed**
 — `192.168.16.43` is reachable from the office LAN, `10.47.17.232` is not. The application
 should therefore be reached on `192.168.16.43`, and since the service binds `0.0.0.0` it
 currently listens on both interfaces; §6.3's review app has no authentication yet, so
 binding the reachable interface only is the safer default until it does.
+
+### 8.4 Automated scheduling
+
+**Decision (2026-08-13, revising §8.2's original plan):** recurring runs are driven by
+an in-process scheduler inside the review app itself, not a separate Windows Task
+Scheduler job calling an `fmlv sweep` CLI. The web app is already expected to run
+continuously on the server (it's a Windows service, §8.2), so adding one more
+in-process scheduled job keeps everything in a single deployable unit rather than
+running two services that both need to be kept alive and both need access to the same
+`data\` directory.
+
+**The master file is `config\schedule.csv`**, not a database table — a plain CSV a
+non-developer can open in Excel to add, remove or pause an automated run, with a field
+guide in `config\schedule.README.md`. One row per manufacturer (optionally narrowed to
+one or more named ranges); blank ranges means the whole manufacturer. Each row states
+a `first_run` time and a repeat frequency (`frequency_value` + `frequency_unit`:
+hours/days/weeks) — no cron syntax to get wrong by hand.
+
+**"Is this due yet" is computed fresh every time**, from two things that already
+exist rather than a third piece of state to keep in sync: `schedule.csv` itself, and
+the most recent matching row in the existing `run` table (§7) with `trigger =
+'scheduled'`. A schedule with no prior run yet is due at `first_run`; otherwise it's
+due at *(that run's start time)* + *(the entry's frequency)* — regardless of whether
+that run succeeded or failed, so a failure is not retried early; the next attempt
+waits for the normal interval, same as any other manufacturer's next scheduled slot.
+Implemented in `src\scheduling\` (`loader.py` mirrors `registry\loader.py`'s
+per-row-`Issue` pattern; `engine.py` does the due-check).
+
+**The scheduler itself** is an APScheduler `BackgroundScheduler`, started on FastAPI's
+`lifespan` when the review app boots (`webapp\app.py`'s `create_app`), polling every
+five minutes by default. Each tick (`check_schedule`) re-reads `schedule.csv` and the
+manufacturer registry from disk — so an edit takes effect on the next tick, no restart
+needed — and, for every due entry, calls the same `execute_run(trigger="scheduled")`
+pipeline the CLI and the manual "Trigger a run" page both use, resolving any named
+ranges through the same `cli.resolve_ranges` the due-check itself used to look up
+"when did this last run" — the two can't drift apart because they're the same code
+path. A manufacturer with a run already in progress (any trigger) is skipped for that
+tick rather than starting a second concurrent run.
+
+**`/schedules`** is a read-only page (§6.3) listing every entry, its resolved scope,
+whether it's enabled/paused/erroring, and when it last ran / is next due — the
+schedule's counterpart to the existing "Review runs" page. It exists so a schedule
+change is visible somewhere other than by reading the CSV, but the CSV remains the
+only place a schedule is actually created or changed at this stage.
 
 ---
 

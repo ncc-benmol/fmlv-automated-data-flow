@@ -36,6 +36,16 @@ find-and-compare work beforehand.
 See [DESIGN.md](DESIGN.md) for the full design, the reasoning behind each decision, and
 open questions still being worked through.
 
+## Scheduled runs
+
+Runs can be scheduled by adding them to `config/schedule.csv`. 
+One row per scheduled manufacturer (optionally narrowed to specific ranges). 
+It's a plain CSV file so it can be opened and edited directly in Excel: add a row for a new
+item, delete one to stop it, or flip `enabled` to pause/resume without touching any code.
+
+See [config/schedule.README.md](config/schedule.README.md) for the full
+column-by-column field guide and how "due" is worked out.
+
 ## Project layout
 
 | Folder | What it's for |
@@ -47,6 +57,7 @@ open questions still being worked through.
 | `src/diff/` | Works out what's new, what's changed, and what's stayed the same. |
 | `src/webapp/` | The review website reviewers use to accept, reject or correct proposed changes. |
 | `src/store/` | The database: run history, proposed changes, reviewer decisions. |
+| `src/scheduling/` | Loads `config/schedule.csv` and works out which entries are due to run. |
 | `src/cli.py` | The command-line entry point (`fmlv run <manufacturer>`) that ties the above together. |
 | `deploy/` | Scripts for installing and running this on a Windows server. |
 | `tests/` | Automated tests, one folder per component above. |

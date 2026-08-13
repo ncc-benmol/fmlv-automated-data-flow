@@ -89,6 +89,36 @@ uv run uvicorn src.webapp.serve:app --port 8000
 See [TESTING.md](TESTING.md) for a fuller walkthrough, including how to point the
 pipeline at a real export and inspect what it produces.
 
+## Adding a manufacturer
+
+Two things have to exist before a manufacturer's products flow into FMLV: a row in
+`config/manufacturers.csv`, and an adapter — the one file that knows how to read that
+particular manufacturer's website.
+
+The easiest way to get both is to ask Claude Code:
+
+```
+# 1. Set the underlying AI model to Claude Opus - the second-most powerful tier of model. Appropriate for a complex coding task like this
+/model opus 
+
+# 2. Run the add-manufacturer skill (.claude\skills\add-manufacturer\SKILL.md)
+/add-manufacturer <manufacturer_name>
+```
+
+The process is designed to have three steps:
+1. **It asks what you know.** What's worth watching out for with this manufacturer, which
+   ranges are unusual, anything that's caught people out before — and any URLs you already
+   have. Both are optional, but **this is the highest-value thing you can do.** 
+2. **It goes and looks.** It finds where the specs actually live — usually a price list or
+   brochure PDF — and downloads it to check the weights and prices are really in there
+   rather than assuming.
+3. **It comes back and asks you to confirm** before writing any code: here's the document
+   I plan to read, here's a real row from it, here's how many products I expect. You're
+   the expert — if it's picked the wrong brochure, this is where you catch it in seconds.
+
+Only after you say yes does it write, wire up and test the adapter.
+
+
 ## Deployment (Windows Server VM)
 
 The app runs as a **Windows service**, not in a container — see

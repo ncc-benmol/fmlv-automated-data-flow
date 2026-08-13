@@ -14,6 +14,7 @@ snapshotted to disk regardless (DESIGN.md §6.6) and reproducible.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -44,10 +45,35 @@ class ExtractedMotorhome:
 
 
 class Adapter(Protocol):
-    """Turns one manufacturer's website into canonical products."""
+    """Turns one manufacturer's website into canonical products.
+
+    Two things every adapter also declares, which a `Protocol` cannot express because
+    they are module-level constants rather than methods:
+
+    * `MANUFACTURER` — the key this adapter is registered under in `ADAPTERS`, and it
+      must equal the registry row's `fmlv_manufacturer` exactly. Also
+      `MANUFACTURER_DISPLAY_NAME` and `BASE_URL`.
+    * `DEFAULT_RANGES: tuple[tuple[str, str], ...]` — optional, `(path, label)` pairs.
+      `cli.resolve_ranges` looks for it with `getattr` and treats its absence as "this
+      adapter does not support `--range`", so it stays genuinely opt-in.
+    """
 
     def collect(
-        self, http: Fetcher, browser: BrowserFetcher, snapshot_dir: Path
+        self,
+        http: Fetcher,
+        browser: BrowserFetcher,
+        snapshot_dir: Path,
+        *,
+        on_progress: Callable[[str], None] = lambda message: None,
     ) -> list[ExtractedMotorhome]:
-        """Fetch (via `http`/`browser`, snapshotting into `snapshot_dir`) and parse."""
+        """Fetch (via `http`/`browser`, snapshotting into `snapshot_dir`) and parse.
+
+        `on_progress` takes one line of human-readable text and is how a run narrates
+        itself to whoever is watching — the CLI prints it, the review app streams it
+        onto the run page. `cli.execute_run` always passes it, so it is required in the
+        signature even though it has a default, and an adapter that omits it fails on
+        its first real run. Use it at each page/product boundary and, importantly,
+        every time something is *skipped*: a product dropped for failing the adapter's
+        own arithmetic self-check is invisible otherwise.
+        """
         ...

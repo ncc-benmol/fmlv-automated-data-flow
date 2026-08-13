@@ -1,26 +1,87 @@
 # Adapters — the general pattern
 
-Four data points now: [Adria](adria.md), [Morelo](morelo.md), [Swift](swift.md) and
-[Sunlight](sunlight.md). They differ enough that the ordering of the questions below
-matters more than any of the individual answers.
+Six data points now: [Adria](adria.md), [Morelo](morelo.md), [Swift](swift.md),
+[Sunlight](sunlight.md), [Rimor](rimor.md) and [Auto-Trail](auto-trail.md). They differ
+enough that the ordering of the questions below matters more than any of the individual
+answers.
 
 ## Start here: is there a brochure or price list PDF?
 
 **Ask this before looking at the website's rendering behaviour at all.** It was the
-last thing tried for Adria and the first thing that worked for the three since:
+last thing tried for Adria and the first thing that worked for the four after it:
 
-| | Adria | Morelo | Swift | Sunlight |
-|---|---|---|---|---|
-| JavaScript needed | Yes (Livewire, scroll-triggered) | No | No | No |
-| Fetches | 2 per product | 2 total | 2 per catalogue | 2 per catalogue |
-| Products | 54 | 61 | 30 | 26 |
-| Price | AJAX JSON | In the PDF (EUR) | **Not published anywhere** | In the PDF (**GBP**) |
-| Berths / seats | Per-product PDF | Not published | In the PDF | In the PDF |
-| Weights + dimensions | Per-product PDF | In the PDF | In the PDF | In the PDF |
+| | Adria | Morelo | Swift | Sunlight | Rimor | Auto-Trail |
+|---|---|---|---|---|---|---|
+| JavaScript needed | Yes (Livewire, scroll-triggered) | No | No | No | No | No |
+| Fetches | 2 per product | 2 total | 2 per catalogue | 2 per catalogue | 1 per product + 1 per range | 3 per range |
+| Products | 54 | 61 | 30 | 26 | 41 | 37 |
+| Price | AJAX JSON | In the PDF (EUR) | **Not published anywhere** | In the PDF (**GBP**) | **Not published anywhere** | **Price list is a scanned image** |
+| Berths / seats | Per-product PDF | Not published | In the PDF | In the PDF | In the HTML | In the PDF |
+| Weights + dimensions | Per-product PDF | In the PDF | In the PDF | In the PDF | Dimensions in the HTML; MTPLM only, from the catalogue | In the PDF |
 
-Three of four publish everything in a PDF, and the PDF has been the better source every
-time — cheaper (one fetch, no browser, no per-product work) *and* more complete than the
-website. Adria's shape, a JS-rendered catalogue plus a per-product PDF, is the exception.
+Three of five publish everything in a PDF, and where they do, the PDF has been the
+better source every time — cheaper (one fetch, no browser, no per-product work) *and*
+more complete than the website.
+
+**But ask the question, don't assume the answer.** Rimor is the counter-example, and it
+is worth being precise about *why*, because the obvious reading is wrong.
+
+Rimor's catalogue is not thin. It publishes everything the website does **plus**
+wheelbase, MTPLM, engine, tank capacities and equipment — on field count it beats the
+HTML comfortably. What it cannot do is say **which model a number belongs to**. Its spec
+pages set two or three models side by side and print a value once where it spans several
+columns:
+
+```
+HORUS 12    HORUS 38    HORUS 45      <- three models
+Outside length (mm) 5413 5998         <- two values
+```
+
+pypdf returns that whole row as a single run at a single x, so there is nothing to
+recover the spans from. The numbers are present and unattributable.
+
+The website wins because **attribution is free**: one URL per model, one set of numbers
+on it. That is what the question at the top of this section is really asking. "Is there
+a PDF?" is a proxy for *where can I get many products in one fetch, with each number
+unambiguously attached to one of them?* For Adria, Morelo, Swift and Sunlight the PDF
+was that place. For Rimor it is the place where attribution collapses, so the PDFs are
+demoted: the catalogue is kept for the two fields that are **constant down the page**
+(MTPLM, engine) and so need no alignment at all, and the leaflets — which genuinely do
+carry a strict subset of the HTML — are kept only as the cross-check.
+
+Two things to carry forward:
+
+- **Rank sources by attribution, not by field count.** A document with fewer fields and
+  one product per page beats a richer one whose columns cannot be separated.
+- **A PDF that looks parseable may not be.** Check whether the value you want varies per
+  column *before* planning to read columns. If it does, and the layout merges cells, no
+  amount of effort recovers it — but a page-constant value is still safe to take.
+
+Adria's shape, a JS-rendered catalogue plus a per-product PDF, remains the other
+exception.
+
+**Auto-Trail is the opposite pole from Rimor**, and worth knowing as the best case. Its
+per-range spec PDFs give each model a run of *whole pages* with the model name as a
+running header — no columns at all, so attribution is free in the PDF and every
+alignment defence below is unnecessary. When a document looks like this, the parsing
+risk moves entirely from "which column is this?" to "which *label* is this?" — and
+Auto-Trail's labels are the trap: `Max. gross train weight` sits one row from
+`Max. gross weight` and is 1250–2500 kg larger, one model omits the latter entirely, and
+the campervans call it `Max. authorised weight` instead.
+
+Two more general lessons from it:
+
+- **A PDF being present is not the same as its numbers being extractable.** Auto-Trail
+  publishes a price and options list, and it is a rasterised image: `extract_text`
+  returns headings and footnotes, and the whole of page 2 yields four text runs, none of
+  them a price. Check `extract_positioned_text` on a page you *expect* to be dense
+  before concluding a document is a usable source — an almost-empty page is the tell.
+- **A stated roster beats any heuristic for finding record boundaries.** Every
+  Auto-Trail document names the models it covers (`Applicable to Excel 620S, 620G,
+  690T`). Matching headings against that roster both filters out the section headings
+  that look identical (`POWER`, `SAFETY`) and gives a free completeness check. Look for
+  a document's own table of contents before writing a pattern for "what a record header
+  looks like".
 
 Two follow-on questions the later surveys added:
 
@@ -32,6 +93,35 @@ Two follow-on questions the later surveys added:
   directory called `kataloge_preislisten`, Swift's opaque media key, Sunlight's three
   superseded model years *and* a differently-named glossy catalogue. Match precisely,
   prefer the newest, and rediscover per run rather than hardcoding.
+
+### If the document is behind a name/email form
+
+Two things, in this order.
+
+**First, check whether the form is actually protecting anything.** Rimor's catalogue is
+fronted by a lead-generation form (name, email, city, three consent boxes) and the PDF
+itself sits unauthenticated on a public asset path — no token, no cookie. The form was
+a front door, not a lock. A web search for the filename found it in a minute. Try that
+before anything else; a gated-looking document may not be gated at all.
+
+**If it really is gated, use Ben's details.** `config/reviewers.csv` holds them, and
+there is standing permission to submit them to a manufacturer's catalogue or brochure
+request form. This is what the form is for: a real person at the NCC asking a
+manufacturer for their catalogue.
+
+Two rules when doing so:
+
+- **Never invent details.** Fabricated names and addresses go into a real CRM under a
+  real consent flow, and they poison the manufacturer's data. Use the real ones or
+  don't submit.
+- **Tick only the consent that is required.** Read the labels: there is usually one
+  mandatory "I have read the privacy policy" box and one or two optional marketing and
+  profiling consents. Rimor's form validates `privacy_1` only. Leave the optional ones
+  unticked — the permission is to request a document, not to sign the NCC up for a
+  manufacturer's marketing.
+
+Say in the survey document which route was used, and if a form was submitted, say so
+explicitly at the checkpoint.
 
 ## Then: parsing a spec table is where the real risk is
 
@@ -60,6 +150,13 @@ Three defences, all of which earned their place:
   has been one every time. Products that fail it are dropped rather than proposed. It
   catches misaligned columns, not mislabelled ones.
 
+  Rimor publishes no payload *and* no MRO, so its redundancy is **cross-document**: the
+  range leaflet republishes every layout's `length x width`, and the body-style listing
+  republishes the seats and berths that the model's own page states. Where one document
+  has no internal arithmetic, look for a second that says the same thing twice — and
+  compare as an **unordered multiset**, since the leaflets extract in scrambled reading
+  order and any position-dependent comparison would be checking noise.
+
 One trap common to all of them: when slicing a row's values, **stop at the next row's
 label** rather than taking a fixed count. A short row otherwise swallows the following
 label, padding the count back to what was expected and defeating the very check meant
@@ -73,8 +170,6 @@ right, so every pattern anchors right and never parses the left at all.
 
 Kept because it is still the pattern for a JS-driven catalogue, and some manufacturer
 will have one.
-
-## What Adria's survey found
 
 A model-range page's plain HTML is nearly useless: no price, no specs, sometimes not
 even the layout list, because the actual data loads via client-side JS after the page

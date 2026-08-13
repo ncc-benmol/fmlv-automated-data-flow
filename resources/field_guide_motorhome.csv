@@ -1,71 +1,71 @@
-﻿field_name,field_description,Comment
-product_id,"FMLV Product ID",PLEASE Leave as is!
-year,Model Year,PLEASE Leave as is!
-manufacturing_release_date,Manufacturer Release Date,PLEASE Leave as is!
-manufacturer,"MANUFACTURER NAME of MOTORHOME OR CAMPERVAN","REQUIRED FIELD"
-base_vehicle_manufacturer,"Base vehicle manufacturer make (e.g. FIAT)","REQUIRED FIELD"
-manufacturer_display_name,"Brand name of model","REQUIRED FIELD"
-manufacturer_range,Range name,"REQUIRED FIELD"
-dealer_specials_range,"Or, Dealer EXCLUSIVE range name",LEAVE BLANK UNLESS DEALER EXCLUSIVE
-dealer,Dealer name,LEAVE BLANK UNLESS DEALER EXCLUSIVE
-model,"Model variant (e.g. 60-4)","REQUIRED FIELD"
-dealer_model_variant,Or Dealer EXCLUSIVE model variant,LEAVE BLANK UNLESS DEALER EXCLUSIVE
-type_micro,Micro,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION
-type_campervan,Campervan,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION
-type_campervan_elevating_roof,Campervan elevating roof,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION
-type_campervan_high_top,Campervan high top,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION
-type_campervan_high_top_elevating_roof,Campervan high top elevating roof,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION
-type_coach_built_low_profile,Coach built low profile,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION
-type_coach_built_over_cab_bed,Coach built over cab bed,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION
-type_a_class,A class,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION
-mh_passenger_seats_inc_driver,Passenger seats inc driver,"REQUIRED FIELD"
-berths,Berths ,"REQUIRED FIELD"
-rrp_pounds,RRP (£),"REQUIRED FIELD"
-price_min_range_pounds,"Min price guide",NOT REQUIRED
-price_max_range_pounds,Max range,NOT REQUIRED
-mro_kilograms,MRO (kg),"REQUIRED FIELD"
-mtplm_kilograms,MTPLM (kg),"REQUIRED FIELD"
-mh_payload_kilograms,Payload (kg),"REQUIRED FIELD"
-mh_length_mm,"Length (mm)","REQUIRED FIELD"
-mh_width_mm,"Width (mm)","REQUIRED FIELD"
-mh_height_mm,"Height (mm)","REQUIRED FIELD"
-sleeping_area_front,Front ,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION 
-sleeping_area_rear,Rear ,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION 
-sleeping_area_both,Both,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION 
-sleeping_area_separate_childrens_area,Separate childrens area,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION 
-make_up_beds,Make up bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY
-fixed_bed,Fixed bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY
-transverse_bed,Transverse bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY
-island_bed,Island bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY
-fixed_separate_beds,Fixed separate beds,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY
-fixed_bunks,Fixed bunks,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY
-drop_down_bed,Drop down bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY
-rear_kitchen,Rear,SELECT 'YES' AGAINST ONE KITCHEN LOCATION
-side_kitchen,Side ,SELECT 'YES' AGAINST ONE KITCHEN LOCATION
-corner_kitchen,Corner,SELECT 'YES' AGAINST ONE KITCHEN LOCATION
-no_toilet,No toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT
-no_shower,No shower,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT
-toilet_only,Toilet only,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT
-shower_only,Shower only,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT
-rear_shower_toilet,Rear shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT
-side_shower_toilet,Side shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT
-separate_shower_toilet,Separate shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT
-front_lounge,Front lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION
-rear_lounge,Rear lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION
-twin_lounge,Twin lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION
-blown_air_heating,Blown air,SELECT 'YES' AGAINST ONE HEATING TYPE
-wet_central_heating,Wet central heating,SELECT 'YES' AGAINST ONE HEATING TYPE
-no_heating,No heating ,SELECT 'YES' AGAINST ONE HEATING TYPE
-rear_garage,Rear garage,SELECT 'YES/NO' 
-fridge,Fridge,"SELECT 'YES' IN IF MODEL HAS FRIDGE OR FRIDGE FREEZER (do not put 'YES' in both columns)"
-fridge_freezer,Fridge / freezer,"SELECT 'YES' IN IF MODEL HAS FRIDGE OR FRIDGE FREEZER (do not put 'YES' in both columns)"
-microwave,Microwave,SELECT 'YES/NO' 
-automatic_mro_kilograms,Auto MRO (kg),"INSTRUCTIONS IF AUTOMATIC OPTION, COMPLETE THESE EXTRA COLUMNS TO FEATURE IN AUTOMATIC FILTER RESULTS (otherwise leave blank)"
-automatic_mh_payload_kilograms,Auto Payload (kg),"INSTRUCTIONS IF AUTOMATIC OPTION, COMPLETE THESE EXTRA COLUMNS TO FEATURE IN AUTOMATIC FILTER RESULTS (otherwise leave blank)"
-automatic_rrp_pounds,Auto RRP (£),"INSTRUCTIONS IF AUTOMATIC OPTION, COMPLETE THESE EXTRA COLUMNS TO FEATURE IN AUTOMATIC FILTER RESULTS (otherwise leave blank)" 
-automatic_price_min_range_pounds,Auto min price,"INSTRUCTIONS IF AUTOMATIC OPTION, COMPLETE THESE EXTRA COLUMNS TO FEATURE IN AUTOMATIC FILTER RESULTS (otherwise leave blank)"
-latest_model_id,Latest Model ID,PLEASE Leave as is!
-images,Link to Images,PLEASE Leave as is!
-archived,Archived,PLEASE Leave as is!
-,Column1,
-,Column2,
+﻿field_name,field_description,comment,automated_collection_scope_flag
+product_id,FMLV Product ID,PLEASE Leave as is!,
+year,Model Year,PLEASE Leave as is!,
+manufacturing_release_date,Manufacturer Release Date,PLEASE Leave as is!,
+manufacturer,MANUFACTURER NAME of MOTORHOME OR CAMPERVAN,REQUIRED FIELD,in_scope
+base_vehicle_manufacturer,Base vehicle manufacturer make (e.g. FIAT),REQUIRED FIELD,in_scope
+manufacturer_display_name,Brand name of model,REQUIRED FIELD,in_scope
+manufacturer_range,Range name,REQUIRED FIELD,in_scope
+dealer_specials_range,"Or, Dealer EXCLUSIVE range name",LEAVE BLANK UNLESS DEALER EXCLUSIVE,
+dealer,Dealer name,LEAVE BLANK UNLESS DEALER EXCLUSIVE,
+model,Model variant (e.g. 60-4),REQUIRED FIELD,in_scope
+dealer_model_variant,Or Dealer EXCLUSIVE model variant,LEAVE BLANK UNLESS DEALER EXCLUSIVE,
+type_micro,Micro,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
+type_campervan,Campervan,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
+type_campervan_elevating_roof,Campervan elevating roof,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
+type_campervan_high_top,Campervan high top,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
+type_campervan_high_top_elevating_roof,Campervan high top elevating roof,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
+type_coach_built_low_profile,Coach built low profile,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
+type_coach_built_over_cab_bed,Coach built over cab bed,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
+type_a_class,A class,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
+mh_passenger_seats_inc_driver,Passenger seats inc driver,REQUIRED FIELD,in_scope
+berths,Berths ,REQUIRED FIELD,in_scope
+rrp_pounds,RRP (£),REQUIRED FIELD,in_scope
+price_min_range_pounds,Min price guide,NOT REQUIRED,in_scope
+price_max_range_pounds,Max range,NOT REQUIRED,
+mro_kilograms,MRO (kg),REQUIRED FIELD,in_scope
+mtplm_kilograms,MTPLM (kg),REQUIRED FIELD,in_scope
+mh_payload_kilograms,Payload (kg),REQUIRED FIELD,in_scope
+mh_length_mm,Length (mm),REQUIRED FIELD,in_scope
+mh_width_mm,Width (mm),REQUIRED FIELD,in_scope
+mh_height_mm,Height (mm),REQUIRED FIELD,in_scope
+sleeping_area_front,Front ,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION ,
+sleeping_area_rear,Rear ,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION ,
+sleeping_area_both,Both,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION ,
+sleeping_area_separate_childrens_area,Separate childrens area,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION ,
+make_up_beds,Make up bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+fixed_bed,Fixed bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+transverse_bed,Transverse bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+island_bed,Island bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+fixed_separate_beds,Fixed separate beds,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+fixed_bunks,Fixed bunks,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+drop_down_bed,Drop down bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+rear_kitchen,Rear,SELECT 'YES' AGAINST ONE KITCHEN LOCATION,
+side_kitchen,Side ,SELECT 'YES' AGAINST ONE KITCHEN LOCATION,
+corner_kitchen,Corner,SELECT 'YES' AGAINST ONE KITCHEN LOCATION,
+no_toilet,No toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+no_shower,No shower,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+toilet_only,Toilet only,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+shower_only,Shower only,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+rear_shower_toilet,Rear shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+side_shower_toilet,Side shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+separate_shower_toilet,Separate shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+front_lounge,Front lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION,
+rear_lounge,Rear lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION,
+twin_lounge,Twin lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION,
+blown_air_heating,Blown air,SELECT 'YES' AGAINST ONE HEATING TYPE,
+wet_central_heating,Wet central heating,SELECT 'YES' AGAINST ONE HEATING TYPE,
+no_heating,No heating ,SELECT 'YES' AGAINST ONE HEATING TYPE,
+rear_garage,Rear garage,SELECT 'YES/NO' ,
+fridge,Fridge,SELECT 'YES' IN IF MODEL HAS FRIDGE OR FRIDGE FREEZER (do not put 'YES' in both columns),
+fridge_freezer,Fridge / freezer,SELECT 'YES' IN IF MODEL HAS FRIDGE OR FRIDGE FREEZER (do not put 'YES' in both columns),
+microwave,Microwave,SELECT 'YES/NO' ,
+automatic_mro_kilograms,Auto MRO (kg),"INSTRUCTIONS IF AUTOMATIC OPTION, COMPLETE THESE EXTRA COLUMNS TO FEATURE IN AUTOMATIC FILTER RESULTS (otherwise leave blank)",
+automatic_mh_payload_kilograms,Auto Payload (kg),"INSTRUCTIONS IF AUTOMATIC OPTION, COMPLETE THESE EXTRA COLUMNS TO FEATURE IN AUTOMATIC FILTER RESULTS (otherwise leave blank)",
+automatic_rrp_pounds,Auto RRP (£),"INSTRUCTIONS IF AUTOMATIC OPTION, COMPLETE THESE EXTRA COLUMNS TO FEATURE IN AUTOMATIC FILTER RESULTS (otherwise leave blank) ",
+automatic_price_min_range_pounds,Auto min price,"INSTRUCTIONS IF AUTOMATIC OPTION, COMPLETE THESE EXTRA COLUMNS TO FEATURE IN AUTOMATIC FILTER RESULTS (otherwise leave blank)",
+latest_model_id,Latest Model ID,PLEASE Leave as is!,
+images,Link to Images,PLEASE Leave as is!,
+archived,Archived,PLEASE Leave as is!,
+,Column1,,
+,Column2,,

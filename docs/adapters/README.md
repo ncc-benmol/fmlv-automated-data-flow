@@ -74,8 +74,6 @@ right, so every pattern anchors right and never parses the left at all.
 Kept because it is still the pattern for a JS-driven catalogue, and some manufacturer
 will have one.
 
-## What Adria's survey found
-
 A model-range page's plain HTML is nearly useless: no price, no specs, sometimes not
 even the layout list, because the actual data loads via client-side JS after the page
 renders. This should be checked first for every manufacturer — fetch the page with

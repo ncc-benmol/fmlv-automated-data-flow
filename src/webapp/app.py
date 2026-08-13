@@ -205,7 +205,7 @@ def create_app(
     registry_path: Path | None = None,
     schedule_path: Path | None = None,
     enable_scheduler: bool = True,
-    schedule_check_interval_minutes: int = 5,
+    schedule_check_interval_minutes: int = 1,
 ) -> FastAPI:
     """Build the review app against the SQLite store at `db_path`.
 

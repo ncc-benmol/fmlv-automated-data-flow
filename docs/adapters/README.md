@@ -1,22 +1,23 @@
 # Adapters — the general pattern
 
-Five data points now: [Adria](adria.md), [Morelo](morelo.md), [Swift](swift.md),
-[Sunlight](sunlight.md) and [Rimor](rimor.md). They differ enough that the ordering of
-the questions below matters more than any of the individual answers.
+Six data points now: [Adria](adria.md), [Morelo](morelo.md), [Swift](swift.md),
+[Sunlight](sunlight.md), [Rimor](rimor.md) and [Auto-Trail](auto-trail.md). They differ
+enough that the ordering of the questions below matters more than any of the individual
+answers.
 
 ## Start here: is there a brochure or price list PDF?
 
 **Ask this before looking at the website's rendering behaviour at all.** It was the
-last thing tried for Adria and the first thing that worked for the three after it:
+last thing tried for Adria and the first thing that worked for the four after it:
 
-| | Adria | Morelo | Swift | Sunlight | Rimor |
-|---|---|---|---|---|---|
-| JavaScript needed | Yes (Livewire, scroll-triggered) | No | No | No | No |
-| Fetches | 2 per product | 2 total | 2 per catalogue | 2 per catalogue | 1 per product + 1 per range |
-| Products | 54 | 61 | 30 | 26 | 41 |
-| Price | AJAX JSON | In the PDF (EUR) | **Not published anywhere** | In the PDF (**GBP**) | **Not published anywhere** |
-| Berths / seats | Per-product PDF | Not published | In the PDF | In the PDF | In the HTML |
-| Weights + dimensions | Per-product PDF | In the PDF | In the PDF | In the PDF | Dimensions in the HTML; MTPLM only, from the catalogue |
+| | Adria | Morelo | Swift | Sunlight | Rimor | Auto-Trail |
+|---|---|---|---|---|---|---|
+| JavaScript needed | Yes (Livewire, scroll-triggered) | No | No | No | No | No |
+| Fetches | 2 per product | 2 total | 2 per catalogue | 2 per catalogue | 1 per product + 1 per range | 3 per range |
+| Products | 54 | 61 | 30 | 26 | 41 | 37 |
+| Price | AJAX JSON | In the PDF (EUR) | **Not published anywhere** | In the PDF (**GBP**) | **Not published anywhere** | **Price list is a scanned image** |
+| Berths / seats | Per-product PDF | Not published | In the PDF | In the PDF | In the HTML | In the PDF |
+| Weights + dimensions | Per-product PDF | In the PDF | In the PDF | In the PDF | Dimensions in the HTML; MTPLM only, from the catalogue | In the PDF |
 
 Three of five publish everything in a PDF, and where they do, the PDF has been the
 better source every time — cheaper (one fetch, no browser, no per-product work) *and*
@@ -58,6 +59,29 @@ Two things to carry forward:
 
 Adria's shape, a JS-rendered catalogue plus a per-product PDF, remains the other
 exception.
+
+**Auto-Trail is the opposite pole from Rimor**, and worth knowing as the best case. Its
+per-range spec PDFs give each model a run of *whole pages* with the model name as a
+running header — no columns at all, so attribution is free in the PDF and every
+alignment defence below is unnecessary. When a document looks like this, the parsing
+risk moves entirely from "which column is this?" to "which *label* is this?" — and
+Auto-Trail's labels are the trap: `Max. gross train weight` sits one row from
+`Max. gross weight` and is 1250–2500 kg larger, one model omits the latter entirely, and
+the campervans call it `Max. authorised weight` instead.
+
+Two more general lessons from it:
+
+- **A PDF being present is not the same as its numbers being extractable.** Auto-Trail
+  publishes a price and options list, and it is a rasterised image: `extract_text`
+  returns headings and footnotes, and the whole of page 2 yields four text runs, none of
+  them a price. Check `extract_positioned_text` on a page you *expect* to be dense
+  before concluding a document is a usable source — an almost-empty page is the tell.
+- **A stated roster beats any heuristic for finding record boundaries.** Every
+  Auto-Trail document names the models it covers (`Applicable to Excel 620S, 620G,
+  690T`). Matching headings against that roster both filters out the section headings
+  that look identical (`POWER`, `SAFETY`) and gives a free completeness check. Look for
+  a document's own table of contents before writing a pattern for "what a record header
+  looks like".
 
 Two follow-on questions the later surveys added:
 

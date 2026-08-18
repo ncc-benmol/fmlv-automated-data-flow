@@ -1,0 +1,42 @@
+[
+  {
+    "id": 29632,
+    "slug": "veloce-vl-65",
+    "type": "campervan",
+    "title": {
+      "rendered": "Veloce VL 65"
+    },
+    "campervan_model": [
+      60
+    ],
+    "class_list": [
+      "post-29632",
+      "campervan",
+      "type-campervan",
+      "status-publish",
+      "has-post-thumbnail",
+      "hentry",
+      "campervan_model-veloce"
+    ]
+  },
+  {
+    "id": 29630,
+    "slug": "veloce-vr-65",
+    "type": "campervan",
+    "title": {
+      "rendered": "Veloce VR 65"
+    },
+    "campervan_model": [
+      60
+    ],
+    "class_list": [
+      "post-29630",
+      "campervan",
+      "type-campervan",
+      "status-publish",
+      "has-post-thumbnail",
+      "hentry",
+      "campervan_model-veloce"
+    ]
+  }
+]

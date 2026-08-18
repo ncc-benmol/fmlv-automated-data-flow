@@ -1,0 +1,122 @@
+[
+  {
+    "id": 26297,
+    "slug": "avventura-545",
+    "type": "motorhome",
+    "title": {
+      "rendered": "Avventura 545"
+    },
+    "motorhome_model": [
+      49
+    ],
+    "class_list": [
+      "post-26297",
+      "motorhome",
+      "type-motorhome",
+      "status-publish",
+      "has-post-thumbnail",
+      "hentry",
+      "motorhome_model-avventura"
+    ]
+  },
+  {
+    "id": 26302,
+    "slug": "avventura-565",
+    "type": "motorhome",
+    "title": {
+      "rendered": "Avventura 565"
+    },
+    "motorhome_model": [
+      49
+    ],
+    "class_list": [
+      "post-26302",
+      "motorhome",
+      "type-motorhome",
+      "status-publish",
+      "has-post-thumbnail",
+      "hentry",
+      "motorhome_model-avventura"
+    ]
+  },
+  {
+    "id": 781,
+    "slug": "travel-master-imperial-845",
+    "type": "motorhome",
+    "title": {
+      "rendered": "Travel Master Imperial 845"
+    },
+    "motorhome_model": [
+      56
+    ],
+    "class_list": [
+      "post-781",
+      "motorhome",
+      "type-motorhome",
+      "status-publish",
+      "has-post-thumbnail",
+      "hentry",
+      "motorhome_model-travel-master-imperial"
+    ]
+  },
+  {
+    "id": 750,
+    "slug": "sportivo-565",
+    "type": "motorhome",
+    "title": {
+      "rendered": "Sportivo 565"
+    },
+    "motorhome_model": [
+      9
+    ],
+    "class_list": [
+      "post-750",
+      "motorhome",
+      "type-motorhome",
+      "status-publish",
+      "has-post-thumbnail",
+      "hentry",
+      "motorhome_model-sportivo"
+    ]
+  },
+  {
+    "id": 729,
+    "slug": "travel-master-545",
+    "type": "motorhome",
+    "title": {
+      "rendered": "Travel Master 545"
+    },
+    "motorhome_model": [
+      8
+    ],
+    "class_list": [
+      "post-729",
+      "motorhome",
+      "type-motorhome",
+      "status-publish",
+      "has-post-thumbnail",
+      "hentry",
+      "motorhome_model-travel-master"
+    ]
+  },
+  {
+    "id": 726,
+    "slug": "travel-master-565",
+    "type": "motorhome",
+    "title": {
+      "rendered": "Travel Master 565"
+    },
+    "motorhome_model": [
+      8
+    ],
+    "class_list": [
+      "post-726",
+      "motorhome",
+      "type-motorhome",
+      "status-publish",
+      "has-post-thumbnail",
+      "hentry",
+      "motorhome_model-travel-master"
+    ]
+  }
+]

@@ -32,6 +32,15 @@
       <div class="decision decision-{{ entry.decision.action }}">
         {{ entry.decision.action }}{% if entry.decision.action == "correct" %} → {{ entry.decision.corrected_value }}{% endif %}
         <div class="muted">{{ entry.decision.decided_by or "unknown" }} · {{ entry.decision.decided_at|fmt_dt }}</div>
+        <form
+          class="undo-form"
+          hx-post="/runs/{{ run.id }}/changes/{{ entry.change.id }}/decide"
+          hx-target="#change-{{ entry.change.id }}"
+          hx-swap="outerHTML"
+          hx-include="#reviewer-name"
+        >
+          <button type="submit" name="action" value="undo" class="btn btn-undo">Undo</button>
+        </form>
       </div>
     {% else %}
       <form

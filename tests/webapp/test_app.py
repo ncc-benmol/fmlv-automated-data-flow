@@ -440,6 +440,39 @@ def test_accept_records_a_decision_and_moves_the_change_to_decided(
     assert "Decided (1)" in detail.text
 
 
+def test_undo_reopens_an_accepted_change_for_review(
+    client: TestClient, db_path: Path, run_with_one_change: tuple[int, int]
+) -> None:
+    run_id, change_id = run_with_one_change
+
+    client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "accept", "reviewer_name": "ben"},
+    )
+
+    response = client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "undo", "reviewer_name": "ben"},
+    )
+
+    assert response.status_code == 200
+    assert "decision-accept" not in response.text
+    assert "decision-form" in response.text
+
+    connection = store.connect(db_path)
+    queue = store.list_change_queue(connection, run_id)
+    latest = store.latest_decision(connection, change_id)
+    connection.close()
+    [entry] = queue
+    assert entry.decision is None
+    assert latest is not None
+    assert latest.action == "undo"
+
+    detail = client.get(f"/runs/{run_id}")
+    assert "Pending (1)" in detail.text
+    assert "Decided (" not in detail.text
+
+
 def test_reject_records_a_decision(
     client: TestClient, db_path: Path, run_with_one_change: tuple[int, int]
 ) -> None:

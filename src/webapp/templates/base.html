@@ -163,6 +163,7 @@
     .decision-accept { color: var(--accept); }
     .decision-reject { color: var(--reject); }
     .decision-correct { color: var(--correct); }
+    .undo-form { display: inline-block; margin-top: 0.3rem; }
     .form-error { color: var(--reject); font-size: 0.85em; }
     #reviewer-bar { margin-bottom: 1.5rem; }
     #reviewer-bar label { font-size: 0.9em; color: var(--muted); }
@@ -184,7 +185,8 @@
       }
     }
     #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .decision-form button,
-    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .accept-all-form button {
+    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .accept-all-form button,
+    #reviewer-bar:has(#reviewer-name:invalid) ~ .product-group .undo-form button {
       opacity: 0.5;
       pointer-events: none;
     }
@@ -226,6 +228,14 @@
       border-color: var(--correct);
     }
     .btn-correct:hover { background: var(--correct); color: #fff; }
+    .btn-undo {
+      background: transparent;
+      color: var(--muted);
+      border-color: var(--border);
+      padding: 0.3em 0.7em;
+      font-size: 0.85em;
+    }
+    .btn-undo:hover { background: var(--muted); color: #fff; }
 
     /* Layout shell: full-bleed white header and dark-green footer bands, with the
        actual content kept in a centred card — the same "band, band, readable
@@ -431,10 +441,10 @@
       // page from navigating to a local file/folder link, so the reliable option is
       // this app's own download route instead of trying to hand off to Explorer.
       const filename = escapeHtml(data.filename);
-      const downloadLink = `<a href="${data.download_url}" download>Download</a>`;
+      const downloadLink = `<a href="${data.download_url}" download>Download CSV</a>`;
       let message = `Generated upload CSV (${count}): <code>${filename}</code> — ${downloadLink}`;
       if (data.issues_download_url) {
-        const issuesLink = `<a href="${data.issues_download_url}" download>Download issues</a>`;
+        const issuesLink = `<a href="${data.issues_download_url}" download>Download Issue Log</a>`;
         message += data.has_errors
           ? ` — validation errors found, check before uploading: ${issuesLink}.`
           : ` — validation warnings found: ${issuesLink}.`;

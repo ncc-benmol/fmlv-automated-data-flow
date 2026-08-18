@@ -413,6 +413,10 @@ def list_change_queue(connection: sqlite3.Connection, run_id: int) -> list[Chang
 
     Ordered by product identity then field, so a reviewer sees every proposal for one
     product together — matches DESIGN.md §6.3's "beside each change" framing.
+
+    A change whose latest decision is "undo" comes back with `decision=None` — the
+    undo row itself stays in the database for the audit trail, but as far as this
+    queue is concerned the change is pending again.
     """
     rows = connection.execute(
         """
@@ -456,7 +460,7 @@ def list_change_queue(connection: sqlite3.Connection, run_id: int) -> list[Chang
             last_seen_run_id=row["product_last_seen_run_id"],
         )
         decision = None
-        if row["decision_id"] is not None:
+        if row["decision_id"] is not None and row["decision_action"] != "undo":
             decision = Decision(
                 id=row["decision_id"],
                 proposed_change_id=change.id,

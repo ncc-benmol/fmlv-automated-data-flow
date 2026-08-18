@@ -68,26 +68,30 @@ column-by-column field guide and how "due" is worked out.
 This project uses [uv](https://docs.astral.sh/uv/) to manage its Python environment and
 requires Python 3.14+.
 
+
+Install the required packages:
 ```bash
 uv sync                          # install dependencies
 uv run playwright install chromium   # one-time, needed for JS-rendered manufacturer sites
-uv run pytest -q                 # run the test suite
 ```
 
-Run the pipeline for one manufacturer:
-
-```bash
-uv run fmlv run Adria
-```
-
-Start the review website locally:
+Start the review app for local testing:
 
 ```bash
 uv run uvicorn src.webapp.serve:app --port 8000
 ```
 
-See [TESTING.md](TESTING.md) for a fuller walkthrough, including how to point the
-pipeline at a real export and inspect what it produces.
+Run the pipeline for one manufacturer using command line (this can also be triggered in the web app):
+
+```bash
+uv run fmlv run Adria
+```
+
+Run the test suite
+
+```bash
+uv run pytest -q                
+```
 
 ## Adding a manufacturer
 
@@ -138,7 +142,7 @@ cd deploy\windows
 ```
 
 `04` and `05` both need a real `.env` in the repo root first (copy `.env.example`,
-fill in `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD`) and must be run elevated — the shared
+fill in `FMLV_NOVA_LOGIN_EMAIL`/`FMLV_NOVA_LOGIN_PASSWORD`) and must be run elevated — the shared
 cache under `C:\fmlv` is only writable by `SYSTEM`/`Administrators`.
 
 **Updating a running deployment:**

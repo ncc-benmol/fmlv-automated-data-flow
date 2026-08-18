@@ -218,7 +218,7 @@ Do this **before** committing to an adapter interface — the sites decide the s
       URLs/selectors are now the real ones, not placeholders.
       `tests/fetch/test_ncc.py` covers the full flow against local fixtures.
 - [x] **[P]** Credential handling via environment variables — `fetch/ncc.py`:
-      `NccCredentials.from_env()` reads `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD`, raising
+      `NccCredentials.from_env()` reads `FMLV_NOVA_LOGIN_EMAIL`/`FMLV_NOVA_LOGIN_PASSWORD`, raising
       `NccCredentialsError` rather than proceeding with a blank credential. Never
       hardcoded, never committed, matching DESIGN.md §8's secrets row. `.env` is set
       up on the dev machine (gitignored, per `.env.example`).
@@ -326,7 +326,7 @@ before debugging FMLV logic on it at the same time.
       stdout/stderr redirected to rotating files under `logs\`
 - [ ] **[P]** `data\` directory on the VM for exports, snapshots, SQLite and generated
       uploads — decide the drive/path with IT, and confirm it's inside the VM backup
-- [ ] **[P]** `.env` on the VM for `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD` and the
+- [ ] **[P]** `.env` on the VM for `FMLV_NOVA_LOGIN_EMAIL`/`FMLV_NOVA_LOGIN_PASSWORD` and the
       Anthropic key, ACL'd to the service account only
 - [ ] **[P]** Decide the service account — the smoke test ran as `LocalSystem` (it
       reported `NCC-AI1$`, the machine account), which is the install script's default.

@@ -206,7 +206,7 @@ proper API is still unknown (§9) — if it does, this is the piece that gets re
 
 Implemented in `fetch/ncc.py` (Phase 7): `download_export` logs in and saves one
 manufacturer's current export, `NccCredentials.from_env` reads the login from
-`NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD` (§8's secrets row). Surveyed against the real
+`FMLV_NOVA_LOGIN_EMAIL`/`FMLV_NOVA_LOGIN_PASSWORD` (§8's secrets row). Surveyed against the real
 site 2026-08-06 (TODO.md's "For Ben" note is resolved): the login page is a plain
 form, but there is **no single "download everything" button** — the NCC's admin panel
 (Laravel Nova, at `/nova/...`) only offers exports **one manufacturer at a time**, via

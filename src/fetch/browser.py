@@ -9,10 +9,13 @@ shape as a plain HTTP fetch, so downstream code doesn't need to care which one r
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 from .http import USER_AGENT, FetchResult, content_hash, snapshot_filename
@@ -21,6 +24,14 @@ from .http import USER_AGENT, FetchResult, content_hash, snapshot_filename
 #: waits for network activity to quiet down — the safest default for a spec page
 #: that fetches its data asynchronously, at the cost of being the slowest.
 DEFAULT_WAIT_UNTIL = "networkidle"
+
+#: A `networkidle` wait can time out on a page that's actually fine — a chatty
+#: analytics/chat-widget script that never goes quiet, or a slow moment on the
+#: site — so a couple of retries with backoff clears most of these without
+#: failing the whole run. Kept small: a page that's *genuinely* down should still
+#: surface quickly rather than stall a run for minutes.
+DEFAULT_MAX_RETRIES = 2
+DEFAULT_BACKOFF_SECONDS = 3.0
 
 
 class BrowserFetcher:
@@ -37,11 +48,17 @@ class BrowserFetcher:
         *,
         wait_until: str = DEFAULT_WAIT_UNTIL,
         user_agent: str = USER_AGENT,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        backoff_seconds: float = DEFAULT_BACKOFF_SECONDS,
+        _sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.snapshot_dir = Path(snapshot_dir)
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
         self.wait_until = wait_until
         self.user_agent = user_agent
+        self.max_retries = max_retries
+        self.backoff_seconds = backoff_seconds
+        self._sleep = _sleep
         self._playwright = sync_playwright().start()
         self._browser = self._playwright.chromium.launch()
 
@@ -60,19 +77,38 @@ class BrowserFetcher:
     ) -> None:
         self.close()
 
+    def _goto(self, page: object, url: str) -> object:
+        """`page.goto`, retrying a `wait_until` timeout with backoff.
+
+        A timeout here is usually the page being momentarily slow, or a background
+        script (analytics, chat widget) that keeps `networkidle` from ever firing —
+        not a dead site. Retried the same way `http.Fetcher.fetch` retries transient
+        HTTP failures. A page that's genuinely unreachable will keep timing out and
+        still surface after `max_retries`, just not on the first attempt.
+        """
+        last_error: PlaywrightTimeoutError | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                return page.goto(url, wait_until=self.wait_until)  # type: ignore[attr-defined]
+            except PlaywrightTimeoutError as exc:
+                last_error = exc
+                if attempt < self.max_retries:
+                    self._sleep(self.backoff_seconds * (2**attempt))
+        assert last_error is not None
+        raise last_error
+
     def fetch(self, url: str, *, previous_hash: str | None = None) -> FetchResult:
         """Render a page and snapshot the DOM's final HTML.
 
-        Unlike `http.Fetcher`, there is no retry loop here — a page that fails to
-        render is more likely a real site problem (or a `wait_until` that's too
-        strict for this page) than a transient network blip, and is better surfaced
-        immediately than retried blind.
+        Retries a `wait_until` timeout (see `_goto`) but nothing else — a page that
+        fails outright, or a `wait_until` that's structurally too strict for this
+        page, is better surfaced immediately than retried blind.
         """
         page = self._browser.new_page(user_agent=self.user_agent)
         try:
-            response = page.goto(url, wait_until=self.wait_until)
+            response = self._goto(page, url)
             html = page.content()
-            status_code = response.status if response is not None else 0
+            status_code = response.status if response is not None else 0  # type: ignore[attr-defined]
         finally:
             page.close()
 
@@ -121,7 +157,7 @@ class BrowserFetcher:
         page = self._browser.new_page(user_agent=self.user_agent)
         page.on("response", on_response)
         try:
-            response = page.goto(url, wait_until=self.wait_until)
+            response = self._goto(page, url)
             if scroll:
                 self._scroll_to_bottom(
                     page,
@@ -131,7 +167,7 @@ class BrowserFetcher:
                 )
             page.wait_for_timeout(settle_ms)
             html = page.content()
-            status_code = response.status if response is not None else 0
+            status_code = response.status if response is not None else 0  # type: ignore[attr-defined]
         finally:
             page.close()
 

@@ -73,10 +73,11 @@ _STR_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-#: Plain boolean fields: `rear_garage`/`microwave` are DESIGN.md §4.3's "plain yes/no"
-#: layout pair; `archived` is the propose-to-archive route for a `DISAPPEARED`
-#: product (`store/changes.py`) — a carry-through field, but one a proposal can touch.
-_BOOL_FIELDS: frozenset[str] = frozenset({"rear_garage", "microwave", "archived"})
+#: Plain boolean fields: DESIGN.md §4.3's "plain yes/no" layout pair. `archived` is
+#: not here — it's a carry-through field no proposal ever touches; a `DISAPPEARED`
+#: product gets a `disappearance_notice` (`store/changes.py`) instead, not a proposed
+#: CSV change.
+_BOOL_FIELDS: frozenset[str] = frozenset({"rear_garage", "microwave"})
 
 #: Single-select layout groups (DESIGN.md §4.3), field name -> enum class.
 _ENUM_FIELDS: dict[str, type[ColumnEnum]] = {

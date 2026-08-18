@@ -86,3 +86,18 @@ CREATE TABLE IF NOT EXISTS verification (
 );
 
 CREATE INDEX IF NOT EXISTS idx_verification_product ON verification (product_id);
+
+-- A baseline product not found on the manufacturer's site during a run
+-- (`ChangeKind.DISAPPEARED`). Deliberately not a `proposed_change`: there is no CSV
+-- field to change, so there's nothing to accept/reject — this is purely a note for a
+-- reviewer to go and consider manually deactivating the product on the FMLV Nova site.
+CREATE TABLE IF NOT EXISTS disappearance_notice (
+    id INTEGER PRIMARY KEY,
+    run_id INTEGER NOT NULL REFERENCES run (id),
+    product_id INTEGER NOT NULL REFERENCES product (id),
+    note TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_disappearance_notice_run ON disappearance_notice (run_id);
+CREATE INDEX IF NOT EXISTS idx_disappearance_notice_product ON disappearance_notice (product_id);

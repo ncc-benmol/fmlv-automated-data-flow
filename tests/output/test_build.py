@@ -238,25 +238,25 @@ def test_accepted_year_rollover_bumps_only_the_year(
     assert motorhome.rrp_pounds == 93950
 
 
-def test_accepted_archive_proposal_sets_archived_true(
+def test_disappeared_product_contributes_nothing_to_the_upload(
     connection: sqlite3.Connection, run_id: int
 ) -> None:
+    """A DISAPPEARED product gets a disappearance notice, not a proposed change — with
+    nothing accepted or corrected for it, the upload CSV must carry it through
+    unchanged rather than touching `archived` on the pipeline's own say-so."""
     baseline = make_baseline()
     diffs = diff_products([], [baseline])
     store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
 
-    [entry] = store.list_change_queue(connection, run_id)
-    assert entry.change.field == "archived"
-    store.record_decision(
-        connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
-    )
+    assert store.list_change_queue(connection, run_id) == []
+    [notice] = store.list_disappearance_notices(connection, run_id)
+    assert notice.product.fmlv_product_id == 4147
 
-    [motorhome] = build_upload_motorhomes(
+    motorhomes = build_upload_motorhomes(
         connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
     )
 
-    assert motorhome.archived is True
-    assert motorhome.product_id == 4147
+    assert motorhomes == []
 
 
 def test_generate_upload_writes_a_csv_in_fmlv_column_order_and_carries_product_id(

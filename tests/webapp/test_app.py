@@ -628,7 +628,7 @@ def test_year_rollover_proposal_is_marked_possible_rollover(
     assert "2027" in response.text
 
 
-def test_disappeared_product_shows_propose_to_archive(
+def test_disappeared_product_shows_a_disappearance_notice_with_no_decision_controls(
     client: TestClient, db_path: Path
 ) -> None:
     connection = store.connect(db_path)
@@ -644,9 +644,12 @@ def test_disappeared_product_shows_propose_to_archive(
     response = client.get(f"/runs/{run.id}")
 
     assert response.status_code == 200
-    assert 'class="badge archiving"' in response.text
-    assert "Propose to Archive" in response.text
-    assert 'class="product-group archiving-product"' in response.text
+    assert 'class="badge disappeared"' in response.text
+    assert "missing from site" in response.text
+    assert 'class="disappearance-notice"' in response.text
+    # No accept/reject/correct affordance — it's not a proposed CSV change.
+    assert 'class="decision-form"' not in response.text
+    assert 'class="accept-all-form"' not in response.text
 
 
 def test_accept_all_accepts_every_pending_change_for_one_product(

@@ -38,11 +38,11 @@
       --new-product-pale: #e3f0fb;
       --new-product-border: #7fb3e0;
       --new-product-text: #1c4e80;
-      /* Pale orange for a propose-to-archive card — same idea as the new-product
+      /* Pale orange for a disappearance-notice tile — same idea as the new-product
          blue, its own colour so the two "pay attention" states read as distinct at
          a glance. */
-      --archiving-product-pale: #fbebdb;
-      --archiving-product-border: #e0a35f;
+      --disappeared-product-pale: #fbebdb;
+      --disappeared-product-border: #e0a35f;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -57,8 +57,8 @@
         --new-product-pale: #16283a;
         --new-product-border: #3d7cae;
         --new-product-text: #7fb8f0;
-        --archiving-product-pale: #3a2a16;
-        --archiving-product-border: #ae7c3d;
+        --disappeared-product-pale: #3a2a16;
+        --disappeared-product-border: #ae7c3d;
         /* `--brand-green-dark` stays put (it's still used for the always-light
            topbar/footer, which don't flip with the theme) — headings that sit on the
            dark-mode pale-green tile need a brighter green instead, or the text
@@ -99,7 +99,7 @@
       margin-left: 0.4em;
     }
     .badge.new { border-color: var(--new-product-text); color: var(--new-product-text); }
-    .badge.archiving { border-color: var(--archiving-product-border); color: var(--archiving-product-border); }
+    .badge.disappeared { border-color: var(--disappeared-product-border); color: var(--disappeared-product-border); }
     .badge.high-suspicion { border-color: var(--correct); color: var(--correct); }
     .badge.running { border-color: var(--correct); color: var(--correct); }
     .badge.failed { border-color: var(--reject); color: var(--reject); }
@@ -116,13 +116,19 @@
       background: var(--new-product-pale);
       border-color: var(--new-product-border);
     }
-    /* Same idea, for a product proposed to be archived (DISAPPEARED from the
-       manufacturer's site this run) — pale orange rather than blue, so it doesn't
-       read as "new" at a glance. */
-    .product-group.archiving-product {
-      background: var(--archiving-product-pale);
-      border-color: var(--archiving-product-border);
+    /* A product missing from the manufacturer's site this run — no CSV change is
+       proposed for it, just a note inviting a reviewer to consider deactivating it
+       manually — pale orange rather than blue, so it doesn't read as "new" at a
+       glance. Its own card shape (not `.product-group`): there's no change queue
+       inside it to lay out, just the note. */
+    .disappearance-notice {
+      border: 1px solid var(--disappeared-product-border);
+      border-radius: 0.5rem;
+      padding: 0.8rem 1rem;
+      margin-bottom: 1rem;
+      background: var(--disappeared-product-pale);
     }
+    .disappearance-notice h3 { margin: 0 0 0.3rem; }
     .change-row {
       display: grid;
       grid-template-columns: 13rem 1fr auto;

@@ -119,7 +119,7 @@ def test_new_product_persists_every_extracted_field_with_no_old_value(
     assert queue[0].product.fmlv_product_id is None
 
 
-def test_disappeared_product_proposes_archiving_it(
+def test_disappeared_product_gets_a_disappearance_notice_not_a_proposed_change(
     connection: sqlite3.Connection, run_id: int
 ) -> None:
     baseline = make_baseline()
@@ -129,30 +129,23 @@ def test_disappeared_product_proposes_archiving_it(
         connection, run_id=run_id, manufacturer_id=3, diffs=diffs
     )
 
-    assert result.proposed == 1
-    assert result.archive_proposed == 1
+    assert result.proposed == 0
+    assert result.disappeared_noted == 1
     assert result.verified == 0
-    queue = store.list_change_queue(connection, run_id)
-    assert len(queue) == 1
-    entry = queue[0]
-    assert entry.change.field == "archived"
-    assert entry.change.old_value == "False"
-    assert entry.change.new_value == "True"
-    assert entry.change.source_url is None
+    assert store.list_change_queue(connection, run_id) == []
+    [entry] = store.list_disappearance_notices(connection, run_id)
     assert entry.product.fmlv_product_id == 4147
+    assert "not found" in entry.notice.note.lower()
 
 
-def test_rejected_archive_proposal_is_not_re_proposed_next_run(
+def test_disappearance_notice_is_recorded_again_every_run_it_recurs(
     connection: sqlite3.Connection, run_id: int
 ) -> None:
+    """Unlike a proposed change, there's no accept/reject to remember — a still-missing
+    product gets a fresh notice on the run detail page each run it stays missing."""
     baseline = make_baseline()
     first_diffs = diff_products([], [baseline])
     store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=first_diffs)
-
-    [entry] = store.list_change_queue(connection, run_id)
-    store.record_decision(
-        connection, proposed_change_id=entry.change.id, action="reject", decided_by="ben"
-    )
 
     second_run = store.start_run(
         connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
@@ -162,8 +155,8 @@ def test_rejected_archive_proposal_is_not_re_proposed_next_run(
         connection, run_id=second_run.id, manufacturer_id=3, diffs=second_diffs
     )
 
-    assert result.proposed == 0
-    assert result.suppressed_rejections == 1
+    assert result.disappeared_noted == 1
+    assert len(store.list_disappearance_notices(connection, second_run.id)) == 1
 
 
 def test_rejected_change_is_not_re_proposed_next_run(

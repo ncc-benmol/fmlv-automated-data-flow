@@ -426,9 +426,10 @@ def format_summary(summary: RunSummary) -> str:
     ]
     if persisted.year_rollover_proposed:
         lines.append(f"              of which {persisted.year_rollover_proposed} are year bumps")
-    if persisted.archive_proposed:
+    if persisted.disappeared_noted:
         lines.append(
-            f"              of which {persisted.archive_proposed} are propose-to-archive"
+            f"  missing     {persisted.disappeared_noted} product(s) not found on the "
+            "site — no CSV change proposed, consider deactivating manually"
         )
     lines.append(f"  verified    {persisted.verified} fields checked and unchanged")
     if persisted.suppressed_rejections:

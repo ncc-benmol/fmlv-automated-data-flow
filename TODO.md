@@ -151,12 +151,16 @@ Do this **before** committing to an adapter interface — the sites decide the s
             `source_url=None` and an explanatory snippet, so accepting it goes through
             the exact same accept/reject/correct plumbing as every other field. Shown
             with a "possible rollover" badge (`review/templates/partials/change_row.html`)
-- [ ] **[F]** Propose `archived = Yes` for products that vanish from a manufacturer's site
+- [x] **[P]** Note products that vanish from a manufacturer's site for manual review —
+      not `archived = Yes`: that's a CSV field change, and there's nothing to change
+      in the CSV here, only a reviewer decision to make on the FMLV Nova site itself.
+      `store/changes.py:persist_diff` writes a `disappearance_notice` row instead of a
+      `proposed_change`, shown as an orange, decision-free tile
+      (`partials/disappearance_notice.html`) on the run detail page.
 - [ ] **[F]** Materiality thresholds
 - [x] **[P]** Wire `diff_products` results into `proposed_change`/`verification` rows
-      — done in Phase 6: `store/changes.py:persist_diff`. `DISAPPEARED` products are
-      still not persisted (no actionable proposal exists for them yet — see the
-      `archived = Yes` item above).
+      — done in Phase 6: `store/changes.py:persist_diff`. `DISAPPEARED` products get a
+      `disappearance_notice` instead (see above) — there's no CSV proposal for them.
 - [ ] **[P]** Caching function - aim to not re-download exactly the same PDF assets I've we've already got a copy in data/snapshots. The except here would be if the existing pdf is more than 1 month old, in which case we should re-download anyway.
 
 ## Phase 6 — Review app

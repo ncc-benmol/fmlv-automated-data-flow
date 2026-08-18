@@ -27,16 +27,26 @@ range — and nothing in a model's own name separates `EXPEDITION 68` from
 `EXPEDITION COACHBUILT C73`. The range therefore always comes from *which document the
 model was read out of*, never from the model name. See `DEFAULT_RANGES`.
 
-Not extracted: price. Auto-Trail's price and options list is a rasterised image — the
-whole of page 2 extracts to four text runs, none of them a price — so there is no
-machine-readable price to propose, as for Swift and Rimor.
+Price comes from a second source, and is the one join this adapter makes. Auto-Trail's
+price and options list PDF is a rasterised image — the whole of page 2 extracts to four
+text runs, none of them a price — but each **range page** carries a `Price from` figure
+per model in plain HTML. Rendering the price list as images and reading it confirmed that
+this website figure is exactly the price list's `ON THE ROAD PRICE` column, on ten of ten
+models across two ranges, which is the basis FMLV's guide price records.
+
+The two sources name the same vehicle differently and in a different order — the document
+says `V-Line 610 Sport` where the page says `V-Line Sport 610`, and the page says
+`Expedition Van 54` where the document says `54` — so the join is on a key with the
+range's own words removed, never on position. See `_match_key` and `price_for`.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from decimal import Decimal
+from html import unescape
 from pathlib import Path
 
 from ..fetch.http import Fetcher
@@ -87,6 +97,20 @@ _SPEC_HREF = re.compile(
     re.IGNORECASE,
 )
 
+#: One model card on a range page: its link, its title and its "from" price.
+#:
+#: The three are captured in a single pattern that cannot cross a card boundary — the
+#: `(?:(?!</a>).)*?` guards stop at the end of the enclosing anchor — so a card with no
+#: price yields no match rather than silently borrowing the next card's.
+_CARD = re.compile(
+    r'<a\s+href="(?P<url>[^"]+)"\s+class="card">'
+    r"(?:(?!</a>).)*?"
+    r'<h4 class="card-title">(?P<name>[^<]*)</h4>'
+    r"(?:(?!</a>).)*?"
+    r'<div class="card-price">\s*Price from\s*£\s*(?P<price>[\d,]+(?:\.\d{2})?)',
+    re.S,
+)
+
 #: The roster each document states about itself, e.g.
 #: `Applicable to Expedition Coachbuilt C63, C71, C72, C73`. This is the manufacturer's
 #: own claim about how many models the document holds, and it is what makes a silently
@@ -112,10 +136,7 @@ _DASHES = re.compile(r"[‐-―−]")
 
 #: Body styles, as the documents state them. Only the coachbuilt and A-class ranges
 #: publish a `BODY STYLES` section; the four campervan ranges have none, so their
-#: `body_type` is deliberately left unset rather than guessed — all four are 2680mm
-#: high-roof conversions, but Adventure fits an elevating pop-top as standard and
-#: whether FMLV counts that as `campervan_elevating_roof` or `campervan_high_top` is a
-#: judgement for a reviewer, not for a parser.
+#: `body_type` is worked out from the roof instead — see `_campervan_body_type`.
 _BODY_STYLES: tuple[tuple[str, BodyType], ...] = (
     ("a-class", BodyType.A_CLASS),
     # "Hi-Line ... with over cab bed area" is an over-cab bed; "Lo-Line ... with over
@@ -125,6 +146,43 @@ _BODY_STYLES: tuple[tuple[str, BodyType], ...] = (
     ("low profile", BodyType.COACH_BUILT_LOW_PROFILE),
     ("over cab bed", BodyType.COACH_BUILT_OVER_CAB_BED),
 )
+
+#: Figures that exist only in the price list, which is a rasterised image no parser can
+#: read. Transcribed by a human reading the rendered pages, and applied **only where the
+#: specification document publishes nothing** — a parsed value always wins.
+#:
+#: There is exactly one. Expedition Coachbuilt C71's block omits `Max. gross weight`
+#: entirely (see `_reconciles`), but the price list gives it as `3,500/3,650/4,400kg`,
+#: matching its three siblings. The transcription was checked against Auto-Trail's own
+#: arithmetic across all 37 rows before being trusted: ex works excl. VAT + VAT + £635 of
+#: on-the-road charges reproduces the on-the-road price on every one.
+#:
+#: **This does not refresh itself.** If Auto-Trail reissue the price list with different
+#: weights, nothing here will notice, so every use is narrated with the date it was read
+#: and the reviewer sees the same in the provenance snippet. Re-verify at each model-year
+#: rollover — `docs/adapters/README.md` covers when those fall. Prefer leaving a field
+#: blank to adding to this table: a visible gap is safer than a stale figure, which is why
+#: it holds one entry and not a copy of the price list.
+_PRICE_LIST_SOURCE = "Price and Options List, 1st June 2026 (read from the page image)"
+_PRICE_LIST_READ_ON = "16 August 2026"
+_MANUALLY_SOURCED_MTPLM_KG: dict[tuple[str, str], int] = {
+    ("Expedition Coachbuilt", "C71"): 3500,
+}
+
+#: An elevating pop-top fitted **as standard**, which is what distinguishes
+#: `campervan_high_top_elevating_roof` from `campervan_high_top`. The trailing `Included`
+#: is the whole point: the same row reads `Cost option` on the Expedition Van, and an
+#: option does not change what the base vehicle is.
+_ELEVATING_ROOF_STANDARD = re.compile(
+    r"^[^\n]*elevating pop-top roof[^\n]*\bIncluded\s*$", re.MULTILINE | re.IGNORECASE
+)
+
+#: A campervan taller than this is a high top — the roof line materially above the side
+#: windows. Threshold set by the NCC side on 16 August 2026 from the live data: FMLV
+#: currently carries six standard-height campervans and **the tallest is 2050mm**, so
+#: 2300mm leaves a clear 250mm margin above every known standard roof while sitting far
+#: below the 2680mm that all sixteen Auto-Trail campervans share.
+HIGH_TOP_ABOVE_MM = 2300
 
 #: Bounds on a plausible payload, in kg. Auto-Trail's real payloads run 355–965 kg
 #: across the 37 layouts. These are wide enough not to reject a genuine outlier and
@@ -144,6 +202,32 @@ def _squash(value: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", value.upper())
 
 
+def _pounds(value: str) -> int:
+    """`'69,005.00'` -> `69005`, the whole pounds `rrp_pounds` carries."""
+    return round(Decimal(value.replace(",", "")))
+
+
+def _match_key(name: str, range_label: str) -> str:
+    """A model's identity with the range's own words removed, for joining page to PDF.
+
+    The range page and the specification document name the same vehicle differently, and
+    not merely by prefix — the range words move around the number. The roster says
+    `V-Line 610 Sport` where the card says `V-Line Sport 610`, so neither is a prefix of
+    the other and no amount of head-trimming aligns them. Dropping *every* word that
+    belongs to the range label, wherever it sits, leaves `610` on both sides.
+
+    Compared on alphanumerics only, so the card's `GF-80` and the roster's `GF-80` agree
+    regardless of punctuation, and the run of whitespace WordPress leaves inside
+    `F-Line         F60` is irrelevant.
+    """
+    range_words = {_squash(word) for word in range_label.split()}
+    return "".join(
+        squashed
+        for word in name.split()
+        if (squashed := _squash(word)) and squashed not in range_words
+    )
+
+
 def _leading_kilograms(value: str) -> int:
     """`'3500/3650/4400'` -> `3500`.
 
@@ -157,10 +241,14 @@ def _leading_kilograms(value: str) -> int:
 def _leading_int(value: str) -> int:
     """`'2-4'` -> `2`, the standard build.
 
-    Used for seat belts. Auto-Trail writes `Seatbelts 2-4 (inc. driver)` where the
-    upper figure needs optional belts — their own copy for the C73 calls it "a
-    six-berth, and *optional* six-belt motorhome" — so the lower figure is what the
-    vehicle has as built.
+    Used for **both** berths and seat belts, per the base-vehicle rule in
+    `docs/adapters/README.md`: where a manufacturer publishes a range, FMLV records what
+    the vehicle has as standard, because the upper figure is generally reached only with
+    options. Auto-Trail's own copy for the C73 calls it "a six-berth, and *optional*
+    six-belt motorhome", which is the same distinction in their words.
+
+    The upper figure is not discarded — `_trailing_int` still reads it for the
+    reconciliation check, which is the only thing it was ever load-bearing for.
     """
     return int(value.split("-")[0])
 
@@ -168,12 +256,14 @@ def _leading_int(value: str) -> int:
 def _trailing_int(value: str) -> int:
     """`'4-6'` -> `6`, the maximum.
 
-    Used for berths, on evidence rather than preference: the six documents that publish
-    a separate `Max. No. of berths` row agree with the trailing figure of `Sleeps` on
-    all 21 models, with no disagreement. It is also the figure Auto-Trail markets — the
-    `Sleeps 4-6` C73 is sold as "truly a six-berth". Taking the trailing figure keeps
-    one rule for all 37 layouts, including the 16 campervans whose documents have no
-    `Max. No. of berths` row to consult.
+    Used only for the two figures that *are* maxima: the separately published
+    `Max. No. of berths` row, and the upper bound of `Sleeps` that it is checked
+    against. The six motorhome documents publish both, and they agree on all 21 models
+    with no disagreement, which is what makes a slipped block boundary detectable — see
+    `_reconciles`.
+
+    Deliberately **not** used for `berths`. That the maximum is real is a different
+    question from what the vehicle sleeps as standard, and FMLV records the latter.
     """
     return int(value.split("-")[-1])
 
@@ -193,13 +283,21 @@ def _row(block: str, label: str) -> str | None:
 def _millimetres(block: str, label: str) -> int | None:
     """A dimension in mm, or `None` if the row is absent or malformed.
 
+    Takes the **first** figure where a row gives several, matching `_leading_kilograms`
+    and the base-vehicle rule in `docs/adapters/README.md`. The Frontier ranges publish
+    `Height 3030/3106mm`, where the extra 76 mm is the roof-mounted satellite dome in the
+    optional Media+ pack — an accessory, not the vehicle. Capturing the whole
+    slash-separated group rather than letting the pattern run to the last number is what
+    makes this deliberate: the earlier form ended up reading 3106 simply because it
+    anchored on `mm`.
+
     The `mm` unit is required rather than optional. The F-Line F74 publishes
     `Height 2880m` — a typo for 2880mm — and accepting a bare `m` would mean reading a
     figure whose unit the document got wrong. It stays unread, and `parse_models`
     narrates it so the gap is visible rather than silent.
     """
-    match = re.search(rf"^{label}[^\n]*?(\d[\d,]*)mm\s*$", block, re.MULTILINE)
-    return int(match.group(1).replace(",", "")) if match else None
+    match = re.search(rf"^{label}[^\n]*?([\d,]+(?:/[\d,]+)*)mm\s*$", block, re.MULTILINE)
+    return int(match.group(1).split("/")[0].replace(",", "")) if match else None
 
 
 def _dimension_row_present(block: str, label: str) -> bool:
@@ -207,9 +305,21 @@ def _dimension_row_present(block: str, label: str) -> bool:
     return re.search(rf"^{label}\b", block, re.MULTILINE) is not None
 
 
-def _count(block: str, label: str, *, take: Callable[[str], int]) -> int | None:
+def _figure(block: str, label: str) -> str | None:
+    """The raw figure on a labelled row: `'4-6'` from `Sleeps 4-6`, or `'4'` from `Sleeps 4`.
+
+    Kept as the published string rather than an int, because a range carries information
+    a single number cannot. `docs/adapters/README.md` requires the manufacturer's own
+    wording to reach the reviewer through the provenance snippet, so `berths` recording
+    `4` is visibly a reading of `4-6` rather than a claim that Auto-Trail printed `4`.
+    """
     match = re.search(rf"^{label}\s+(\d+(?:-\d+)?)", block, re.MULTILINE)
-    return take(match.group(1)) if match else None
+    return match.group(1) if match else None
+
+
+def _count(block: str, label: str, *, take: Callable[[str], int]) -> int | None:
+    figure = _figure(block, label)
+    return take(figure) if figure is not None else None
 
 
 @dataclass(frozen=True)
@@ -229,9 +339,20 @@ class AutoTrailProduct:
     towing_kilograms: int | None = None
     body_type: BodyType | None = None
     base_vehicle_manufacturer: str | None = None
+    rrp_pounds: int | None = None
+    #: True when `mtplm_kilograms` came from `_MANUALLY_SOURCED_MTPLM_KG` rather than from
+    #: the specification document, so `collect` can narrate it and the reviewer can see it.
+    mtplm_manually_sourced: bool = False
+    #: The `Sleeps` row exactly as published — `'4-6'`, or `'4'` where there is no range.
+    #: Carried into the provenance snippet so a reviewer seeing `berths = 4` can tell it
+    #: was read from `4-6` rather than printed as `4`.
+    sleeps_published: str | None = None
+    #: The upper bound of `Sleeps`. Never written to FMLV — `berths` records the standard
+    #: figure — but retained because it is one half of the berth cross-check.
+    sleeps_max: int | None = None
     #: `Max. No. of berths`, published by the six motorhome documents but by none of the
-    #: four campervan ones. Not written to FMLV — `berths` already carries it — but kept
-    #: as an independent confirmation of the berth count. See `_reconciles`.
+    #: four campervan ones. Not written to FMLV either; it is the other half of that
+    #: check, and the two must agree. See `_reconciles`.
     stated_max_berths: int | None = None
     #: Rows that exist in the document but could not be read, for `collect` to narrate.
     parse_warnings: tuple[str, ...] = ()
@@ -268,11 +389,22 @@ def _reconciles(product: AutoTrailProduct) -> bool:
     """
     mtplm, mro, mgtw = product.mtplm_kilograms, product.mro_kilograms, product.mgtw_kilograms
 
-    # The berth count is published twice by the motorhome documents — as the upper bound
-    # of `Sleeps` and again as `Max. No. of berths`. They agree on all 21 models that
-    # state both, so a disagreement means the block boundaries slipped and two models'
-    # figures have been mixed.
-    if product.stated_max_berths is not None and product.berths != product.stated_max_berths:
+    # The berth *maximum* is published twice by the motorhome documents — as the upper
+    # bound of `Sleeps` and again as `Max. No. of berths`. They agree on all 21 models
+    # that state both, so a disagreement means the block boundaries slipped and two
+    # models' figures have been mixed.
+    #
+    # Note this compares the two published maxima with each other, not with `berths`.
+    # `berths` records the *standard* figure (the lower bound of `Sleeps`, per the
+    # base-vehicle rule in `docs/adapters/README.md`), so comparing it against
+    # `Max. No. of berths` would reject every model whose `Sleeps` is a range — which is
+    # 17 of the 37 — while catching nothing. The check keeps its full strength here: it
+    # still fails if either figure comes out of the wrong block.
+    if (
+        product.stated_max_berths is not None
+        and product.sleeps_max is not None
+        and product.sleeps_max != product.stated_max_berths
+    ):
         return False
 
     if mgtw is not None and mtplm is not None and mgtw <= mtplm:
@@ -335,6 +467,49 @@ def find_spec_pdf_url(model_html: str) -> str | None:
     """
     match = _SPEC_HREF.search(model_html)
     return match.group(1) if match else None
+
+
+def parse_prices(range_html: str, range_label: str) -> dict[str, int]:
+    """Every model's "from" price on a range page, keyed by `_match_key`.
+
+    **This is the on-the-road price**, which is what FMLV's guide price records. Verified
+    against Auto-Trail's own price list, which prints four columns — ex works excluding
+    VAT, VAT, ex works including VAT, and on the road — and the website figure is the
+    last of them exactly, on ten of ten models checked across two ranges. The difference
+    is a flat £635 of number plates, twelve months' VED, delivery and first registration.
+
+    The price list PDF itself is a rasterised image and yields no text, so the range page
+    is the only machine-readable source for it. See `docs/adapters/auto-trail.md`.
+    """
+    prices: dict[str, int] = {}
+    for match in _CARD.finditer(range_html):
+        name = re.sub(r"\s+", " ", unescape(match.group("name"))).strip()
+        key = _match_key(name, range_label)
+        if key:
+            prices.setdefault(key, _pounds(match.group("price")))
+    return prices
+
+
+def price_for(model: str, range_label: str, prices: dict[str, int]) -> int | None:
+    """One model's price, matched by suffix on the range-stripped key.
+
+    Suffix rather than equality, because the campervan Expedition cards carry a word the
+    document does not: the page says `Expedition Van 54` where the roster says `54`.
+    ("Expedition Van" is the document-internal name; the range is called "Expedition"
+    everywhere on the website, so neither side can simply be renamed to match.)
+
+    Suffix matching is safe against the overlapping campervan names for the same reason
+    it is safe when slicing the PDF into blocks — the variants extend the tail. `68` does
+    not take `68 XL`'s price, because `VAN68XL` does not end with `68`.
+
+    An ambiguous match yields `None` rather than a guess. Prices are the one field here
+    with no arithmetic check behind them, so a wrong one would be invisible.
+    """
+    key = _match_key(model, range_label)
+    if not key:
+        return None
+    matched = [price for card_key, price in prices.items() if card_key.endswith(key)]
+    return matched[0] if len(matched) == 1 else None
 
 
 # --------------------------------------------------------------------------- #
@@ -411,10 +586,55 @@ def _find_blocks(text: str, roster: list[str], range_label: str) -> list[tuple[s
     return blocks
 
 
+def _campervan_body_type(block: str) -> BodyType | None:
+    """A campervan's body type, from its roof — see the body-type rule in `README.md`.
+
+    Two independent questions. **Is the roof a high top?** — the roof line materially above
+    the side windows, which shows up as a published height far beyond a standard panel van;
+    all sixteen Auto-Trail campervans are 2680mm. **Does it have an elevating roof?** — and
+    critically, *as standard*, because the base-vehicle rule governs here as everywhere.
+
+    Auto-Trail state it in a way that makes the distinction readable:
+
+        Colour coded elevating pop-top roof (including bathroom window)  Included    <- Adventure
+        Colour coded elevating pop-top roof (bathroom window included)   Cost option <- Expedition
+
+    So the Adventure is a high top *with* an elevating roof, and the Expedition Van is a
+    high top whose pop-top is an extra the buyer may not have. The word at the end of the
+    row decides it, not the presence of the feature.
+
+    The two questions are independent, so between them they settle all four campervan body
+    types — no case is left to judgement:
+
+    ==================  ====================  ==============================
+    Height              No elevating roof     Elevating roof as standard
+    ==================  ====================  ==============================
+    > 2300mm            high top              high top + elevating roof
+    <= 2300mm           campervan             campervan + elevating roof
+    ==================  ====================  ==============================
+
+    A missing height is the one thing that yields `None`, because then neither question can
+    be answered.
+    """
+    height = _millimetres(block, "Height")
+    if height is None:
+        return None
+    elevating = _ELEVATING_ROOF_STANDARD.search(block) is not None
+    if height > HIGH_TOP_ABOVE_MM:
+        return (
+            BodyType.CAMPERVAN_HIGH_TOP_ELEVATING_ROOF
+            if elevating
+            else BodyType.CAMPERVAN_HIGH_TOP
+        )
+    return BodyType.CAMPERVAN_ELEVATING_ROOF if elevating else BodyType.CAMPERVAN
+
+
 def _body_type(block: str) -> BodyType | None:
     match = re.search(r"^BODY STYLES\s*\n(.+)$", block, re.MULTILINE)
     if match is None:
-        return None
+        # No `BODY STYLES` section means a campervan document — the four campervan ranges
+        # publish none, the six motorhome ranges all do.
+        return _campervan_body_type(block)
     described = match.group(1).lower()
     return next((body for token, body in _BODY_STYLES if token in described), None)
 
@@ -453,16 +673,29 @@ def parse_models(text: str, range_label: str) -> list[AutoTrailProduct]:
             if dimensions[name] is None and _dimension_row_present(block, pattern)
         )
 
+        # `Sleeps` yields three things: the standard figure FMLV records, the maximum
+        # that `Max. No. of berths` is checked against, and the published wording that
+        # the reviewer needs in order to see that `4` came out of `4-6`.
+        sleeps = _figure(block, "Sleeps")
+
+        # The document always wins; the manual figure only fills a hole it leaves.
+        parsed_mtplm = _leading_kilograms(mtplm) if mtplm else None
+        manual_mtplm = _MANUALLY_SOURCED_MTPLM_KG.get((range_label, model))
+        mtplm_kilograms = parsed_mtplm if parsed_mtplm is not None else manual_mtplm
+
         products.append(
             AutoTrailProduct(
                 range_label=range_label,
                 model=model,
-                berths=_count(block, "Sleeps", take=_trailing_int),
+                berths=_leading_int(sleeps) if sleeps is not None else None,
+                sleeps_published=sleeps,
+                sleeps_max=_trailing_int(sleeps) if sleeps is not None else None,
                 mh_passenger_seats_inc_driver=_count(block, "Seatbelts", take=_leading_int),
                 mh_length_mm=dimensions["Length"],
                 mh_width_mm=dimensions["Width"],
                 mh_height_mm=dimensions["Height"],
-                mtplm_kilograms=_leading_kilograms(mtplm) if mtplm else None,
+                mtplm_kilograms=mtplm_kilograms,
+                mtplm_manually_sourced=parsed_mtplm is None and manual_mtplm is not None,
                 mro_kilograms=_leading_kilograms(mro) if mro else None,
                 mgtw_kilograms=_leading_kilograms(mgtw) if mgtw else None,
                 towing_kilograms=_leading_kilograms(towing) if towing else None,
@@ -481,7 +714,9 @@ def parse_models(text: str, range_label: str) -> list[AutoTrailProduct]:
 # --------------------------------------------------------------------------- #
 
 
-def _build_extracted_motorhome(product: AutoTrailProduct, spec_url: str) -> ExtractedMotorhome:
+def _build_extracted_motorhome(
+    product: AutoTrailProduct, spec_url: str, range_url: str
+) -> ExtractedMotorhome:
     motorhome = Motorhome(
         manufacturer=MANUFACTURER,
         manufacturer_display_name=MANUFACTURER_DISPLAY_NAME,
@@ -490,6 +725,7 @@ def _build_extracted_motorhome(product: AutoTrailProduct, spec_url: str) -> Extr
         base_vehicle_manufacturer=product.base_vehicle_manufacturer,
         berths=product.berths,
         mh_passenger_seats_inc_driver=product.mh_passenger_seats_inc_driver,
+        rrp_pounds=product.rrp_pounds,
         mro_kilograms=product.mro_kilograms,
         mtplm_kilograms=product.mtplm_kilograms,
         mh_payload_kilograms=product.mh_payload_kilograms,
@@ -499,8 +735,11 @@ def _build_extracted_motorhome(product: AutoTrailProduct, spec_url: str) -> Extr
         body_type=product.body_type,
     )
 
+    # `berths` records the standard figure, so the snippet carries Auto-Trail's own
+    # wording rather than the parsed number — a reviewer seeing `4` needs to know the
+    # document said `4-6`, which one integer cannot tell them.
     snippets = {
-        "berths": ("Sleeps", product.berths),
+        "berths": ("Sleeps", product.sleeps_published),
         "mh_passenger_seats_inc_driver": ("Seatbelts (inc. driver)", product.mh_passenger_seats_inc_driver),
         "mh_length_mm": ("Length", product.mh_length_mm),
         "mh_width_mm": ("Width (excl. door mirrors)", product.mh_width_mm),
@@ -517,6 +756,30 @@ def _build_extracted_motorhome(product: AutoTrailProduct, spec_url: str) -> Extr
         for field, (row, value) in snippets.items()
         if value is not None
     }
+    # Overwrite the spec-document provenance where the figure did not come from there,
+    # so the reviewer is told it was read off an image by a person and when.
+    if product.mtplm_manually_sourced and product.mtplm_kilograms is not None:
+        provenance["mtplm_kilograms"] = Provenance(
+            source_url=f"{BASE_URL}/price-list/",
+            snippet=(
+                f"{product.label} — {product.mtplm_kilograms}kg, MANUALLY SOURCED from the "
+                f"{_PRICE_LIST_SOURCE} on {_PRICE_LIST_READ_ON}, because the technical "
+                f"specification omits the Max. gross weight row for this model. Not "
+                f"machine-readable and not refreshed by later runs — re-verify at the next "
+                f"model-year changeover"
+            ),
+        )
+
+    if product.rrp_pounds is not None:
+        provenance["rrp_pounds"] = Provenance(
+            source_url=range_url,
+            snippet=(
+                f"{product.label} — Price from £{product.rrp_pounds:,}. This is the "
+                f"on-the-road price, which Auto-Trail's price list defines as the "
+                f"ex-works price including VAT plus £635 of number plates, twelve "
+                f"months' vehicle excise duty, delivery and first registration fee"
+            ),
+        )
     if product.mh_payload_kilograms is not None:
         provenance["mh_payload_kilograms"] = Provenance(
             source_url=spec_url,
@@ -530,25 +793,34 @@ def _build_extracted_motorhome(product: AutoTrailProduct, spec_url: str) -> Extr
     return ExtractedMotorhome(motorhome=motorhome, provenance=provenance)
 
 
-def _spec_pdf_for_range(
+def _fetch_range_page(
     http: Fetcher,
-    path: str,
+    range_url: str,
     label: str,
     on_progress: Callable[[str], None],
 ) -> str | None:
-    """Find a range's spec PDF: range page -> a model page -> the `Tech-Spec` link.
+    """A range page's HTML, which carries both the model links and the "from" prices."""
+    page = http.fetch(range_url)
+    if page.status_code != 200:
+        on_progress(f"[{label}] SKIPPED: {range_url} returned {page.status_code}")
+        return None
+    return page.file_path.read_text(encoding="utf-8", errors="replace")
+
+
+def _spec_pdf_for_range(
+    http: Fetcher,
+    range_html: str,
+    range_url: str,
+    label: str,
+    on_progress: Callable[[str], None],
+) -> str | None:
+    """Find a range's spec PDF: a model page linked from the range page -> `Tech-Spec`.
 
     Every model in a range links the same document, so the first model page that yields
     one is enough. Later ones are still tried if an early page has been rebuilt without
     the link, which costs a fetch only in the case that would otherwise lose the range.
     """
-    range_url = f"{BASE_URL}/{path}/"
-    range_page = http.fetch(range_url)
-    if range_page.status_code != 200:
-        on_progress(f"[{label}] SKIPPED: {range_url} returned {range_page.status_code}")
-        return None
-
-    model_urls = find_model_urls(range_page.file_path.read_text(encoding="utf-8", errors="replace"))
+    model_urls = find_model_urls(range_html)
     if not model_urls:
         on_progress(f"[{label}] SKIPPED: no model pages linked from {range_url}")
         return None
@@ -586,7 +858,19 @@ def collect(
 
     for path, label in ranges:
         on_progress(f"[{label}] finding the current technical specification...")
-        spec_url = _spec_pdf_for_range(http, path, label, on_progress)
+        range_url = f"{BASE_URL}/{path}/"
+        range_html = _fetch_range_page(http, range_url, label, on_progress)
+        if range_html is None:
+            continue
+
+        prices = parse_prices(range_html, label)
+        if not prices:
+            on_progress(
+                f"[{label}] WARNING: no 'Price from' cards on {range_url}; "
+                f"weights and dimensions will still be collected, but no price"
+            )
+
+        spec_url = _spec_pdf_for_range(http, range_html, range_url, label, on_progress)
         if spec_url is None:
             continue
 
@@ -633,6 +917,27 @@ def collect(
                 continue
             for warning in product.parse_warnings:
                 on_progress(f"[{label}] {product.label} — WARNING: {warning}")
+
+            if product.mtplm_manually_sourced:
+                on_progress(
+                    f"[{label}] {product.label} — NOTE: the specification publishes no "
+                    f"max. gross weight, so {product.mtplm_kilograms}kg was taken from the "
+                    f"{_PRICE_LIST_SOURCE}, read on {_PRICE_LIST_READ_ON}. That figure does "
+                    f"not refresh itself — re-verify at the next model-year changeover"
+                )
+
+            # The price lives on the range page, the specs in the PDF, so this is the one
+            # join in the adapter. A model the page does not price is proposed without
+            # one rather than dropped: the weights are still good, and a silently
+            # missing price is exactly what the narration exists to prevent.
+            price = price_for(product.model, label, prices)
+            if price is None and prices:
+                on_progress(
+                    f"[{label}] {product.label} — WARNING: no 'Price from' card matched "
+                    f"this model, so no price is proposed for it"
+                )
+            product = replace(product, rrp_pounds=price)
+
             if not _towing_identity_holds(product):
                 on_progress(
                     f"[{label}] {product.label} — WARNING: "
@@ -640,7 +945,7 @@ def collect(
                     f"max gross != {product.towing_kilograms}kg max towing. Auto-Trail's own "
                     f"figures disagree; the weights below are still as published"
                 )
-            results.append(_build_extracted_motorhome(product, spec_url))
+            results.append(_build_extracted_motorhome(product, spec_url, range_url))
 
     on_progress(f"{len(results)} product(s) collected")
     return results

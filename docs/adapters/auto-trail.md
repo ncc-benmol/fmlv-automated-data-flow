@@ -49,20 +49,70 @@ only. Do not surface it to reviewers as the range name.
 
 ## Where the data lives
 
-**Not in the HTML, and not in the price list.** Both were checked:
+**Specifications and price come from two different documents**, and joining them is the
+only join this adapter makes.
 
+- **Specifications** — the per-range **Website Tech Spec** PDFs, linked from each model
+  page (not from `/downloads/`, which lists brochures and owner's manuals only).
+- **Price** — the **range pages**, which carry a `Price from` figure per model in plain
+  server-rendered HTML (`needs_javascript=no`).
 - **Model page HTML** carries a "Specifications" block with berths, seatbelts, total
-  seats, standard engine, length and width — but **no weights and no price**. It is
-  server-rendered (`needs_javascript=no`), and is useful as the cross-check, not as the
-  source.
+  seats, standard engine, length and width — but no weights. Useful as a cross-check, not
+  as the source.
 - **The price and options list PDF** (`Motorhome-Price-and-Options-List-1st-June-2026.pdf`)
   is a **rasterised image**. `extract_text` returns the page headings and footnotes only;
-  page 2 yields four text runs in total and not one of them is a price. There is no
-  published, machine-readable price for Auto-Trail. `rrp_pounds` is therefore never
-  proposed, as for Swift and Rimor.
+  page 2 yields four text runs in total and not one of them is a price. It is unusable as
+  a parsing source — but see below, because it is not unusable as a *reference*.
 
-Everything numeric comes from the per-range **Website Tech Spec** PDFs, linked from each
-model page (not from `/downloads/`, which lists brochures and owner's manuals only).
+### The price is the on-the-road price, and that was verified rather than assumed
+
+The range page shows `F-Line F60 — Price from £69,005.00`. Rendering the scanned price
+list to images and reading it (`pymupdf`, 130 dpi — `extract_text` cannot help here)
+shows the same vehicle in a four-column table:
+
+| Model | Ex works (excl. VAT) | VAT (20%) | Ex works (incl. VAT) | **On the road\*** |
+|---|---|---|---|---|
+| F60 | £56,975.00 | £11,395.00 | £68,370.00 | **£69,005.00** |
+
+The website figure is the **on-the-road** column exactly, on **ten of ten models checked
+across two ranges** (all six F-Line, all four Expedition Coachbuilt), and the arithmetic
+closes: £68,370 + £635 = £69,005, where the £635 is the price list's own footnote —
+"number plates, twelve month's vehicle excise duty, delivery and first registration fee
+(as set by HM Government)". On-the-road is the basis FMLV's guide price records, so the
+website figure is taken as published, with no adjustment.
+
+An earlier revision of this document concluded that Auto-Trail publishes no
+machine-readable price and that `rrp_pounds` is never proposed, as for Swift and Rimor.
+That was right about the PDF and wrong about the manufacturer: the price was in the HTML
+all along, one level up from the model pages that were surveyed. **The lesson worth
+keeping is that "the document that should hold X does not" is not the same finding as
+"X is not published."**
+
+### Reading an image-only PDF, and the full audit it made possible
+
+Nothing automated can extract from this document, but the pages can be **rendered and read
+visually** — `pymupdf` at 130 dpi (`extract_text` is useless here, and the repo has no
+poppler for `pdftoppm`). That turned an unusable document into the best verification the
+project has had, because the price list also prints **Gross Vehicle Weight** and **Overall
+Length** per model, from a source entirely independent of the tech specs.
+
+All nine price pages were transcribed and cross-checked on 16 August 2026. Two things made
+that trustworthy rather than a leap of faith:
+
+1. **The document validates its own transcription.** Four price columns are redundant:
+   ex works excl. VAT + VAT = incl. VAT, and incl. VAT + £635 = on the road. A misread
+   digit breaks one of them. **34 of 37 rows are exactly self-consistent.**
+2. **The result was then compared with the adapter's parse.** 110 values across all 37
+   products — price, MTPLM, overall length — with **zero mismatches**.
+
+The three rows that fail the arithmetic are **a misprint in Auto-Trail's price list, not a
+transcription error** — confirmed by a second independent read of the document. Imala 730, 736 and 736G each show `£31,461.00` in the ex works
+incl. VAT column where £67,884 + £13,577 = **£81,461** — an 8 printed as a 3. The
+on-the-road column is unaffected and correct (£81,461 + £635 = £82,096, exactly as
+printed), so the figure FMLV records is right and nothing needs changing. Worth passing
+back to Auto-Trail.
+
+That audit is also what filled the one gap the parser could not: see the C71 note below.
 
 A model's block looks like this, verbatim from the Expedition Coachbuilt document:
 
@@ -112,11 +162,17 @@ detectable.
 
 For the weights and berths, three checks:
 
-1. **Berths are published twice.** The upper bound of `Sleeps 4-6` and the separate
-   `Max. No. of berths` row agree on **all 21 models that state both, with no
-   disagreement** — which is both why `berths` takes the trailing figure and how a
-   slipped block boundary is caught. The four campervan documents have no
-   `Max. No. of berths` row, so this is available on 21 of 37.
+1. **The berth maximum is published twice.** The upper bound of `Sleeps 4-6` and the
+   separate `Max. No. of berths` row agree on **all 21 models that state both, with no
+   disagreement**, which is how a slipped block boundary is caught. The four campervan
+   documents have no `Max. No. of berths` row, so this is available on 21 of 37.
+
+   Note the check compares the two published *maxima* with each other, not either of them
+   against `berths`. `berths` records the **lower** bound — the standard build, per the
+   base-vehicle rule in [`README.md`](README.md) — so comparing it against
+   `Max. No. of berths` would reject every model whose `Sleeps` is a range, which is 17 of
+   the 37, while catching nothing. The adapter keeps `sleeps_max` alongside `berths`
+   purely so this check retains its full strength.
 2. **Ordering and payload plausibility**, available on all 37: `MGTW > MTPLM > MRO`, and
    `payload = MTPLM − MRO` within 100–2000 kg (real values run 355–965 kg). This is the
    drop criterion, and it is what catches the C71 trap below.
@@ -149,6 +205,34 @@ check 1 is a **narrated warning**, not a drop, and check 2 is the drop criterion
    check 1 matters: a loose parser reads C71's MTPLM as 4750 kg, and the result — a
    plausible 7.26 m motorhome with a 1670 kg payload — looks entirely reasonable. MTPLM
    must be optional, and absent rather than guessed.
+
+   **The figure does exist, in the price list**, which gives C71 as `3,500/3,650/4,400kg`.
+   That document is a rasterised image, so no parser can reach it — but a person can read
+   it, and on 16 August 2026 one did. C71's MTPLM is **3500 kg**, and it now comes from
+   `_MANUALLY_SOURCED_MTPLM_KG` rather than being left blank.
+
+   Three independent things agree on that figure, which is why it was trusted:
+
+   - The price list prints `3,500/3,650/4,400kg`, and the transcription of the whole
+     document was validated against Auto-Trail's own VAT arithmetic on all 37 rows. A
+     second, independent read of the same document on 16 August 2026 reproduced all 21
+     motorhome rows identically, including this one.
+   - **The optional extras pages confirm which of the three figures is the vehicle.**
+     `Gross vehicle weight upgrade from 3,500kg to 3,650kg before vehicle registration —
+     FOC` and `4,400kg chassis upgrade from 3,500/3,650kg before registration — £1,200`.
+     So 3,500 kg is the build, 3,650 an upgrade applied before registration, and 4,400 a
+     paid option. This also settles the one place the base-vehicle rule looked strained:
+     a *no-cost* uprate is still an uprate, not the vehicle.
+   - **The technical specification corroborates it without publishing it.** C71 states
+     `Max. gross train weight 4750kg` and `Max. towing weight 1250kg`, and 4750 − 1250 =
+     3500. The towing identity closes exactly, from a different document.
+   - Its three siblings, C63/C72/C73, are all 3500 kg.
+
+   The entry is deliberately marked as manual: `collect` narrates it on every run and the
+   reviewer's provenance snippet says it was read off a page image, on what date, and that
+   **it does not refresh itself**. Prefer a visible gap to a stale figure — that table
+   holds one entry, not a copy of the price list, and it must be re-verified at each
+   model-year changeover.
 
 3. **Campervans use a different label**: `Max. authorised weight 3500kg`, not
    `Max. gross weight`. All 16 campervans publish MTPLM this way. Matching only the
@@ -190,20 +274,48 @@ check 1 is a **narrated warning**, not a drop, and check 2 is the drop criterion
     range label, compared on alphanumerics only. Frontier's roster (`Delaware, Scout,
     Comanche`) carries no range name at all and is left untouched.
 
-## Berths and seats: different rules, on purpose
+11. **Height can be two figures too**: the Frontier ranges publish `Height 3030/3106mm`.
+    The extra 76 mm is the roof-mounted satellite dome in the optional Media+ pack, so
+    3030 is the vehicle. This one is easy to get wrong in a way trap 4 is not: a
+    dimension pattern anchored on `mm` skips *forward* past the slash and lands on 3106,
+    the exact opposite of the leading-figure rule applied to weights. Capture the whole
+    slash-separated group, then take the first.
 
-`berths` takes the **upper** figure of `Sleeps 4-6`; `mh_passenger_seats_inc_driver`
-takes the **lower** figure of `Seatbelts 4-6 (inc. driver)`.
+12. **The page and the document name the same vehicle differently, and in a different
+    order.** This is what makes the price join non-trivial. The roster says
+    `V-Line 610 Sport` where the card says `V-Line Sport 610`, so neither string is a
+    prefix of the other and no head-trimming aligns them; and the campervan cards say
+    `Expedition Van 54` where the roster says just `54`. Position is no help either —
+    the Frontier range page lists Scout, Delaware, Comanche while the document's roster
+    says Delaware, Scout, Comanche. The join drops every word belonging to the range
+    label, wherever it appears, then matches on suffix. Suffix matching is safe here for
+    the same reason it is when slicing blocks: the variants extend the tail, so `68` does
+    not take `68 XL`'s price.
 
-The asymmetry is Auto-Trail's, not an oversight. The berth maximum is confirmed by their
-own `Max. No. of berths` row on all 21 models that publish one, and it is how they
-market the vehicles — the `Sleeps 4-6` C73 is sold as "truly a six-berth". The upper belt
-figure has no such confirming row, and the same sentence calls it "*optional* six-belt",
-so the lower figure is what the vehicle has as built.
+## Berths and seats: both take the standard figure
 
-**Worth a reviewer's confirmation:** the seat-belt choice is the weaker of the two. If
-FMLV wants the maximum belted seats rather than the standard, that is a one-line change
-(`_leading_int` to `_trailing_int` in `parse_models`).
+`berths` takes the **lower** figure of `Sleeps 4-6`, and
+`mh_passenger_seats_inc_driver` the **lower** figure of `Seatbelts 4-6 (inc. driver)`.
+Both follow the base-vehicle rule in [`README.md`](README.md): FMLV has one column per
+spec, and it records the vehicle as standard.
+
+Auto-Trail's own copy makes the same distinction — the `Sleeps 4-6` C73 is sold as "truly
+a six-berth, and *optional* six-belt motorhome". The sixth berth and the fifth and sixth
+belts are both things the buyer adds.
+
+**This reversed an earlier decision, and the reasoning behind that decision was sound**,
+so it is worth recording why it did not survive. The adapter previously took the upper
+berth figure, on the evidence that Auto-Trail's separate `Max. No. of berths` row agrees
+with it on all 21 models that publish one. That evidence is real, and the check built on
+it is retained — but it establishes that the *maximum* is genuinely 6, which is a
+different question from what the vehicle sleeps as standard. FMLV records the latter
+(decision from the NCC side, 16 August 2026: "most of the time the higher figure will be
+related to options").
+
+Consequently `berths` records 4 for the C73 while `sleeps_max` and `stated_max_berths`
+both hold 6 and are checked against each other. The provenance snippet carries
+Auto-Trail's published wording — `Sleeps: 4-6` — so a reviewer seeing `berths = 4` can
+tell it was read from a range rather than printed as `4`.
 
 ## Product count
 
@@ -212,27 +324,39 @@ range pages, the price list's per-range "Applicable to" footnotes, and the row c
 within the documents themselves (37 `Sleeps` rows, 37 `Chassis type` rows). The
 motorhome figure of 21 also matches the price list PDF exactly.
 
-## First run
+## Runs
 
-13 August 2026, all ten ranges: **37 products, 30 fetches, 31 seconds, none dropped.**
+**13 August 2026**, all ten ranges: 37 products, 30 fetches, 31 seconds, none dropped.
 Two warnings, both expected and both genuine document faults rather than parse failures:
 the F74 height typo and the Comanche towing figure.
 
-Three products hand-checked against the source document, chosen to cover the three
-weight traps:
+**16 August 2026**, after adding price, changing berths to the standard figure, and
+sourcing C71's weight from the price list image: **37 products, 37 priced, none dropped,
+one field blank** (F74's height, the `2880m` typo). Two warnings as before, plus a note
+narrating the manually sourced C71 weight.
 
-| | Berths | Seats | L×W×H (mm) | MTPLM | MRO | Payload |
-|---|---|---|---|---|---|---|
-| Imala 736G | 6 | 4 | 7258×2353×3065 | 3500 | 3075 | 425 |
-| Adventure 65 | 4 | 4 | 6363×2050×2680 | 3500 | 3145 | 355 |
-| Grande Frontier GF-80 | 4 | 2 | 8070×2350×3040 | 4500 | 3725 | 775 |
+Products hand-checked against the source documents, chosen to cover every weight trap and
+now the price too:
 
-All three match. Imala 736G exercises the multi-value `3500/3650/4400kg` row, Adventure
-65 the campervan-only `Max. authorised weight` label, and GF-80 the parenthetical trap —
-its row reads `Max. gross weight (with 3650kgs no cost option) 4500kg`, and 4500 is
-correct.
+| | Berths | Seats | L×W×H (mm) | MTPLM | MRO | Payload | Price |
+|---|---|---|---|---|---|---|---|
+| Imala 736G | 4 | 4 | 7258×2353×3065 | 3500 | 3075 | 425 | £82,096 |
+| Adventure 65 | 4 | 4 | 6363×2050×2680 | 3500 | 3145 | 355 | £85,860 |
+| Grande Frontier GF-80 | 4 | 2 | 8070×2350×3040 | 4500 | 3725 | 775 | £129,784 |
+| Frontier Comanche | 4 | 2 | 8799×2350×3030 | 5000 | 4035 | 965 | £125,506 |
+| F-Line F60 | 2 | 2 | 5994×2350×2880 | 3500 | 2790 | 710 | £69,005 |
 
-The run also emits `the export has no rows for 'Auto-Trail', so every scraped product was
+All match. Imala 736G exercises the multi-value `3500/3650/4400kg` row, Adventure 65 the
+campervan-only `Max. authorised weight` label, GF-80 the parenthetical trap (its row reads
+`Max. gross weight (with 3650kgs no cost option) 4500kg`, and 4500 is correct), and
+Comanche the dual height.
+
+The weights and lengths were checked against the **price list's** own Gross Vehicle Weight
+and Overall Length columns as well as the tech spec — a genuinely independent document.
+Comanche's 5,000 kg / 8.80 m and GF-80's 4,500 kg / 8.07 m both agree, as do all four
+prices against the price list's On The Road column.
+
+Runs currently emit `the export has no rows for 'Auto-Trail', so every scraped product was
 classified as new`, which is the unconfirmed join key below doing exactly what it should.
 
 ## What is unverified
@@ -245,9 +369,16 @@ classified as new`, which is the unconfirmed join key below doing exactly what i
   first real run is reviewed.
 - `ncc_supplier_name = "Auto-Trail"` is likewise inherited and not confirmed against the
   NCC export dropdown.
-- Whether FMLV wants the awning-inclusive width (`2408mm with awning`) or the bare width
-  (`2373mm`) is a judgement — the adapter takes the bare width, which is the figure the
-  model page HTML also shows.
+- ~~Whether FMLV wants the awning-inclusive width or the bare width~~ — **settled, 16
+  August 2026:** the bare width (`2373mm`), excluding both door mirrors and awning. Now a
+  general rule for every manufacturer, in [`README.md`](README.md): "the basic width of
+  the vehicle without wing mirrors, as most vehicles are normally quoted." It is also the
+  figure the model page HTML shows.
+- **Whether the £635 of on-the-road charges belongs in the guide price** was settled the
+  same day — it does, FMLV records the on-the-road figure — but the corresponding question
+  for the *other* manufacturers is still open. Morelo and Sunlight prices come from their
+  price lists on an unstated basis, so Auto-Trail's prices may not currently be on the
+  same footing as theirs.
 - **`body_type` is unset for all 16 campervans.** Only the six coachbuilt and A-class
   ranges publish a `BODY STYLES` section. All four campervan ranges are 2680mm high-roof
   Ducato conversions, but Adventure fits an elevating pop-top as standard (`Included`)

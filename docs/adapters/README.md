@@ -5,6 +5,133 @@ Six data points now: [Adria](adria.md), [Morelo](morelo.md), [Swift](swift.md),
 enough that the ordering of the questions below matters more than any of the individual
 answers.
 
+## Data rules that apply to every manufacturer
+
+These are **domain decisions, not technical ones.** They come from the NCC side, they hold
+for every adapter present and future, and they were previously scattered across individual
+brand surveys where the next person would not find them. Do not re-decide them per
+manufacturer — if one genuinely does not fit, raise it rather than quietly diverging.
+
+### One column, so record the base vehicle
+
+FMLV has a single column per spec. Where a manufacturer publishes two figures for the same
+measurement, record the vehicle **as standard** — not the variant with optional or bolt-on
+equipment. The base figure is the honest one, and it is how vehicle specs are
+conventionally quoted.
+
+| Spec | Rule | Example |
+|---|---|---|
+| **Width** | **Exclude wing/door mirrors, and exclude awnings.** Where both figures are given, take the narrower body width. | Auto-Trail `Width (excl. door mirrors) 2373mm` with `(2408mm with awning)` → **2373** |
+| **Berths** | **The lower figure of a range.** The higher figure is usually reached only with options. | `Sleeps 4-6` → **4**; Rimor's `4 (+1 opt)` → **4**; Sunlight's `2 - 3 OPT` → **2** |
+| **Seats** | The standard figure, on the same reasoning | `Seatbelts 4-6 (inc. driver)` → **4** |
+| **Dual height / weight values** | Base figure by default, but confirm per case — a *no-cost* uprate is arguably not an "extra" | `Height 3030/3106mm` → 3030; `Max. gross weight … 3500/3650kg` → 3500 |
+
+Whenever a single number cannot express the whole truth, carry the manufacturer's **raw
+published wording into the `Provenance` snippet** — a reviewer needs to see `4-6` even
+though `berths` records `4`. Sunlight and Rimor already do this.
+
+> **Auto-Trail currently diverges and needs changing.** `auto_trail.py` takes the *upper*
+> `Sleeps` figure, on the evidence that Auto-Trail's own `Max. No. of berths` row agrees
+> with it on all 21 motorhome models. That establishes the true *maximum*, which is a
+> different question from what the vehicle sleeps as standard, and the rule above governs.
+> Note the upper figure is also load-bearing in that adapter's `_reconciles` self-check
+> (it drops any product where `berths != stated_max_berths`), so the check must be rewired
+> to compare the two published maxima with each other rather than against the recorded
+> `berths`. Sunlight and Rimor already comply.
+
+### Campervans are ordinary products with a different set of body types
+
+A campervan needs **no special handling anywhere in the pipeline**. It is a `Motorhome`
+record with the same fields, the same validation and the same required columns; FMLV's
+specification criteria are identical. The only thing that differs is `body_type`, which
+draws from the campervan half of `BodyType` rather than the motorhome half.
+
+**The rule, from the NCC side, 16 August 2026.** Two independent questions, giving a 2×2:
+
+| | No elevating roof | Elevating roof (pop-top) |
+|---|---|---|
+| **Standard / low roof height** | `campervan` | `campervan_elevating_roof` |
+| **High top (extended roof)** | `campervan_high_top` | `campervan_high_top_elevating_roof` |
+
+- **High top** means the roof line is *materially higher than the side windows* — visible at
+  a glance in a photograph. A published height around **2680 mm** is characteristically an
+  extended high top.
+- **An elevating roof can sit on either body height**, which is why the fourth combination
+  exists and why "has a pop-top" is not by itself enough to classify a van.
+
+**Read it together with the base-vehicle rule above.** An elevating roof offered as a *cost
+option* does not change what the vehicle is — Auto-Trail's Expedition Van lists
+`Colour coded elevating pop-top roof … Cost option`, so it stays `campervan_high_top`,
+while the Adventure lists the same line as `Included` and is therefore
+`campervan_high_top_elevating_roof`. The word after the feature decides it.
+
+**Where the body height cannot be established, leave `body_type` unset** rather than
+assuming a high top. The missing-data rule applies here as it does to any other field.
+
+### Price is a guide price, so a consistent basis is preferred but not required
+
+`rrp_pounds` is the **on-the-road price** where a manufacturer publishes one — the figure a
+buyer sees and pays. Auto-Trail's price list makes this explicit, breaking out ex works
+excluding VAT, VAT, ex works including VAT, and on the road; the last is what FMLV records.
+
+**Where the basis is not published, record the price anyway.** FMLV presents this as a
+*Guide Price*, not a factual RRP, so a basis that varies between manufacturers is tolerable
+— and often unavoidable, since many manufacturers never state whether a figure is ex works
+or on the road. Leaving the field blank because the basis is unstated serves a reader worse
+than an approximate figure does. Decision from the NCC side, 16 August 2026.
+
+The scale supports it: Auto-Trail's on-the-road premium is a flat £635, which is 0.9% of a
+£69,005 motorhome, while the fixed EUR→GBP rate in `morelo.py` can drift several percent in
+a year. The inconsistency being accepted here is far smaller than one already accepted.
+
+**But record the basis in the survey document and the registry `notes` wherever it is
+known.** It costs nothing, it documents the inconsistency rather than hiding it, and it
+guards against a failure the guide-price framing does not cover: if a manufacturer changes
+basis between runs, every one of its products shows a price change that is not a price
+change. Auto-Trail moving from on-the-road to ex works would look like £635 off all 37
+layouts. With the basis recorded that is diagnosable in seconds; without it, it reads as a
+real price move.
+
+### A figure that could not be found must be visible, and must never be inherited
+
+Where a manufacturer normally publishes a spec and it is **absent for a particular model**,
+the run must say so and the upload must leave it **blank**. Never carry the previously held
+value forward on the assumption it is still correct: once it is in FMLV, an inherited
+figure is indistinguishable from a confirmed one, and stale data presented as current is
+worse than an obvious gap a human can chase.
+
+This does **not** mean deleting figures a manufacturer never publishes at all — Morelo
+publishes no berths, Swift and Rimor no prices. Those stay as they are. The rule is about
+gaps *within* the data we do collect.
+
+**Not yet implemented.** Two things stand in the way, and they are worth understanding
+before relying on this:
+
+- `diff/compare.py` iterates only `extracted.provenance`, so a field the adapter did not
+  find is never compared and never proposed.
+- `output/build.py` builds the upload from the baseline row and applies approved changes
+  on top, so an un-proposed field keeps its old value.
+
+Fixing it means separating two cases the model currently conflates: **"never attempted"**
+(Adria's adapter never looks at the ~40 layout flags, and those must keep their baseline
+values — this is why the present design exists) versus **"attempted and not found"** (the
+weight was searched for and is absent). Only the second should propose a blank. New
+products already behave correctly, since there is no baseline to inherit from, and
+`validation.py` flags the blank as `missing_required`.
+
+### Model year rolls over gradually, July to early September
+
+The transition varies by brand and is driven by the show calendar: next year's models
+appear at the **Caravan Salon in Düsseldorf in early September** and at the **NEC in
+Birmingham in October**, and only the following year's models are shown — so manufacturers
+settle the range just before. Material published from around August onwards is taken to be
+the *next* year's range.
+
+Three qualifications: trust what the manufacturer actually publishes; expect two model
+years to be live at once during the window; and **re-check at the end of September**, when
+revisions often arrive. Morelo and Sunlight had both moved to MY2027 by 6 August 2026
+while Auto-Trail was still publishing "2026 SEASON" — the whole spread in one snapshot.
+
 ## Start here: is there a brochure or price list PDF?
 
 **Ask this before looking at the website's rendering behaviour at all.** It was the

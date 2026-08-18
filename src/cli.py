@@ -8,24 +8,28 @@ against the baseline export, and persist the result for the review app (DESIGN.m
 
 Four decisions worth knowing about:
 
-* **The baseline is filtered to one manufacturer before diffing, archived rows are
-  dropped, and same-range/model duplicates are collapsed to the newest model year.**
-  `diff.match_products` requires the manufacturer filter and nothing enforces it — an
-  unfiltered baseline would let one brand's product match another brand's row. The
-  filter is `Motorhome.manufacturer == Manufacturer.fmlv_manufacturer`, which is
-  precisely what that registry column exists to guarantee. Rows with `archived=Yes`
-  are excluded too: they're gone from FMLV already, so there's nothing to diff a
-  scraped product against. `_dedupe_baseline` handles a third case found on a real
-  Swift run: the export can carry two *non-archived* rows for the same
-  `manufacturer_range`/`model` under different `product_id`s (an older listing FMLV
-  never archived when the newer one was added). Left alone, one scraped product
-  matches one of the two, the other goes unmatched and is proposed for archiving —
-  but `store.products.upsert_seen`'s range/model fallback then folds that archive
-  proposal onto the *same* product row as the match's field changes, since the two
-  duplicates are indistinguishable by range/model alone. Keeping only the row with
-  the higher `year` (ties broken by leaving the first one seen) avoids ever creating
-  the DISAPPEARED half of that pair; the discarded duplicates are exactly what a
-  human would call archived, so this is a baseline-quality fix, not a matching one.
+* **The baseline is filtered to one manufacturer before diffing, archived rows and
+  stale model years are dropped, and same-range/model duplicates are collapsed to the
+  newest model year.** `diff.match_products` requires the manufacturer filter and
+  nothing enforces it — an unfiltered baseline would let one brand's product match
+  another brand's row. The filter is `Motorhome.manufacturer ==
+  Manufacturer.fmlv_manufacturer`, which is precisely what that registry column exists
+  to guarantee. Rows with `archived=Yes` are excluded too: they're gone from FMLV
+  already, so there's nothing to diff a scraped product against.
+  `_is_current_model_year` excludes everything except this calendar year and next —
+  FMLV keeps every model year a manufacturer has ever listed, and only the current and
+  next year's models are ever live for sale, so anything older is noise for the diff.
+  `_dedupe_baseline` handles a third case found on a real Swift run: the export can
+  carry two *non-archived* rows for the same `manufacturer_range`/`model` under
+  different `product_id`s (an older listing FMLV never archived when the newer one was
+  added). Left alone, one scraped product matches one of the two, the other goes
+  unmatched and is proposed for archiving — but `store.products.upsert_seen`'s
+  range/model fallback then folds that archive proposal onto the *same* product row as
+  the match's field changes, since the two duplicates are indistinguishable by
+  range/model alone. Keeping only the row with the higher `year` (ties broken by
+  leaving the first one seen) avoids ever creating the DISAPPEARED half of that pair;
+  the discarded duplicates are exactly what a human would call archived, so this is a
+  baseline-quality fix, not a matching one.
 
 * **A run that raises is still recorded**, as `status='failed'` with the message,
   rather than left stuck at `'running'` forever. Whatever was snapshotted before the
@@ -192,6 +196,17 @@ def fetch_export(
     return dest_path
 
 
+def _is_current_model_year(year: int | None, *, today: date | None = None) -> bool:
+    """Whether `year` is this calendar year or next — the only years worth diffing.
+
+    FMLV carries every model year a manufacturer has ever listed, going back well
+    before what's actually for sale — a baseline row from 2022 has nothing live to
+    diff a scraped product against. `today` is injectable for tests.
+    """
+    current_year = (today or date.today()).year
+    return year in (current_year, current_year + 1)
+
+
 def _dedupe_baseline(motorhomes: Iterable[Motorhome]) -> list[Motorhome]:
     """Collapse baseline rows sharing a `(manufacturer_range, model)` to the newest.
 
@@ -338,6 +353,7 @@ def execute_run(
                 for motorhome in read.motorhomes
                 if motorhome.manufacturer == manufacturer.fmlv_manufacturer
                 and not motorhome.archived
+                and _is_current_model_year(motorhome.year)
                 and (wanted_range_labels is None or motorhome.manufacturer_range in wanted_range_labels)
             )
 
@@ -578,6 +594,7 @@ def _generate_upload_command(args: argparse.Namespace) -> int:
             for motorhome in read.motorhomes
             if motorhome.manufacturer == manufacturer.fmlv_manufacturer
             and not motorhome.archived
+            and _is_current_model_year(motorhome.year)
         )
 
         queue = store.list_change_queue(connection, run.id)

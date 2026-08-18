@@ -10,6 +10,7 @@ describes doing by hand.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -21,6 +22,7 @@ from src.adapters.base import ExtractedMotorhome, Provenance
 from src.cli import (
     CommandError,
     _dedupe_baseline,
+    _is_current_model_year,
     execute_run,
     find_manufacturer,
     format_summary,
@@ -394,6 +396,19 @@ def test_a_failing_adapter_marks_the_run_failed_and_re_raises(
         connection.close()
 
 
+def test_is_current_model_year_accepts_this_year_and_next() -> None:
+    today = date(2026, 8, 18)
+    assert _is_current_model_year(2026, today=today)
+    assert _is_current_model_year(2027, today=today)
+
+
+def test_is_current_model_year_rejects_earlier_years_and_none() -> None:
+    today = date(2026, 8, 18)
+    assert not _is_current_model_year(2025, today=today)
+    assert not _is_current_model_year(2028, today=today)
+    assert not _is_current_model_year(None, today=today)
+
+
 def test_dedupe_baseline_keeps_the_newer_of_two_rows_sharing_range_and_model() -> None:
     """The real Swift case: 'Escape 674' listed twice under different product_ids."""
     older = make_baseline(product_id=1765, year=2025)
@@ -463,6 +478,43 @@ def test_archived_baseline_rows_are_excluded_from_the_baseline(
         [
             make_baseline(),
             make_baseline(product_id=4148, model="Old 670 DC", archived=True),
+        ],
+        path,
+    )
+    adapter = FakeAdapter(products=[make_extracted()])
+
+    summary = run_once(data_root=data_root, export_path=path, adapter=adapter)
+
+    assert summary.baseline_count == 1
+
+
+def test_stale_model_year_baseline_rows_are_excluded_from_the_baseline(
+    data_root: Path,
+) -> None:
+    """A row for a model year that's already gone off sale must not be diffed against."""
+    path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
+    io.write_csv(
+        [
+            make_baseline(),
+            make_baseline(product_id=4148, model="Old 670 DC", year=2024),
+        ],
+        path,
+    )
+    adapter = FakeAdapter(products=[make_extracted()])
+
+    summary = run_once(data_root=data_root, export_path=path, adapter=adapter)
+
+    assert summary.baseline_count == 1
+
+
+def test_next_calendar_years_model_year_is_kept_in_the_baseline(
+    data_root: Path,
+) -> None:
+    """Manufacturers publish next year's models early — those must still be diffed."""
+    path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
+    io.write_csv(
+        [
+            make_baseline(year=2027),
         ],
         path,
     )

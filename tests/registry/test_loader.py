@@ -167,3 +167,57 @@ def test_real_registry_file_loads_without_hard_errors() -> None:
     errors = [i for i in result.issues if i.severity == "error"]
     assert errors == []
     assert len(result.manufacturers) >= 1
+
+
+def test_a_non_iso_last_verified_is_flagged(tmp_path: Path) -> None:
+    """Excel rewrites an ISO date into the local short format the moment it saves.
+
+    It turned every `2026-08-17` in the registry into `17/08/2026` in one sitting, and
+    nothing noticed. No code reads this date programmatically, so a mangled one silently
+    corrupts a human's only record of when a row was last checked.
+    """
+    path = tmp_path / "manufacturers.csv"
+    path.write_text(
+        "manufacturer_id,fmlv_manufacturer,website_url,categories,last_verified\n"
+        "1,Excel Victim,https://example.invalid/,motorhome,17/08/2026\n",
+        encoding="utf-8",
+    )
+
+    result = registry.load(path)
+
+    assert [m.fmlv_manufacturer for m in result.manufacturers] == ["Excel Victim"]
+    codes = [issue.code for issue in result.issues]
+    assert "last_verified_not_iso" in codes
+
+    issue = next(i for i in result.issues if i.code == "last_verified_not_iso")
+    assert issue.severity == "warning"  # the row still loads; the date is advisory
+    assert "Excel" in issue.message
+
+
+def test_an_iso_last_verified_is_accepted(tmp_path: Path) -> None:
+    path = tmp_path / "manufacturers.csv"
+    path.write_text(
+        "manufacturer_id,fmlv_manufacturer,website_url,categories,last_verified\n"
+        "1,Tidy,https://example.invalid/,motorhome,2026-08-17\n",
+        encoding="utf-8",
+    )
+
+    result = registry.load(path)
+
+    assert [i.code for i in result.issues if i.code == "last_verified_not_iso"] == []
+    assert result.manufacturers[0].last_verified == "2026-08-17"
+
+
+def test_a_blank_last_verified_is_not_flagged(tmp_path: Path) -> None:
+    """The column is optional, so empty is fine — only a malformed value is worth saying."""
+    path = tmp_path / "manufacturers.csv"
+    path.write_text(
+        "manufacturer_id,fmlv_manufacturer,website_url,categories,last_verified\n"
+        "1,Unchecked,https://example.invalid/,motorhome,\n",
+        encoding="utf-8",
+    )
+
+    result = registry.load(path)
+
+    assert [i.code for i in result.issues if i.code == "last_verified_not_iso"] == []
+    assert result.manufacturers[0].last_verified is None

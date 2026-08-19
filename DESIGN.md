@@ -133,37 +133,22 @@ Handled by the `archived` Yes/No column, not by deleting rows.
 
 ## 5. Architecture
 
-```
-   NCC website
-        │  (1) Playwright, automated download
-        ▼
-  data/exports/<date>/motorhome-campervans.xlsx      ← the baseline
-        │
-        ▼
-  ┌───────────────┐   (2) fetch + snapshot raw HTML/PDF to disk
-  │  manufacturer │──────────────────────────────────────────┐
-  │    website    │                                          │
-  └───────────────┘                                          ▼
-        │  (3) content hash: unchanged since last run?  data/snapshots/
-        │       └── yes → skip, record "verified unchanged"
-        ▼
-   adapter (per-manufacturer deterministic parser)
-        │       └── optional LLM fallback for PDF-only sources
-        ▼
-   canonical Motorhome objects
-        │
-        ▼  (4) match to product_id, then diff field by field
-   proposed changes  ── new products / changed fields / unchanged confirmations
-        │
-        ▼  (5) FastAPI + HTMX review app
-   reviewer: accept / reject / correct, per field
-        │
-        ▼  (6) emit CSV in exact FMLV column order
-   data/uploads/run<run>_<date>_<time>_…csv  →  human uploads to NCC site
-        │
-        ▼
-   SQLite: runs, products seen, decisions, rejections, content hashes
-```
+See [docs/architecture-overview.html](docs/architecture-overview.html) for a diagram of
+the pipeline: the NCC baseline and the manufacturer's site as two lanes converging on the
+diff engine, the human review gate, and the CSV loop back to the NCC site, with SQLite
+logging every stage. In outline:
+
+1. Playwright downloads the current export from the NCC site — the baseline.
+2. The manufacturer's site is fetched and snapshotted; unchanged pages (by content hash)
+   are skipped.
+3. A per-manufacturer adapter turns a snapshot into canonical `Motorhome` objects.
+4. The diff engine matches products to `product_id` and compares field by field.
+5. A reviewer accepts, rejects or corrects each proposed change in the FastAPI + HTMX
+   review app.
+6. Approved changes are emitted as a CSV in FMLV's exact column order, uploaded to the
+   NCC site by hand.
+
+Every run, fetch, proposed change and decision is logged to SQLite throughout.
 
 ### 5.1 Component responsibilities
 

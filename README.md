@@ -34,7 +34,9 @@ and a person still uploads the finished file — this just removes the tedious
 find-and-compare work beforehand.
 
 See [DESIGN.md](DESIGN.md) for the full design, the reasoning behind each decision, and
-open questions still being worked through.
+open questions still being worked through, and
+[docs/architecture-overview.html](docs/architecture-overview.html) for a high-level
+diagram of how it all fits together (open the file directly in a browser).
 
 ## Scheduled runs
 

@@ -175,7 +175,12 @@ def _standard_count(value: str) -> int | None:
 
 @dataclass(frozen=True)
 class EtruscoLayout:
-    """One layout, as read from its family page."""
+    """One layout, as read from its family page.
+
+    `range_label` is the family Etrusco market it under — `CV-Model Plus`, `T-Model Ford` — and
+    `model` is the name as published, `CV 640 SB+`. **Neither is what goes into FMLV**: see
+    `fmlv_range` and `fmlv_model`.
+    """
 
     family: str
     range_label: str
@@ -194,6 +199,36 @@ class EtruscoLayout:
     @property
     def label(self) -> str:
         return f"{self.range_label} {self.model}".strip()
+
+    @property
+    def model_letter(self) -> str:
+        """`CV` from `CV 640 SB+` — Etrusco's own taxonomy, carried in the vehicle's own name."""
+        return self.model.split(" ", 1)[0].strip()
+
+    @property
+    def fmlv_range(self) -> str:
+        """The range as FMLV records it: the bare model letter.
+
+        Checked against the real FMLV export for id 45 (54 products, 19 August 2026), which
+        stores `manufacturer_range` as `CV`, `V`, `T`, `A` or `I` — not as the marketing family
+        name. The join back to existing product IDs is a fuzzy match on range plus model, so
+        proposing `CV-Model Plus` here would both weaken every match and propose renaming the
+        range on all 27 of the 2026 products.
+
+        The family is not lost: it is in the provenance of every field, and the chassis it
+        encodes is in `base_vehicle_manufacturer`.
+        """
+        return self.model_letter
+
+    @property
+    def fmlv_model(self) -> str:
+        """The model as FMLV records it: the published name without its range letter.
+
+        `CV 640 SB+` -> `640 SB+`, matching the export's `640 SB +` closely enough for the
+        matcher, which compares word bags and ignores punctuation.
+        """
+        parts = self.model.split(" ", 1)
+        return parts[1].strip() if len(parts) > 1 else self.model
 
     @property
     def berths(self) -> int | None:
@@ -227,7 +262,7 @@ class EtruscoLayout:
 
         A range letter that is not one of the five is a blank, not the nearest known type.
         """
-        prefix = self.range_label.split("-", 1)[0].strip()
+        prefix = self.model_letter
         if prefix in CAMPERVAN_PREFIXES:
             if self.mh_height_mm is None:
                 return None
@@ -351,8 +386,8 @@ def _build_extracted_motorhome(layout: EtruscoLayout, family_url: str) -> Extrac
     motorhome = Motorhome(
         manufacturer=MANUFACTURER,
         manufacturer_display_name=MANUFACTURER_DISPLAY_NAME,
-        manufacturer_range=layout.range_label,
-        model=layout.model,
+        manufacturer_range=layout.fmlv_range,
+        model=layout.fmlv_model,
         base_vehicle_manufacturer=layout.base_vehicle_manufacturer,
         berths=layout.berths,
         mh_passenger_seats_inc_driver=layout.mh_passenger_seats_inc_driver,
@@ -413,7 +448,7 @@ def _build_extracted_motorhome(layout: EtruscoLayout, family_url: str) -> Extrac
             + (
                 f", with the {layout.mh_height_mm}mm roof deciding between a campervan and a "
                 f"high top (the threshold is {HIGH_TOP_ABOVE_MM}mm)"
-                if layout.range_label.split("-", 1)[0].strip() in CAMPERVAN_PREFIXES
+                if layout.model_letter in CAMPERVAN_PREFIXES
                 else ""
             ),
         )

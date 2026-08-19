@@ -356,8 +356,8 @@ def test_a_standard_height_campervan_would_not_be_a_high_top(
 
 
 def test_an_unknown_model_letter_gets_no_body_type(layouts: dict[str, EtruscoLayout]) -> None:
-    """A new range letter is a blank, not a guess at the nearest known type."""
-    assert replace(layouts["I 6900 SB"], range_label="Q-Model Fiat").body_type is None
+    """A new model letter is a blank, not a guess at the nearest known type."""
+    assert replace(layouts["I 6900 SB"], model="Q 6900 SB").body_type is None
 
 
 def test_the_body_type_comes_from_the_letter_and_not_the_url() -> None:
@@ -370,6 +370,57 @@ def test_the_body_type_comes_from_the_letter_and_not_the_url() -> None:
         "model-overview/t-modelle-fiat_base", "T-Model Base", _read("t-modelle-fiat_base")
     )
     assert [layout.body_type for layout in low_profile] == [BodyType.COACH_BUILT_LOW_PROFILE] * 5
+
+
+# --------------------------------------------------------------------------- #
+# Identity: what FMLV calls these vehicles
+# --------------------------------------------------------------------------- #
+
+
+def test_the_range_is_the_bare_model_letter(layouts: dict[str, EtruscoLayout]) -> None:
+    """FMLV stores the range as `CV`, `V`, `T`, `A` or `I` — not the marketing family name.
+
+    Checked against the real export for id 45 (54 products, 19 August 2026). Proposing
+    `CV-Model Plus` as the range would weaken every fuzzy match and then propose renaming the
+    range on all 27 of the 2026 products.
+    """
+    assert layouts["CV 640 SB+"].range_label == "CV-Model Plus"  # what Etrusco market it as
+    assert layouts["CV 640 SB+"].fmlv_range == "CV"  # what FMLV records
+    assert layouts["T 7.3 SCF"].fmlv_range == "T"
+    assert layouts["I 6900 SB"].fmlv_range == "I"
+    assert layouts["A 6.9 DB"].fmlv_range == "A"
+
+
+def test_the_model_drops_the_range_letter(layouts: dict[str, EtruscoLayout]) -> None:
+    """`CV 640 SB+` on the page is `640 SB+` in FMLV, and the suffix survives the split."""
+    assert layouts["CV 540 DB"].fmlv_model == "540 DB"
+    assert layouts["CV 640 SB+"].fmlv_model == "640 SB+"
+    assert layouts["T 7.4 SBC"].fmlv_model == "7.4 SBC"
+    assert layouts["T 7.3 SCF"].fmlv_model == "7.3 SCF"
+
+
+def test_the_built_product_carries_the_fmlv_names(layouts: dict[str, EtruscoLayout]) -> None:
+    """The identity actually handed to the differ, not just the properties behind it."""
+    built = etrusco._build_extracted_motorhome(layouts["CV 640 SB+"], "https://example.invalid/x")
+    assert built.motorhome.manufacturer_range == "CV"
+    assert built.motorhome.model == "640 SB+"
+    assert built.motorhome.manufacturer == "Etrusco"
+    # The family is not lost — it stays visible in every field's provenance.
+    assert "CV-Model Plus" in built.provenance["rrp_pounds"].snippet
+
+
+def test_the_plus_and_base_vehicles_stay_distinguishable_in_fmlv_terms(
+    layouts: dict[str, EtruscoLayout],
+) -> None:
+    """Dropping the letter must not collapse the Plus range onto the base range.
+
+    Note the limit this exposes: the matcher compares word bags and drops punctuation, so
+    `640 SB` and `640 SB+` tokenize identically. The names differ, but a reviewer is the only
+    thing that can tell those two apart — see the known gaps in `docs/adapters/etrusco.md`.
+    """
+    assert layouts["CV 640 SB"].fmlv_model == "640 SB"
+    assert layouts["CV 640 SB+"].fmlv_model == "640 SB+"
+    assert layouts["CV 640 SB"].rrp_pounds != layouts["CV 640 SB+"].rrp_pounds
 
 
 # --------------------------------------------------------------------------- #

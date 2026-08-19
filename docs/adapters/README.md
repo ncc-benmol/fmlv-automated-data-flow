@@ -194,6 +194,32 @@ overview cards against six collected families is what exposed the gap. **An abse
 explain is a gap in the search, not a fact about the manufacturer** — do not write it up as a
 discontinued range until a second source agrees.
 
+### Let the FMLV export decide the range and model strings, not the website
+
+**Fetch the baseline export before choosing what to put in `manufacturer_range` and `model`.**
+`fmlv fetch-export "<name>"` needs only `ncc_supplier_name`, and it answers a question no amount
+of reading the manufacturer's site can: what FMLV already calls these vehicles.
+
+Etrusco's site markets `CV-Model Plus` and names the vehicle `CV 600 DB+`. FMLV holds range
+`CV`, model `600 DB+`. Emitting the site's form would have cost twice over — a weaker fuzzy
+match on every product, and then a proposed range rename on all 27 that did match. The
+manufacturer's own family name still belongs in the provenance, where a reviewer can see it.
+
+**Two things to check in the export while it is open:**
+
+- **How the identity is split.** Which half carries the range letter, prefix or trim name.
+- **Whether the existing data is right.** FMLV recorded Etrusco's whole V range as coach built
+  low profile; they are 2870 mm Ford vans. Proposing the correction is the adapter working, not
+  a parse error — but know which of the two you are looking at before accepting it.
+
+**And know the matcher's limits.** `diff/matching.py` scores a Jaccard similarity on the
+range-plus-model word bag and accepts at 0.5. It tokenizes letters and digits only, so `6.9`
+becomes `{6, 9}` and a trailing `+` disappears entirely. A model that differs from another only
+by a bed code — `6.9 SF` against `6.9 BB` — lands exactly on the threshold and matches. Etrusco's
+first run produced three such pairs, each a *replacement* vehicle reported as a revision of the
+one it replaced. **A base vehicle changing manufacturer is the tell**: chassis do not change
+under a vehicle mid-life. Check any match whose proposal includes one.
+
 ## Start here: is there a brochure or price list PDF?
 
 **Ask this before looking at the website's rendering behaviour at all.** It was the

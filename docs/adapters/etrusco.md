@@ -87,8 +87,8 @@ Mapping to `Motorhome`:
 
 | Field | Source |
 |---|---|
-| `manufacturer_range` | the family's label — `CV-Model Fiat`, `T-Model Base`, `I-Model Fiat` |
-| `model` | `h4.o-floorplan__subline` — `CV 540 DB`, `T 7400 SBC`, `CV 640 PB+` |
+| `manufacturer_range` | the **bare model letter** — `CV`, `V`, `T`, `A`, `I`. See below |
+| `model` | `h4.o-floorplan__subline` minus that letter — `540 DB`, `7400 SBC`, `640 PB+` |
 | `rrp_pounds` | `Pricea)`, the layout's own sterling figure |
 | `mh_length_mm` / `mh_width_mm` / `mh_height_mm` | one cell, `541 \| 205 \| 270`, in **centimetres** |
 | `mh_passenger_seats_inc_driver` | `Permitted number of seats (including driver)` — the exact FMLV basis |
@@ -102,6 +102,29 @@ Mapping to `Motorhome`:
 **The layout name comes from the subline, not the slider.** Each layout is named twice: once in
 the floorplan slider as `h3.o-floorplan__headline`, and once as `h4.o-floorplan__subline`
 inside its own content item, beside its own tables. Only the second pairs with the tables.
+
+### FMLV names these vehicles differently from the website, and FMLV wins
+
+The real export for id 45 settled this. FMLV stores the range as the **bare model letter** and
+the model as the number alone:
+
+| | The site says | FMLV holds |
+|---|---|---|
+| range | `CV-Model Plus` | `CV` |
+| model | `CV 600 DB+` | `600 DB+` |
+| range | `T-Model Ford` | `T` |
+| model | `T 7.3 SCF` | `7.3 SCF` |
+
+So the adapter emits FMLV's form. Sending the marketing family name as the range would do two
+kinds of damage: it dilutes the word bag the matcher scores on, and every product it *did*
+match would then carry a proposed range rename — 27 of them, none wanted. The family name is
+not lost; it is in the provenance of every field, and the chassis it encodes is already in
+`base_vehicle_manufacturer`.
+
+FMLV is itself inconsistent about the Plus suffix — it holds both `600 DB+` and `640 SB +` —
+which does not matter to the matcher, because it compares words and drops punctuation. That
+same indifference is a hazard, and it bit on the first diff run: see
+[the matches to check](#three-matches-a-reviewer-must-not-accept-blind).
 
 **Body type comes from the model letter**, which is Etrusco's own taxonomy and travels with the
 vehicle name: `I 6900 SB` is an A class, `T 7.3 SCF` a coach-built low profile, `A 6.9 DB` an
@@ -230,6 +253,47 @@ Three products hand-checked against the page text, one per URL shape and chassis
 The berth column is the one to look at: all three publish a range, and the standard figure is
 what is recorded, per the data rules in [`README.md`](README.md).
 
+### The first diff run against the real FMLV baseline — run #8
+
+`ncc_supplier_name` is **`Etrusco`**, the same string as `fmlv_manufacturer`, confirmed by
+`fmlv fetch-export` returning 54 products (27 of them current model year).
+
+**28 scraped against 27 baseline: 24 changed, 0 unchanged, 4 new, 3 disappeared.** 156 proposed
+changes, 24 of them year bumps, and 176 fields checked and found unchanged.
+
+| | Models |
+|---|---|
+| **New** | CV 640 PB+, T 7.3 SF, T 7.3 SCF, T 7.3 QCF |
+| **Disappeared** | T 5900 FB, I 7400 SB, V 5.9 DF |
+
+Three of the four new products are the Ford semi-integrateds — the family that appears in no
+menu. Had the roster come from either menu, FMLV would have gained nothing and lost three.
+
+One correction worth noting: **FMLV records the whole V range as coach built low profile.** They
+are 2870 mm Ford vans, so the adapter proposes `campervan high top` on both, by the roof rule.
+
+#### Three matches a reviewer must not accept blind
+
+The matcher scores a Jaccard similarity on the range-plus-model word bag and accepts anything at
+or above 0.5. Three pairs land **exactly** on 0.5, because a single differing bed code cannot
+outvote a shared range letter and number — and `6.9` tokenizes to `{6, 9}`, so the decimal point
+does no work either:
+
+| Scraped | Matched to | What it proposes |
+|---|---|---|
+| T 6.9 SF | T 6.9 **BB** | base vehicle Fiat → **Ford**, berths 4 → 2 |
+| CV 600 SB | CV 600 **BB** | berths 4 → 2 |
+| V 6.8 SF | V **6.6** SF | length 6710 → 6830, running order 2680 → 2872 |
+
+In each case the site vehicle is a **replacement** for the baseline one, not a revision of it,
+so the honest outcome is one new product plus one deactivation. A base vehicle changing from
+Fiat to Ford is the tell: chassis do not change under a vehicle mid-life.
+
+This is a property of the shared matcher, not of this adapter, and tuning its threshold is a
+decision across all nine brands — `DEFAULT_THRESHOLD` was chosen against an Adria case that
+scores well above it. **Not changed here.** Worth revisiting now that a second brand has
+produced counter-examples.
+
 ### Two mistakes of mine worth recording, because neither was the site's fault
 
 **The parser looked for an attribute that does not exist.** The first version read layout names
@@ -249,12 +313,7 @@ The overview's own count — seven cards against six families — was sitting th
 
 ## Known gaps and what is unverified
 
-- **`ncc_supplier_name`** unconfirmed, and left blank rather than guessed. It is what
-  `fmlv fetch-export` needs, so there is no baseline export for id 45 yet and this run was
-  verified by collecting directly rather than by diffing. Note that Adria's differs from its
-  `fmlv_manufacturer`, so the two cannot be assumed equal.
-- **`fmlv_manufacturer = "Etrusco"`** is the canonical NCC name for id 45 and is not confirmed
-  against a real FMLV export.
+- **The three token-tie matches above** need a human decision before the run is accepted.
 - **The `Pricea)` footnote text has not been read**, so the price basis — on-the-road or
   ex-works — is not recorded, which the guide-price rule in [`README.md`](README.md) asks for
   where it is known.

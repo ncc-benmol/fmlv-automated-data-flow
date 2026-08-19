@@ -272,27 +272,41 @@ menu. Had the roster come from either menu, FMLV would have gained nothing and l
 One correction worth noting: **FMLV records the whole V range as coach built low profile.** They
 are 2870 mm Ford vans, so the adapter proposes `campervan high top` on both, by the roof rule.
 
-#### Three matches a reviewer must not accept blind
+#### How the 24 matched, and the three that did not match on name
 
-The matcher scores a Jaccard similarity on the range-plus-model word bag and accepts anything at
-or above 0.5. Three pairs land **exactly** on 0.5, because a single differing bed code cannot
-outvote a shared range letter and number — and `6.9` tokenizes to `{6, 9}`, so the decimal point
-does no work either:
+**21 of the 24 are byte-identical** on range and model — the naming change above did its job.
+One more differs only in FMLV's own stray space, and three are not the same name at all:
 
-| Scraped | Matched to | What it proposes |
-|---|---|---|
-| T 6.9 SF | T 6.9 **BB** | base vehicle Fiat → **Ford**, berths 4 → 2 |
-| CV 600 SB | CV 600 **BB** | berths 4 → 2 |
-| V 6.8 SF | V **6.6** SF | length 6710 → 6830, running order 2680 → 2872 |
+| Scraped | Matched to | Score | What differs |
+|---|---|---|---|
+| CV 640 SB+ | CV 640 SB **&nbsp;+** | 1.000 | whitespace only — the same vehicle, and harmless |
+| V 6.8 SF | V **6.6** SF | 0.750 | the **number**; bed code identical |
+| T 6.9 SF | T 6.9 **BB** | 0.600 | the **bed code**; number identical |
+| CV 600 SB | CV 600 **BB** | 0.500 | the **bed code**; number identical |
 
-In each case the site vehicle is a **replacement** for the baseline one, not a revision of it,
-so the honest outcome is one new product plus one deactivation. A base vehicle changing from
-Fiat to Ford is the tell: chassis do not change under a vehicle mid-life.
+So each of the three shares one half of its identity with the row it was paired to and differs
+in the other half. None is a renaming of the same vehicle:
+
+| | Baseline | Scraped | Reading |
+|---|---|---|---|
+| T 6.9 **BB** → **SF** | Fiat, 4 berths, 2950 mm high, £63,090 | **Ford**, 2 berths, 2870 mm, £67,100 | a different vehicle — the SF is one of the new Ford semi-integrateds |
+| CV 600 **BB** → **SB** | 4 berths, MRO 2803 | 2 berths, MRO 2862 | same shell (5990 × 2700), different bed plan — the BB is gone for 2027 |
+| V **6.6** → **6.8** SF | 6710 mm long, MRO 2680 | 6830 mm, MRO 2872 | 120 mm longer and 192 kg heavier — a different van |
+
+In each case the site vehicle **replaces** the baseline one rather than revising it, so the
+honest outcome is one new product plus one deactivation. **A base vehicle changing manufacturer
+is the surest tell** — chassis do not change under a vehicle mid-life.
+
+Why the matcher accepts them: it scores a Jaccard similarity on the range-plus-model word bag
+and takes anything from 0.5 up. It tokenizes letters and digits only, so a bed code is one token
+of three or four and cannot outvote a shared range letter and number. Worse for the V, `6.6`
+tokenizes to `{6}` — the repeat collapses — so `6.6 SF` and `6.8 SF` come out 75% alike.
 
 This is a property of the shared matcher, not of this adapter, and tuning its threshold is a
 decision across all nine brands — `DEFAULT_THRESHOLD` was chosen against an Adria case that
 scores well above it. **Not changed here.** Worth revisiting now that a second brand has
-produced counter-examples.
+produced counter-examples, and note that raising the threshold to 0.8 would catch all three
+while leaving the 22 good matches untouched.
 
 ### Two mistakes of mine worth recording, because neither was the site's fault
 

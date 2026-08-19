@@ -213,12 +213,20 @@ manufacturer's own family name still belongs in the provenance, where a reviewer
   a parse error — but know which of the two you are looking at before accepting it.
 
 **And know the matcher's limits.** `diff/matching.py` scores a Jaccard similarity on the
-range-plus-model word bag and accepts at 0.5. It tokenizes letters and digits only, so `6.9`
-becomes `{6, 9}` and a trailing `+` disappears entirely. A model that differs from another only
-by a bed code — `6.9 SF` against `6.9 BB` — lands exactly on the threshold and matches. Etrusco's
-first run produced three such pairs, each a *replacement* vehicle reported as a revision of the
-one it replaced. **A base vehicle changing manufacturer is the tell**: chassis do not change
-under a vehicle mid-life. Check any match whose proposal includes one.
+range-plus-model word bag and accepts anything from 0.5 up. It tokenizes letters and digits only,
+so a trailing `+` disappears and `6.6` collapses to `{6}`. Two consequences, both seen on
+Etrusco's first run:
+
+- **A differing bed code is one token of three or four**, so `6.9 SF` against `6.9 BB` scores
+  0.600 and `600 SB` against `600 BB` scores 0.500 — both matched.
+- **A differing number can score higher still**: `6.8 SF` against `6.6 SF` scores 0.750, because
+  the repeated digit in `6.6` collapses to a single token.
+
+All three were *replacement* vehicles reported as revisions of the ones they replaced. The names
+tell you: each shared one half of its identity — number or bed code — and differed in the other.
+**A base vehicle changing manufacturer is the surest tell**, since chassis do not change under a
+vehicle mid-life. Check any match whose proposal includes one, and any where only half the model
+name lines up.
 
 ## Start here: is there a brochure or price list PDF?
 

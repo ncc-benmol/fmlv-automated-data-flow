@@ -196,5 +196,4 @@ Write-Host "1. From THIS machine:  http://127.0.0.1:$Port/"
 foreach ($ip in $ips) {
     Write-Host "2. From YOUR machine: http://${ip}:$Port/   (use 192.168.16.43 -- the other address is not routed to the office LAN)"
 }
-Write-Host '3. Trigger a real run from the browser and confirm it completes.'
-Write-Host "4. Once this is confirmed working: .\03-uninstall-smoketest.ps1 (if not already done)."
+

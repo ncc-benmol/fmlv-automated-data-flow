@@ -14,12 +14,24 @@ still-open question of what `manufacturer_id` actually is or whether it is stabl
 
 from __future__ import annotations
 
-from . import adria, auto_trail, chausson, coachman, etrusco, morelo, rimor, sunlight, swift
+from . import (
+    adria,
+    auto_trail,
+    burstner,
+    chausson,
+    coachman,
+    etrusco,
+    morelo,
+    rimor,
+    sunlight,
+    swift,
+)
 from .base import Adapter, ExtractedMotorhome, Provenance
 
 ADAPTERS: dict[str, Adapter] = {
     adria.MANUFACTURER: adria,
     auto_trail.MANUFACTURER: auto_trail,
+    burstner.MANUFACTURER: burstner,
     chausson.MANUFACTURER: chausson,
     coachman.MANUFACTURER: coachman,
     etrusco.MANUFACTURER: etrusco,
@@ -37,6 +49,7 @@ __all__ = [
     "adapter_for",
     "adria",
     "auto_trail",
+    "burstner",
     "chausson",
     "coachman",
     "etrusco",

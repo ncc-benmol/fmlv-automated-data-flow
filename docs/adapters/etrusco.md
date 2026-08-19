@@ -324,10 +324,29 @@ The run reports 4 new and 3 disappeared. **The true figures are 7 and 6**, becau
 pairs above consumed a baseline row each: `T 6.9 BB`, `CV 600 BB` and `V 6.6 SF` are gone from
 the 2027 range but do not appear in the disappeared list, having been claimed as matches.
 
-So on the run detail page: reject the proposed changes on `T 6.9 SF`, `CV 600 SB` and
-`V 6.8 SF`, add those three as new products, and deactivate the three baseline rows they were
-paired to. They will also need their own images — they are visibly different vehicles, not
-restyled ones.
+**No name change is ever proposed, so there is nothing to reject on that count.** `model` and
+`manufacturer_range` carry no provenance, so `compare_fields` never walks them — identity is used
+for *matching* and never *proposed*. And `build.apply_decisions` starts a matched product's
+upload row from the **baseline** motorhome, so the name written back is always the one FMLV
+already holds.
+
+That makes the hazard the reverse of the obvious one. On the run detail page these three rows are
+titled with the **new** name, because the run store records what was scraped — but each is bound
+to the **old** product ID:
+
+| The page shows | It writes to | If the changes are accepted |
+|---|---|---|
+| T 6.9 SF | product 8494, `T 6.9 BB` | `6.9 BB` keeps its name and gains the Ford SF's chassis, weights and 2 berths |
+| CV 600 SB | product 6532, `CV 600 BB` | `600 BB` keeps its name and gains the SB's 2 berths and weights |
+| V 6.8 SF | product 6535, `V 6.6 SF` | `6.6 SF` keeps its name and gains the 6.8's length and weights |
+
+Each would leave FMLV with a hybrid record — old name, new vehicle — which is worse than either
+the old row or a clean new one. So **reject every proposed change on those three rows**, add the
+three vehicles as new products, and deactivate the three baseline rows they were paired to. They
+will also need their own images: they are different vehicles, not restyled ones.
+
+The four genuinely new products are unaffected — with no baseline row to copy, they are built
+fresh from the scraped identity and carry the correct names.
 
 ### Two mistakes of mine worth recording, because neither was the site's fault
 

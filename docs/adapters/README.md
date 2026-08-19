@@ -228,6 +228,16 @@ tell you: each shared one half of its identity — number or bed code — and di
 vehicle mid-life. Check any match whose proposal includes one, and any where only half the model
 name lines up.
 
+**Do not try to fix this by raising `DEFAULT_THRESHOLD`.** Adria's documented good match scores
+**0.667** — lower than Etrusco's worst bad match at 0.750 — so the two cannot be separated by a
+number. Anything high enough to reject the Etrusco pairs orphans Adria's product ID. A
+per-manufacturer threshold would work (Etrusco's good matches are all 1.000) and is the shape to
+reach for if a third brand hits this.
+
+**A wrong match also hides a discontinuation**, which is easy to miss when reading the counts: a
+claimed baseline row cannot also be reported as disappeared. Etrusco's run said 4 new and 3
+disappeared where the truth was 7 and 6.
+
 ## Start here: is there a brochure or price list PDF?
 
 **Ask this before looking at the website's rendering behaviour at all.** It was the

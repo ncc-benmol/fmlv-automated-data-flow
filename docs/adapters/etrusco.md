@@ -302,11 +302,32 @@ and takes anything from 0.5 up. It tokenizes letters and digits only, so a bed c
 of three or four and cannot outvote a shared range letter and number. Worse for the V, `6.6`
 tokenizes to `{6}` — the repeat collapses — so `6.6 SF` and `6.8 SF` come out 75% alike.
 
-This is a property of the shared matcher, not of this adapter, and tuning its threshold is a
-decision across all nine brands — `DEFAULT_THRESHOLD` was chosen against an Adria case that
-scores well above it. **Not changed here.** Worth revisiting now that a second brand has
-produced counter-examples, and note that raising the threshold to 0.8 would catch all three
-while leaving the 22 good matches untouched.
+This is a property of the shared matcher, not of this adapter. **And no single global threshold
+fixes it**, which is worth knowing before anyone tries:
+
+| Pair | Score | Should it match? |
+|---|---|---|
+| Adria `Matrix 670 DC Supreme Alde RHD` vs `Matrix Supreme 670 DC` | 0.667 | **yes** — the case `DEFAULT_THRESHOLD` was chosen for |
+| Etrusco `V 6.8 SF` vs `V 6.6 SF` | 0.750 | **no** |
+
+The bad Etrusco match scores *higher* than the good Adria one, so the two cannot be separated by
+a number alone. Raising the threshold to 0.8 would catch all three Etrusco pairs and orphan
+Adria's product ID. `DEFAULT_THRESHOLD` is therefore **left at 0.5**.
+
+For Etrusco alone the separation is clean — every good match scores 1.000 and every bad one
+0.750 or below — so a per-manufacturer threshold in the registry would work if this recurs on a
+third brand. Until then the three pairs are documented and left to the reviewer.
+
+#### What this means for the review, and for the real totals
+
+The run reports 4 new and 3 disappeared. **The true figures are 7 and 6**, because the three
+pairs above consumed a baseline row each: `T 6.9 BB`, `CV 600 BB` and `V 6.6 SF` are gone from
+the 2027 range but do not appear in the disappeared list, having been claimed as matches.
+
+So on the run detail page: reject the proposed changes on `T 6.9 SF`, `CV 600 SB` and
+`V 6.8 SF`, add those three as new products, and deactivate the three baseline rows they were
+paired to. They will also need their own images — they are visibly different vehicles, not
+restyled ones.
 
 ### Two mistakes of mine worth recording, because neither was the site's fault
 

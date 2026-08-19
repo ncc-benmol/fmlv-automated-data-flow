@@ -166,7 +166,7 @@
 
   <figure>
     <div class="diagram-wrap">
-      <svg viewBox="0 0 900 970" role="img" aria-label="Two lanes converge: the NCC's baseline export and a live read of the manufacturer's website feed a diff engine; a human reviewer accepts, rejects or corrects each field before a CSV is produced and manually uploaded back to the NCC website, closing the loop. Every stage's fetches, diffs and decisions are logged to SQLite.">
+      <svg viewBox="0 0 900 970" role="img" aria-label="Two lanes converge: the NCC's baseline export and a live read of the manufacturer's website feed a diff engine; a human reviewer accepts, rejects or corrects each field before a CSV is produced and manually uploaded back to the NCC FMLV website, closing the loop. Every stage's fetches, diffs and decisions are logged to SQLite.">
         <defs>
           <marker id="arrowFlow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="var(--flow)" />
@@ -190,7 +190,7 @@
         <!-- Row 1 -->
         <g>
           <rect x="40" y="40" width="240" height="92" rx="7" fill="var(--surface)" stroke="var(--line)" />
-          <text x="58" y="70" class="box-title" fill="var(--ink)">NCC website</text>
+          <text x="58" y="70" class="box-title" fill="var(--ink)">NCC FMLV website</text>
           <text x="58" y="88" class="box-sub" fill="var(--muted)">Nova admin panel</text>
           <text x="58" y="112" class="box-code" fill="var(--code)">fetch/ncc.py</text>
         </g>
@@ -271,7 +271,7 @@
       </svg>
     </div>
     <figcaption>
-      Two independent lanes &mdash; the NCC's own baseline and a live read of the manufacturer's
+      Two independent lanes &mdash; the NCC's own baseline from FMLV and a live read of the manufacturer's
       site &mdash; are reconciled by the diff engine. <strong>Nothing reaches FMLV without a human
       approving it first</strong>, and even the finished CSV goes back to the NCC site by hand.
       Every fetch, diff and decision along the way is logged to SQLite, so a run is always

@@ -102,8 +102,8 @@ segment gives.
 |---|---|
 | Low profiles, S Low Profiles | `coach_built_low_profile` |
 | Overcab | `coach_built_over_cab_bed` |
-| Vans | campervan, by the roof-height rule in [`README.md`](README.md) |
-| X | *undecided* — "ultra compact", needs a judgement |
+| Vans | `campervan_high_top`, by the roof-height rule in [`README.md`](README.md) |
+| X | `coach_built_low_profile` — decided 19 August 2026 |
 | A-class (`.com` only) | `a_class` |
 
 ## The trap: the labels and the values do not come in matching numbers
@@ -254,7 +254,7 @@ linked model.
 | S Low Profiles | 3 | 3 | coach built low profile |
 | Overcab | 3 | 3 | coach built over cab bed |
 | Vans | 1 | 1 | **campervan high top**, from the roof rule |
-| X | 2 | 2 | *unset, for a reviewer* |
+| X | 2 | 2 | coach built low profile |
 
 The skip is `x650`, narrated with its reason. Exactly **one required field is blank across
 all 18 products**: the Low profile 640's price, which Chausson do not publish.
@@ -312,11 +312,17 @@ patching it with escaped strings.
 - **The card's displayed name is not unique.** `x550` and `x640` render as `550` and `640`,
   and `640` is *also* a Low profile — two cards show `640` with different prices, chassis and
   berths. The **slug** is the identity; the displayed name is not.
-- **`ncc_supplier_name`** unconfirmed, and left blank rather than guessed.
+- ~~**`ncc_supplier_name`** unconfirmed~~ — **confirmed 19 August 2026 as
+  `Trigano VDL Chausson`**, the same string as `fmlv_manufacturer`. Worth noting that it
+  matches here, because Adria's does not (`Adria Caravans & Motorhomes` against
+  `Adria Mobil`), so the two columns cannot be assumed equal in general.
 - **`fmlv_manufacturer = "Trigano VDL Chausson"`** is the canonical NCC name for id 53 and
   is not confirmed against a real FMLV export. The export may well say just "Chausson".
-- **The X line's body type** is undecided. Chausson call it "ultra compact"; whether FMLV
-  counts an X550 as a campervan or a low-profile coachbuilt is a judgement for a reviewer.
+- ~~**The X line's body type** is undecided~~ — **decided 19 August 2026: coach built, and
+  specifically `coach_built_low_profile`.** FMLV offers no plain "coach built", only low
+  profile and over cab bed, and the X has no over-cab bed — it is a compact on a 3.8 m
+  wheelbase with a 1.98 m interior height. Its 2.1 m width is what made this a judgement
+  rather than a lookup, sitting between a van's 2.05 and a coachbuilt's 2.35.
 - **`data-finition`** on the compare button records a trim line ("titanium line"), which the
   screenshots show under the model name. Not currently mapped to any FMLV field, but it is
   there if wanted.

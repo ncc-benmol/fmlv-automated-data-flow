@@ -127,15 +127,18 @@ LABEL_MRO = "running order"
 #: roof, per the rule in `docs/adapters/README.md`, so it is worked out from the published
 #: height instead. See `ChaussonProduct.body_type`.
 #:
-#: `x` is absent because it is a genuine judgement rather than a lookup. Chausson call the X
-#: an "ultra compact motorhome" and its dimensions sit between the two candidates — 2.1 m
-#: wide against a van's 2.05 and a coachbuilt's 2.35 — so whether FMLV counts an X550 as a
-#: campervan or a low-profile coachbuilt is for a reviewer to decide, not a parser.
+#: `x` was left unset during the survey, because Chausson call it an "ultra compact
+#: motorhome" and its 2.1 m width sits between a van's 2.05 and a coachbuilt's 2.35.
+#: **Settled by the NCC side on 19 August 2026: treat the X as coach built.** FMLV offers no
+#: plain "coach built", only low profile and over cab bed, so **low profile** is recorded —
+#: the X has no over-cab bed, being a compact two-berth on a 3.8 m wheelbase with a 1.98 m
+#: interior height. One line to change if the over-cab reading is preferred.
 _BODY_TYPES: dict[str, BodyType] = {
     "low profiles": BodyType.COACH_BUILT_LOW_PROFILE,
     "s low profiles": BodyType.COACH_BUILT_LOW_PROFILE,
     "overcab": BodyType.COACH_BUILT_OVER_CAB_BED,
     "a-class": BodyType.A_CLASS,
+    "x": BodyType.COACH_BUILT_LOW_PROFILE,
 }
 
 #: The line whose body type comes from the roof rather than a lookup.
@@ -563,9 +566,9 @@ def collect(
 
         if product.body_type is None:
             on_progress(
-                f"[{product.label}] NOTE: no body type set for the '{range_label}' line. "
-                f"Chausson call the X an 'ultra compact motorhome' and its 2.1m width sits "
-                f"between a van's and a coachbuilt's, so the mapping is a reviewer's judgement"
+                f"[{product.label}] WARNING: no body type known for the '{range_label}' line, "
+                f"so it is left blank rather than guessed. Add the line to _BODY_TYPES once "
+                f"its FMLV body type has been decided"
             )
 
         results.append(_build_extracted_motorhome(product, model_url, ranges_url))

@@ -6,8 +6,8 @@ No network. `chausson_ranges_cards.html` is every model card trimmed out of
 
 Six model pages were kept, each for a reason: `650` as the ordinary case, `640` because it
 publishes two vehicles' figures in one cell, `v594` for the campervan roof rule, `c514` for
-the overcab body type, `x550` for the line with no body-type mapping, and `x650` because it
-is a soft 404. Every negative test below is a trap that actually bit — see
+the overcab body type, `x550` for the X line's body type and its in-between width, and
+`x650` because it is a soft 404. Every negative test below is a trap that actually bit — see
 `docs/adapters/chausson.md`.
 """
 
@@ -227,12 +227,25 @@ def test_a_standard_height_van_would_not_be_a_high_top(cards: dict[str, Chausson
     assert unknown.body_type is None
 
 
-def test_the_x_line_is_left_for_a_reviewer(cards: dict[str, ChaussonCard]) -> None:
-    """Chausson call it an "ultra compact motorhome" and its width sits between the two."""
+def test_the_x_line_is_coach_built(cards: dict[str, ChaussonCard]) -> None:
+    """Settled by the NCC side, 19 August 2026: the X counts as coach built.
+
+    Its 2.1 m width genuinely sits between a van's 2.05 and a coachbuilt's 2.35, which is why
+    it was left for a decision. FMLV has no plain "coach built", so low profile is recorded —
+    the X has no over-cab bed, being a compact on a 3.8 m wheelbase.
+    """
     x550 = _product("x550", cards)
     assert x550.range_label == "X"
-    assert x550.mh_width_mm == 2100  # a van is 2050, a coachbuilt 2350
-    assert x550.body_type is None
+    assert x550.mh_width_mm == 2100
+    assert x550.body_type is BodyType.COACH_BUILT_LOW_PROFILE
+
+
+def test_an_unknown_line_gets_no_body_type(cards: dict[str, ChaussonCard]) -> None:
+    """A line Chausson add later must not inherit a body type by accident."""
+    invented = ChaussonProduct(
+        card=cards["x550"], range_label="Some New Line", model="Z999", mh_height_mm=2750
+    )
+    assert invented.body_type is None
 
 
 # --------------------------------------------------------------------------- #

@@ -494,6 +494,7 @@ def create_app(
         queue = store.list_change_queue(connection, run_id)
         pending = [entry for entry in queue if entry.decision is None]
         decided = [entry for entry in queue if entry.decision is not None]
+        disappearance_notices = store.list_disappearance_notices(connection, run_id)
         return _templates.TemplateResponse(
             request,
             "run_detail.html",
@@ -501,6 +502,7 @@ def create_app(
                 "run": run,
                 "pending": pending,
                 "decided": decided,
+                "disappearance_notices": disappearance_notices,
                 "reviewers": app.state.reviewers,
             },
         )

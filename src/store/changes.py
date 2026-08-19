@@ -30,12 +30,13 @@ baseline's `year` is exactly today's year — `year_rollover.can_bump_year` gate
 so a product already sitting at `current_year + 1` (bumped and accepted earlier) or
 still showing some older, stale year is never offered one.
 
-`ChangeKind.DISAPPEARED` **is** persisted here, as a proposed `field="archived"`
-change (old `False` -> new `True`) rather than being dropped: a product missing from
-a manufacturer's latest sweep is exactly the "should this be archived?" question a
-reviewer needs put in front of them, not silence. It goes through the same
-accept/reject/correct machinery, `source_url=None`, as the pipeline's own inference
-rather than something read off the site.
+`ChangeKind.DISAPPEARED` **is** persisted here, as a `disappearance_notice` row rather
+than being dropped: a product missing from a manufacturer's latest sweep is exactly
+the kind of thing a reviewer needs put in front of them, not silence. It is
+deliberately *not* a `proposed_change` — there is no CSV field to change, since the
+product hasn't been archived, only found missing from the site this sweep — so it
+carries no accept/reject/correct affordance. It is a prompt for a reviewer to go and
+consider manually deactivating the product on the FMLV Nova site themselves.
 """
 
 from __future__ import annotations
@@ -60,10 +61,11 @@ YEAR_ROLLOVER_SNIPPET = (
     "manufacturer's site."
 )
 
-#: `source_snippet` for a propose-to-archive suggestion — a `DISAPPEARED` product.
-ARCHIVE_SNIPPET = (
-    "Not found on the manufacturer's site during this run's latest sweep — "
-    "proposing to archive this product."
+#: `note` for a `disappearance_notice` row — a `DISAPPEARED` product.
+DISAPPEARANCE_NOTE = (
+    "Not found on the manufacturer's site during this run's latest sweep. This is not "
+    "a proposed CSV change — consider manually deactivating this product on the FMLV "
+    "Nova site."
 )
 
 #: `source_snippet` for a `diff.MissingField` proposal — an in-scope field
@@ -124,6 +126,35 @@ class ChangeQueueEntry:
 
 
 @dataclass(frozen=True)
+class DisappearanceNotice:
+    """One note that a baseline product wasn't found on the manufacturer's site."""
+
+    id: int
+    run_id: int
+    product_id: int
+    note: str
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> DisappearanceNotice:
+        return cls(
+            id=row["id"],
+            run_id=row["run_id"],
+            product_id=row["product_id"],
+            note=row["note"],
+            created_at=row["created_at"],
+        )
+
+
+@dataclass(frozen=True)
+class DisappearanceNoticeEntry:
+    """One row for the review UI: a disappearance notice with its product."""
+
+    notice: DisappearanceNotice
+    product: Product
+
+
+@dataclass(frozen=True)
 class RunReviewSummary:
     """Review status of one run's change queue, for the runs overview page."""
 
@@ -141,6 +172,7 @@ class PersistResult:
     year_rollover_proposed: int = 0
     archive_proposed: int = 0
     missing_field_proposed: int = 0
+    disappeared_noted: int = 0
 
 
 def _now() -> str:
@@ -230,6 +262,21 @@ def record_verification(
     connection.commit()
 
 
+def record_disappearance_notice(
+    connection: sqlite3.Connection, *, run_id: int, product_id: int, note: str
+) -> DisappearanceNotice:
+    cursor = connection.execute(
+        "INSERT INTO disappearance_notice (run_id, product_id, note, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        (run_id, product_id, note, _now()),
+    )
+    connection.commit()
+    row = connection.execute(
+        "SELECT * FROM disappearance_notice WHERE id = ?", (cursor.lastrowid,)
+    ).fetchone()
+    return DisappearanceNotice.from_row(row)
+
+
 def run_review_summary(connection: sqlite3.Connection, run_id: int) -> RunReviewSummary:
     """How much of a run's change queue is left to review, and who's reviewed most of it.
 
@@ -290,7 +337,7 @@ def persist_diff(
 
     Upserts the product identity mapping (`store.products.upsert_seen`) for every
     matched, new or disappeared product, then records `proposed_change`/`verification`
-    rows. `DISAPPEARED` products get a propose-to-archive change — see the module
+    rows. `DISAPPEARED` products get a `disappearance_notice` — see the module
     docstring — rather than being skipped.
 
     `bump_year_all` proposes a `year` bump for every existing product, not just the
@@ -305,6 +352,7 @@ def persist_diff(
     year_rollover_proposed = 0
     archive_proposed = 0
     missing_field_proposed = 0
+    disappeared_noted = 0
 
     for diff in diffs:
         if diff.kind == ChangeKind.DISAPPEARED:
@@ -317,24 +365,10 @@ def persist_diff(
                 model=diff.baseline.model,
                 run_id=run_id,
             )
-            new_value = _serialize(True)
-            if was_previously_rejected(
-                connection, product_id=product.id, field="archived", new_value=new_value
-            ):
-                suppressed += 1
-            else:
-                record_proposed_change(
-                    connection,
-                    run_id=run_id,
-                    product_id=product.id,
-                    field="archived",
-                    old_value=_serialize(diff.baseline.archived),
-                    new_value=new_value,
-                    source_url=None,
-                    source_snippet=ARCHIVE_SNIPPET,
-                )
-                proposed += 1
-                archive_proposed += 1
+            record_disappearance_notice(
+                connection, run_id=run_id, product_id=product.id, note=DISAPPEARANCE_NOTE
+            )
+            disappeared_noted += 1
             continue
 
         assert diff.extracted is not None
@@ -439,6 +473,7 @@ def persist_diff(
         year_rollover_proposed=year_rollover_proposed,
         archive_proposed=archive_proposed,
         missing_field_proposed=missing_field_proposed,
+        disappeared_noted=disappeared_noted,
     )
 
 
@@ -447,6 +482,10 @@ def list_change_queue(connection: sqlite3.Connection, run_id: int) -> list[Chang
 
     Ordered by product identity then field, so a reviewer sees every proposal for one
     product together — matches DESIGN.md §6.3's "beside each change" framing.
+
+    A change whose latest decision is "undo" comes back with `decision=None` — the
+    undo row itself stays in the database for the audit trail, but as far as this
+    queue is concerned the change is pending again.
     """
     rows = connection.execute(
         """
@@ -490,7 +529,7 @@ def list_change_queue(connection: sqlite3.Connection, run_id: int) -> list[Chang
             last_seen_run_id=row["product_last_seen_run_id"],
         )
         decision = None
-        if row["decision_id"] is not None:
+        if row["decision_id"] is not None and row["decision_action"] != "undo":
             decision = Decision(
                 id=row["decision_id"],
                 proposed_change_id=change.id,
@@ -500,4 +539,46 @@ def list_change_queue(connection: sqlite3.Connection, run_id: int) -> list[Chang
                 decided_at=row["decision_decided_at"],
             )
         entries.append(ChangeQueueEntry(change=change, product=product, decision=decision))
+    return entries
+
+
+def list_disappearance_notices(
+    connection: sqlite3.Connection, run_id: int
+) -> list[DisappearanceNoticeEntry]:
+    """Every disappearance notice for a run, with its product — for the review UI.
+
+    Purely informational: unlike `list_change_queue`, there is no decision to join
+    against, since a disappearance notice has nothing to accept, reject or correct.
+    """
+    rows = connection.execute(
+        """
+        SELECT
+            disappearance_notice.*,
+            product.manufacturer_id AS product_manufacturer_id,
+            product.fmlv_product_id AS product_fmlv_product_id,
+            product.manufacturer_range AS product_manufacturer_range,
+            product.model AS product_model,
+            product.first_seen_run_id AS product_first_seen_run_id,
+            product.last_seen_run_id AS product_last_seen_run_id
+        FROM disappearance_notice
+        JOIN product ON product.id = disappearance_notice.product_id
+        WHERE disappearance_notice.run_id = ?
+        ORDER BY product.manufacturer_range, product.model
+        """,
+        (run_id,),
+    ).fetchall()
+
+    entries: list[DisappearanceNoticeEntry] = []
+    for row in rows:
+        notice = DisappearanceNotice.from_row(row)
+        product = Product(
+            id=row["product_id"],
+            manufacturer_id=row["product_manufacturer_id"],
+            fmlv_product_id=row["product_fmlv_product_id"],
+            manufacturer_range=row["product_manufacturer_range"],
+            model=row["product_model"],
+            first_seen_run_id=row["product_first_seen_run_id"],
+            last_seen_run_id=row["product_last_seen_run_id"],
+        )
+        entries.append(DisappearanceNoticeEntry(notice=notice, product=product))
     return entries

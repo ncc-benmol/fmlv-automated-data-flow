@@ -10,6 +10,7 @@ describes doing by hand.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -21,6 +22,7 @@ from src.adapters.base import ExtractedMotorhome, Provenance
 from src.cli import (
     CommandError,
     _dedupe_baseline,
+    _is_current_model_year,
     execute_run,
     find_manufacturer,
     format_summary,
@@ -337,12 +339,12 @@ def test_range_selection_is_passed_through_to_the_adapter(
 def test_a_range_scoped_run_only_diffs_baseline_rows_from_that_range(
     data_root: Path, export_path: Path
 ) -> None:
-    """A run restricted to one range must not propose archiving other ranges' products.
+    """A run restricted to one range must not flag other ranges' products as missing.
 
     `export_path` already has an Adria/Matrix baseline row; add an Adria/Coral one too.
     A run scoped to `ranges=(("motorhomes/matrix", "Matrix"),)` that scrapes nothing
     should leave the Coral row alone — it was never in scope for this run — and only
-    the unmatched Matrix row should come back as a proposed archive.
+    the unmatched Matrix row should come back with a disappearance notice.
     """
     io.write_csv(
         [
@@ -370,9 +372,9 @@ def test_a_range_scoped_run_only_diffs_baseline_rows_from_that_range(
 
     connection = store.connect(paths.db_path(root=data_root))
     try:
-        queue = store.list_change_queue(connection, summary.run.id)
-        archived_ids = {entry.product.fmlv_product_id for entry in queue}
-        assert archived_ids == {4147}
+        notices = store.list_disappearance_notices(connection, summary.run.id)
+        missing_ids = {entry.product.fmlv_product_id for entry in notices}
+        assert missing_ids == {4147}
     finally:
         connection.close()
 
@@ -393,6 +395,19 @@ def test_a_failing_adapter_marks_the_run_failed_and_re_raises(
         assert run.finished_at is not None
     finally:
         connection.close()
+
+
+def test_is_current_model_year_accepts_this_year_and_next() -> None:
+    today = date(2026, 8, 18)
+    assert _is_current_model_year(2026, today=today)
+    assert _is_current_model_year(2027, today=today)
+
+
+def test_is_current_model_year_rejects_earlier_years_and_none() -> None:
+    today = date(2026, 8, 18)
+    assert not _is_current_model_year(2025, today=today)
+    assert not _is_current_model_year(2028, today=today)
+    assert not _is_current_model_year(None, today=today)
 
 
 def test_dedupe_baseline_keeps_the_newer_of_two_rows_sharing_range_and_model() -> None:
@@ -426,11 +441,11 @@ def test_dedupe_baseline_passes_through_rows_with_no_model_untouched() -> None:
     assert _dedupe_baseline([blank_a, blank_b]) == [blank_a, blank_b]
 
 
-def test_a_run_collapses_a_duplicate_baseline_row_instead_of_proposing_to_archive_it(
+def test_a_run_collapses_a_duplicate_baseline_row_instead_of_flagging_it_missing(
     data_root: Path,
 ) -> None:
-    """End to end: the older duplicate must not surface as a DISAPPEARED/archive
-    proposal once the newer one has matched the scraped product."""
+    """End to end: the older duplicate must not surface as a DISAPPEARED/disappearance
+    notice once the newer one has matched the scraped product."""
     path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
     io.write_csv(
         [
@@ -445,12 +460,12 @@ def test_a_run_collapses_a_duplicate_baseline_row_instead_of_proposing_to_archiv
 
     assert summary.baseline_count == 1
     assert summary.kinds["disappeared"] == 0
-    assert summary.persisted.archive_proposed == 0
+    assert summary.persisted.disappeared_noted == 0
     connection = store.connect(paths.db_path(root=data_root))
     try:
         queue = store.list_change_queue(connection, summary.run.id)
         assert queue[0].product.fmlv_product_id == 7614
-        assert not any(entry.change.field == "archived" for entry in queue)
+        assert store.list_disappearance_notices(connection, summary.run.id) == []
     finally:
         connection.close()
 
@@ -464,6 +479,43 @@ def test_archived_baseline_rows_are_excluded_from_the_baseline(
         [
             make_baseline(),
             make_baseline(product_id=4148, model="Old 670 DC", archived=True),
+        ],
+        path,
+    )
+    adapter = FakeAdapter(products=[make_extracted()])
+
+    summary = run_once(data_root=data_root, export_path=path, adapter=adapter)
+
+    assert summary.baseline_count == 1
+
+
+def test_stale_model_year_baseline_rows_are_excluded_from_the_baseline(
+    data_root: Path,
+) -> None:
+    """A row for a model year that's already gone off sale must not be diffed against."""
+    path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
+    io.write_csv(
+        [
+            make_baseline(),
+            make_baseline(product_id=4148, model="Old 670 DC", year=2024),
+        ],
+        path,
+    )
+    adapter = FakeAdapter(products=[make_extracted()])
+
+    summary = run_once(data_root=data_root, export_path=path, adapter=adapter)
+
+    assert summary.baseline_count == 1
+
+
+def test_next_calendar_years_model_year_is_kept_in_the_baseline(
+    data_root: Path,
+) -> None:
+    """Manufacturers publish next year's models early — those must still be diffed."""
+    path = paths.exports_dir(root=data_root) / "2026-08-04" / "export.csv"
+    io.write_csv(
+        [
+            make_baseline(year=2027),
         ],
         path,
     )

@@ -1,5 +1,4 @@
-{% set archiving = entries | selectattr('change.field', 'equalto', 'archived') | list %}
-<div id="product-{{ product.id }}-pending" class="product-group{% if not product.fmlv_product_id %} new-product{% elif archiving %} archiving-product{% endif %}">
+<div id="product-{{ product.id }}-pending" class="product-group{% if not product.fmlv_product_id %} new-product{% endif %}">
   <div class="product-group-header">
     <h3>
       {{ product.manufacturer_range }} — {{ product.model }}
@@ -7,9 +6,6 @@
         <span class="muted">#{{ product.fmlv_product_id }}</span>
       {% else %}
         <span class="badge new">new product</span>
-      {% endif %}
-      {% if archiving %}
-        <span class="badge archiving" title="Not found on the manufacturer's site during this run">Propose to Archive</span>
       {% endif %}
     </h3>
     {% set pending_entries = entries | selectattr('decision', 'none') | list %}

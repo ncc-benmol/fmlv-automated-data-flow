@@ -1,0 +1,30 @@
+[
+  {
+    "id": 49,
+    "name": "Avventura",
+    "slug": "avventura",
+    "count": 2,
+    "taxonomy": "motorhome_model"
+  },
+  {
+    "id": 9,
+    "name": "Sportivo",
+    "slug": "sportivo",
+    "count": 1,
+    "taxonomy": "motorhome_model"
+  },
+  {
+    "id": 8,
+    "name": "Travel Master",
+    "slug": "travel-master",
+    "count": 2,
+    "taxonomy": "motorhome_model"
+  },
+  {
+    "id": 56,
+    "name": "Travel Master Imperial",
+    "slug": "travel-master-imperial",
+    "count": 1,
+    "taxonomy": "motorhome_model"
+  }
+]

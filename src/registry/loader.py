@@ -9,6 +9,8 @@ rows (two different brands accidentally pointing at the same site).
 
 from __future__ import annotations
 
+import re
+
 import csv
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -36,6 +38,14 @@ class LoadResult:
     manufacturers: list[Manufacturer] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
 
+
+#: `last_verified` is specified as `YYYY-MM-DD` in `config/manufacturers.README.md`.
+#: Worth validating rather than trusting, because the registry is a CSV that people open in
+#: Excel, and Excel silently rewrites an ISO date into the local short format on save - it
+#: turned all seven `2026-08-17` style values into `17/08/2026` in one sitting. Nothing
+#: downstream reads this date programmatically today, so a mangled one corrupts a human's
+#: only record of when a row was last checked, and does it without a murmur.
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 def _clean(value: str | None) -> str | None:
     if value is None:
@@ -166,6 +176,22 @@ def _row_to_manufacturer(
     except ValueError:
         needs_javascript = TriState.UNKNOWN
 
+    last_verified = _clean(row.get("last_verified"))
+    if last_verified is not None and not _ISO_DATE.match(last_verified):
+        issues.append(
+            Issue(
+                severity="warning",
+                code="last_verified_not_iso",
+                message=(
+                    f"last_verified '{last_verified}' is not YYYY-MM-DD. A date in local "
+                    f"format usually means the file has been saved from Excel, which "
+                    f"rewrites every date in the column"
+                ),
+                row_number=row_number,
+                manufacturer_id=manufacturer_id,
+            )
+        )
+
     manufacturer = Manufacturer(
         manufacturer_id=manufacturer_id,
         fmlv_manufacturer=fmlv_manufacturer,
@@ -187,7 +213,7 @@ def _row_to_manufacturer(
         contact_name=_clean(row.get("contact_name")),
         contact_email=_clean(row.get("contact_email")),
         contact_phone=_clean(row.get("contact_phone")),
-        last_verified=_clean(row.get("last_verified")),
+        last_verified=last_verified,
         notes=_clean(row.get("notes")),
     )
     return manufacturer, issues

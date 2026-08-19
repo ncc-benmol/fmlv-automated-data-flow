@@ -33,6 +33,37 @@ def _apply_column_migrations(connection: sqlite3.Connection) -> None:
             connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
 
 
+def _migrate_decision_undo_action(connection: sqlite3.Connection) -> None:
+    """Rebuild `decision` if its CHECK constraint predates the "undo" action.
+
+    SQLite has no `ALTER TABLE` for CHECK constraints, so widening one means
+    rebuilding the table — done idempotently by checking its current
+    `CREATE TABLE` text first, and done at all (rather than leaving it to a
+    fresh `schema.sql`) because real run history already exists in it.
+    """
+    row = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'decision'"
+    ).fetchone()
+    if row is None or "'undo'" in row["sql"]:
+        return
+    connection.executescript(
+        """
+        ALTER TABLE decision RENAME TO decision_old;
+        CREATE TABLE decision (
+            id INTEGER PRIMARY KEY,
+            proposed_change_id INTEGER NOT NULL REFERENCES proposed_change (id),
+            action TEXT NOT NULL CHECK (action IN ('accept', 'reject', 'correct', 'undo')),
+            corrected_value TEXT,
+            decided_by TEXT,
+            decided_at TEXT NOT NULL
+        );
+        INSERT INTO decision SELECT * FROM decision_old;
+        DROP TABLE decision_old;
+        CREATE INDEX IF NOT EXISTS idx_decision_proposed_change ON decision (proposed_change_id);
+        """
+    )
+
+
 def connect(db_path: Path | str) -> sqlite3.Connection:
     """Open the run store, creating the schema if it doesn't exist yet."""
     path = Path(db_path)
@@ -42,5 +73,6 @@ def connect(db_path: Path | str) -> sqlite3.Connection:
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(_SCHEMA_SQL)
     _apply_column_migrations(connection)
+    _migrate_decision_undo_action(connection)
     connection.commit()
     return connection

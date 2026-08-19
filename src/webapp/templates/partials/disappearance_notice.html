@@ -1,0 +1,10 @@
+<div class="disappearance-notice">
+  <h3>
+    {{ entry.product.manufacturer_range }} — {{ entry.product.model }}
+    {% if entry.product.fmlv_product_id %}
+      <span class="muted">#{{ entry.product.fmlv_product_id }}</span>
+    {% endif %}
+    <span class="badge disappeared" title="Not found on the manufacturer's site during this run">missing from site</span>
+  </h3>
+  <p class="muted">{{ entry.notice.note }}</p>
+</div>

@@ -440,6 +440,39 @@ def test_accept_records_a_decision_and_moves_the_change_to_decided(
     assert "Decided (1)" in detail.text
 
 
+def test_undo_reopens_an_accepted_change_for_review(
+    client: TestClient, db_path: Path, run_with_one_change: tuple[int, int]
+) -> None:
+    run_id, change_id = run_with_one_change
+
+    client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "accept", "reviewer_name": "ben"},
+    )
+
+    response = client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "undo", "reviewer_name": "ben"},
+    )
+
+    assert response.status_code == 200
+    assert "decision-accept" not in response.text
+    assert "decision-form" in response.text
+
+    connection = store.connect(db_path)
+    queue = store.list_change_queue(connection, run_id)
+    latest = store.latest_decision(connection, change_id)
+    connection.close()
+    [entry] = queue
+    assert entry.decision is None
+    assert latest is not None
+    assert latest.action == "undo"
+
+    detail = client.get(f"/runs/{run_id}")
+    assert "Pending (1)" in detail.text
+    assert "Decided (" not in detail.text
+
+
 def test_reject_records_a_decision(
     client: TestClient, db_path: Path, run_with_one_change: tuple[int, int]
 ) -> None:
@@ -595,7 +628,7 @@ def test_year_rollover_proposal_is_marked_possible_rollover(
     assert "2027" in response.text
 
 
-def test_disappeared_product_shows_propose_to_archive(
+def test_disappeared_product_shows_a_disappearance_notice_with_no_decision_controls(
     client: TestClient, db_path: Path
 ) -> None:
     connection = store.connect(db_path)
@@ -611,9 +644,12 @@ def test_disappeared_product_shows_propose_to_archive(
     response = client.get(f"/runs/{run.id}")
 
     assert response.status_code == 200
-    assert 'class="badge archiving"' in response.text
-    assert "Propose to Archive" in response.text
-    assert 'class="product-group archiving-product"' in response.text
+    assert 'class="badge disappeared"' in response.text
+    assert "missing from site" in response.text
+    assert 'class="disappearance-notice"' in response.text
+    # No accept/reject/correct affordance — it's not a proposed CSV change.
+    assert 'class="decision-form"' not in response.text
+    assert 'class="accept-all-form"' not in response.text
 
 
 def test_accept_all_accepts_every_pending_change_for_one_product(

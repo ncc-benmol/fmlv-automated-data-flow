@@ -38,8 +38,8 @@ load_dotenv()
 
 #: DESIGN.md §8: "Anthropic API key and NCC credentials via environment, never
 #: committed." These are the two env vars that carry the NCC login.
-CREDENTIALS_EMAIL_ENV = "NCC_LOGIN_EMAIL"
-CREDENTIALS_PASSWORD_ENV = "NCC_LOGIN_PASSWORD"
+CREDENTIALS_EMAIL_ENV = "FMLV_NOVA_LOGIN_EMAIL"
+CREDENTIALS_PASSWORD_ENV = "FMLV_NOVA_LOGIN_PASSWORD"
 
 
 class NccCredentialsError(RuntimeError):
@@ -63,7 +63,7 @@ class NccCredentials:
 
     @classmethod
     def from_env(cls, *, env: dict[str, str] | None = None) -> NccCredentials:
-        """Read the login from `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD`.
+        """Read the login from `FMLV_NOVA_LOGIN_EMAIL`/`FMLV_NOVA_LOGIN_PASSWORD`.
 
         Raises `NccCredentialsError` rather than proceeding with a blank credential —
         a login attempt with an empty password is a confusing failure to debug from

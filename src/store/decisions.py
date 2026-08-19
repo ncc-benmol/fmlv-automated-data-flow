@@ -1,10 +1,15 @@
-"""Reviewer decisions on proposed changes: accept / reject / correct.
+"""Reviewer decisions on proposed changes: accept / reject / correct / undo.
 
 DESIGN.md §6.3: "Accept / reject / correct is per field, and the reviewer can type a
 corrected value." A proposed change can be decided more than once — a reviewer
 overriding an earlier decision inserts a new row rather than editing the old one, so
 the full history survives (DESIGN.md §6.7: "Everything is logged"). Whichever row was
 decided most recently is authoritative; `latest_decision` returns exactly that one.
+
+"undo" is a decision like any other — inserted as a new row rather than deleting the
+one it reverses, so the history stays intact. `store.changes.list_change_queue`
+treats the most recent "undo" as equivalent to no decision at all, reopening the
+change for review.
 """
 
 from __future__ import annotations
@@ -14,7 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
-Action = Literal["accept", "reject", "correct"]
+Action = Literal["accept", "reject", "correct", "undo"]
 
 
 @dataclass(frozen=True)

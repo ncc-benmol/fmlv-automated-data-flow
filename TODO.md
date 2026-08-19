@@ -151,12 +151,16 @@ Do this **before** committing to an adapter interface — the sites decide the s
             `source_url=None` and an explanatory snippet, so accepting it goes through
             the exact same accept/reject/correct plumbing as every other field. Shown
             with a "possible rollover" badge (`review/templates/partials/change_row.html`)
-- [ ] **[F]** Propose `archived = Yes` for products that vanish from a manufacturer's site
+- [x] **[P]** Note products that vanish from a manufacturer's site for manual review —
+      not `archived = Yes`: that's a CSV field change, and there's nothing to change
+      in the CSV here, only a reviewer decision to make on the FMLV Nova site itself.
+      `store/changes.py:persist_diff` writes a `disappearance_notice` row instead of a
+      `proposed_change`, shown as an orange, decision-free tile
+      (`partials/disappearance_notice.html`) on the run detail page.
 - [ ] **[F]** Materiality thresholds
 - [x] **[P]** Wire `diff_products` results into `proposed_change`/`verification` rows
-      — done in Phase 6: `store/changes.py:persist_diff`. `DISAPPEARED` products are
-      still not persisted (no actionable proposal exists for them yet — see the
-      `archived = Yes` item above).
+      — done in Phase 6: `store/changes.py:persist_diff`. `DISAPPEARED` products get a
+      `disappearance_notice` instead (see above) — there's no CSV proposal for them.
 - [ ] **[P]** Caching function - aim to not re-download exactly the same PDF assets I've we've already got a copy in data/snapshots. The except here would be if the existing pdf is more than 1 month old, in which case we should re-download anyway.
 
 ## Phase 6 — Review app
@@ -218,7 +222,7 @@ Do this **before** committing to an adapter interface — the sites decide the s
       URLs/selectors are now the real ones, not placeholders.
       `tests/fetch/test_ncc.py` covers the full flow against local fixtures.
 - [x] **[P]** Credential handling via environment variables — `fetch/ncc.py`:
-      `NccCredentials.from_env()` reads `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD`, raising
+      `NccCredentials.from_env()` reads `FMLV_NOVA_LOGIN_EMAIL`/`FMLV_NOVA_LOGIN_PASSWORD`, raising
       `NccCredentialsError` rather than proceeding with a blank credential. Never
       hardcoded, never committed, matching DESIGN.md §8's secrets row. `.env` is set
       up on the dev machine (gitignored, per `.env.example`).
@@ -326,7 +330,7 @@ before debugging FMLV logic on it at the same time.
       stdout/stderr redirected to rotating files under `logs\`
 - [ ] **[P]** `data\` directory on the VM for exports, snapshots, SQLite and generated
       uploads — decide the drive/path with IT, and confirm it's inside the VM backup
-- [ ] **[P]** `.env` on the VM for `NCC_LOGIN_EMAIL`/`NCC_LOGIN_PASSWORD` and the
+- [ ] **[P]** `.env` on the VM for `FMLV_NOVA_LOGIN_EMAIL`/`FMLV_NOVA_LOGIN_PASSWORD` and the
       Anthropic key, ACL'd to the service account only
 - [ ] **[P]** Decide the service account — the smoke test ran as `LocalSystem` (it
       reported `NCC-AI1$`, the machine account), which is the install script's default.

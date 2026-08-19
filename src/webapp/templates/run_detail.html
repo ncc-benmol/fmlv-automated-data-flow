@@ -51,6 +51,17 @@
     {% endfor %}
   {% endif %}
 
+  {% if disappearance_notices %}
+    <h2>Missing from the manufacturer's site ({{ disappearance_notices|length }})</h2>
+    <p class="muted">
+      These aren't proposed CSV changes — go and manually deactivate them on the FMLV
+      Nova site if that's the right call.
+    </p>
+    {% for entry in disappearance_notices %}
+      {% include "partials/disappearance_notice.html" %}
+    {% endfor %}
+  {% endif %}
+
   {% if decided %}
     <h2>Decided ({{ decided|length }})</h2>
     {% for product_id, group in decided|groupby('product.id') %}

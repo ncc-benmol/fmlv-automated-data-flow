@@ -1,0 +1,287 @@
+<title>FMLV Pipeline</title>
+<style>
+  :root {
+    --bg: #f3f6f4;
+    --surface: #ffffff;
+    --ink: #1a231f;
+    --muted: #5c6b63;
+    --line: #c7d3cc;
+    --line-soft: #dbe3de;
+    --flow: #2c6d68;
+    --flow-soft: #e4eeec;
+    --gate: #a6631f;
+    --gate-soft: #f6e9d9;
+    --code: #3d4a44;
+    --sql-line: #cdd7d1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121613;
+      --surface: #191f1c;
+      --ink: #e8ede9;
+      --muted: #93a39a;
+      --line: #33403a;
+      --line-soft: #232b26;
+      --flow: #6fc6bd;
+      --flow-soft: #1c2d2b;
+      --gate: #e0a862;
+      --gate-soft: #2c2415;
+      --code: #b7c4bc;
+      --sql-line: #2b352f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121613;
+    --surface: #191f1c;
+    --ink: #e8ede9;
+    --muted: #93a39a;
+    --line: #33403a;
+    --line-soft: #232b26;
+    --flow: #6fc6bd;
+    --flow-soft: #1c2d2b;
+    --gate: #e0a862;
+    --gate-soft: #2c2415;
+    --code: #b7c4bc;
+    --sql-line: #2b352f;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    padding: 48px 24px 64px;
+  }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  header {
+    max-width: 640px;
+    margin: 0 0 40px;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--flow);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .dek {
+    font-size: 1.02rem;
+    line-height: 1.55;
+    color: var(--muted);
+    margin: 0;
+    max-width: 60ch;
+  }
+
+  figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: 10px;
+    padding: 28px 24px 20px;
+  }
+  .diagram-wrap {
+    overflow-x: auto;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-width: 640px;
+  }
+  figcaption {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--muted);
+    max-width: 68ch;
+  }
+  figcaption strong { color: var(--ink); font-weight: 600; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    margin: 22px 2px 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .swatch {
+    width: 22px;
+    height: 0;
+    border-top-width: 2.5px;
+    border-top-style: solid;
+    flex-shrink: 0;
+  }
+  .swatch.flow { border-color: var(--flow); }
+  .swatch.gate { border-color: var(--gate); border-top-style: dashed; }
+  .swatch.log { border-color: var(--sql-line); border-top-style: dashed; border-top-width: 1.5px; }
+
+  .box-title { font-size: 13.5px; font-weight: 700; }
+  .box-sub { font-size: 10.5px; }
+  .box-code {
+    font-family: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    font-size: 10px;
+  }
+  .edge-label {
+    font-size: 10.5px;
+    font-family: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  }
+  .lane-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    fill: var(--muted);
+  }
+</style>
+
+<main>
+  <header>
+    <p class="eyebrow">NCC &middot; Find My Leisure Vehicle</p>
+    <h1>FMLV Pipeline</h1>
+    <p class="dek">
+      One manufacturer at a time, the system reconciles what the NCC already has against what
+      the manufacturer currently publishes &mdash; and stops for a human before anything reaches FMLV.
+    </p>
+  </header>
+
+  <figure>
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 900 970" role="img" aria-label="Two lanes converge: the NCC's baseline export and a live read of the manufacturer's website feed a diff engine; a human reviewer accepts, rejects or corrects each field before a CSV is produced and manually uploaded back to the NCC FMLV website, closing the loop. Every stage's fetches, diffs and decisions are logged to SQLite.">
+        <defs>
+          <marker id="arrowFlow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--flow)" />
+          </marker>
+          <marker id="arrowGate" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--gate)" />
+          </marker>
+        </defs>
+
+        <!-- SQLite log lines drawn first so every box, arrow and label renders in front of them -->
+        <g transform="translate(0,30)">
+          <line x1="560" y1="324" x2="560" y2="812" stroke="var(--sql-line)" stroke-width="1.3" stroke-dasharray="3 4" />
+          <line x1="440" y1="516" x2="440" y2="812" stroke="var(--sql-line)" stroke-width="1.3" stroke-dasharray="3 4" />
+          <line x1="300" y1="716" x2="300" y2="812" stroke="var(--sql-line)" stroke-width="1.3" stroke-dasharray="3 4" />
+        </g>
+
+        <g transform="translate(0,30)">
+        <text x="40" y="24" class="lane-label">NCC side</text>
+        <text x="400" y="24" class="lane-label">Manufacturer side</text>
+
+        <!-- Row 1 -->
+        <g>
+          <rect x="40" y="40" width="240" height="92" rx="7" fill="var(--surface)" stroke="var(--line)" />
+          <text x="58" y="70" class="box-title" fill="var(--ink)">NCC FMLV website</text>
+          <text x="58" y="88" class="box-sub" fill="var(--muted)">Nova admin panel</text>
+          <text x="58" y="112" class="box-code" fill="var(--code)">fetch/ncc.py</text>
+        </g>
+        <g>
+          <rect x="400" y="40" width="240" height="92" rx="7" fill="var(--surface)" stroke="var(--line)" />
+          <text x="418" y="70" class="box-title" fill="var(--ink)">Manufacturer website</text>
+          <text x="418" y="88" class="box-sub" fill="var(--muted)">~100 sites, PDFs &amp; pages</text>
+          <text x="418" y="112" class="box-code" fill="var(--code)">registry/</text>
+        </g>
+
+        <!-- connectors row1 -> row2 -->
+        <line x1="160" y1="132" x2="160" y2="228" stroke="var(--flow)" stroke-width="2" marker-end="url(#arrowFlow)" />
+        <text x="170" y="180" class="edge-label" fill="var(--flow)">automated download</text>
+
+        <line x1="520" y1="132" x2="520" y2="228" stroke="var(--flow)" stroke-width="2" marker-end="url(#arrowFlow)" />
+        <text x="530" y="180" class="edge-label" fill="var(--flow)">fetch</text>
+
+        <!-- Row 2 -->
+        <g>
+          <rect x="40" y="232" width="240" height="92" rx="7" fill="var(--surface)" stroke="var(--line)" />
+          <text x="58" y="262" class="box-title" fill="var(--ink)">Baseline export</text>
+          <text x="58" y="280" class="box-sub" fill="var(--muted)">.xlsx, this + next model year</text>
+          <text x="58" y="304" class="box-code" fill="var(--code)">data/exports/</text>
+        </g>
+        <g>
+          <rect x="400" y="232" width="240" height="92" rx="7" fill="var(--surface)" stroke="var(--line)" />
+          <text x="418" y="258" class="box-title" fill="var(--ink)">Snapshot, hash &amp; parse</text>
+          <text x="418" y="276" class="box-sub" fill="var(--muted)">skips pages unchanged since</text>
+          <text x="418" y="290" class="box-sub" fill="var(--muted)">last run &middot; one adapter per brand</text>
+          <text x="418" y="312" class="box-code" fill="var(--code)">fetch/ &nbsp;&middot;&nbsp; adapters/</text>
+        </g>
+
+        <!-- connectors row2 -> diff (elbowed) -->
+        <path d="M160,324 L160,370 L260,370 L260,420" fill="none" stroke="var(--flow)" stroke-width="2" marker-end="url(#arrowFlow)" />
+        <text x="170" y="358" class="edge-label" fill="var(--flow)">baseline</text>
+
+        <path d="M520,324 L520,398 L460,398 L460,420" fill="none" stroke="var(--flow)" stroke-width="2" marker-end="url(#arrowFlow)" />
+        <text x="530" y="358" class="edge-label" fill="var(--flow)">scraped &amp; parsed</text>
+
+        <!-- Row 3: diff -->
+        <g>
+          <rect x="210" y="424" width="300" height="92" rx="7" fill="var(--flow-soft)" stroke="var(--flow)" />
+          <text x="228" y="456" class="box-title" fill="var(--ink)">Diff engine</text>
+          <text x="228" y="474" class="box-sub" fill="var(--muted)">match to product_id, compare field by field</text>
+          <text x="228" y="498" class="box-code" fill="var(--code)">diff/</text>
+        </g>
+
+        <line x1="360" y1="516" x2="360" y2="612" stroke="var(--flow)" stroke-width="2" marker-end="url(#arrowFlow)" />
+        <text x="370" y="568" class="edge-label" fill="var(--flow)">proposed changes</text>
+
+        <!-- Row 4: review + csv -->
+        <g>
+          <rect x="210" y="616" width="300" height="100" rx="7" fill="var(--gate-soft)" stroke="var(--gate)" stroke-width="1.5" />
+          <text x="228" y="640" class="edge-label" fill="var(--gate)" style="font-weight:700; letter-spacing:0.08em;">HUMAN GATE</text>
+          <text x="228" y="662" class="box-title" fill="var(--ink)">Review app</text>
+          <text x="228" y="680" class="box-sub" fill="var(--muted)">accept &middot; reject &middot; correct, per field</text>
+          <text x="228" y="702" class="box-code" fill="var(--code)">webapp/</text>
+        </g>
+        <g>
+          <rect x="600" y="616" width="220" height="100" rx="7" fill="var(--surface)" stroke="var(--line)" />
+          <text x="618" y="646" class="box-title" fill="var(--ink)">Approved CSV</text>
+          <text x="618" y="664" class="box-sub" fill="var(--muted)">exact FMLV column order</text>
+          <text x="618" y="686" class="box-code" fill="var(--code)">data/uploads/</text>
+        </g>
+
+        <line x1="510" y1="666" x2="596" y2="666" stroke="var(--flow)" stroke-width="2" marker-end="url(#arrowFlow)" />
+
+        <!-- loop back -->
+        <path d="M710,616 L710,-10 L160,-10 L160,36" fill="none" stroke="var(--gate)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowGate)" />
+        <text x="430" y="-16" text-anchor="middle" class="edge-label" fill="var(--gate)">human uploads &mdash; never automatic</text>
+
+        <!-- SQLite store -->
+        <rect x="40" y="816" width="780" height="72" rx="7" fill="var(--surface)" stroke="var(--line)" stroke-dasharray="1 0" />
+        <text x="58" y="846" class="box-title" fill="var(--ink)">SQLite</text>
+        <text x="58" y="864" class="box-sub" fill="var(--muted)">runs &middot; snapshots &middot; proposed changes &middot; reviewer decisions</text>
+        <text x="700" y="846" class="box-code" fill="var(--code)" text-anchor="end">store/</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      Two independent lanes &mdash; the NCC's own baseline from FMLV and a live read of the manufacturer's
+      site &mdash; are reconciled by the diff engine. <strong>Nothing reaches FMLV without a human
+      approving it first</strong>, and even the finished CSV goes back to the NCC site by hand.
+      Every fetch, diff and decision along the way is logged to SQLite, so a run is always
+      reconstructable after the fact.
+    </figcaption>
+  </figure>
+
+  <div class="legend">
+    <span class="legend-item"><span class="swatch flow"></span>automated data flow</span>
+    <span class="legend-item"><span class="swatch gate"></span>manual, human-triggered step</span>
+    <span class="legend-item"><span class="swatch log"></span>logged to SQLite</span>
+  </div>
+</main>

@@ -120,7 +120,7 @@ $envFile = Join-Path $repoRoot '.env'
 if (Test-Path $envFile) {
     Write-Host "Found $envFile" -ForegroundColor Green
 } else {
-    Write-Warning "$envFile is missing. The service needs NCC_LOGIN_EMAIL / NCC_LOGIN_PASSWORD."
+    Write-Warning "$envFile is missing. The service needs FMLV_NOVA_LOGIN_EMAIL / FMLV_NOVA_LOGIN_PASSWORD."
     Write-Warning "Copy .env.example to .env and fill in real credentials before starting the service."
 }
 

@@ -1,0 +1,392 @@
+# Etrusco — site survey and adapter notes
+
+Surveyed and built 19 August 2026, against the **2027 model year** UK site at
+`www.etrusco.com/gb/en/`. Ninth manufacturer, and the cleanest source since Sunlight.
+
+Etrusco is an **Erwin Hymer Group** brand, built in Italy. **28 layouts across 8 families**,
+all motorhomes and campervans; Etrusco build no caravans, so nothing needs excluding.
+
+| | Families | Layouts |
+|---|---|---|
+| Campervans | CV-Model Fiat 5, CV-Model Plus 3, V-Model Ford 2 | 10 |
+| Motorhomes | T-Model Fiat 4, T-Model Base 5, T-Model Ford 4, A-Model Base 2, I-Model Fiat 3 | 18 |
+
+The survey originally counted 24 layouts across 7 ranges, from the price list PDFs. Both
+figures were wrong, and the correction is the most useful thing in this document — see
+[the roster](#the-roster-comes-from-the-sitemap-because-neither-menu-is-complete).
+
+## What the requester brought to the survey
+
+The UK URL, `www.etrusco.com/gb/en/modeloverview`, supplied before any fetching — which is
+why this survey never went near the wrong market. Everything else below is theirs too, and
+none of it is discoverable from the site.
+
+**Etrusco is a "non-core" brand, and the UK site is a deliberate subset.** Etrusco, Bürstner,
+Carado and Eriba are European brands of which only **a selection of the full range** is
+offered in the UK, and the `/gb/en/` path is that selection. This is the explanation for what
+the path segmentation only hints at: the UK roster is not an incomplete rendering of the
+European one, it **is** the UK range. So it should be taken as authoritative and **not**
+reconciled against a European roster, which would show models Etrusco do not sell here.
+
+**They build every motorhome type** — A-class, coach-built low profile and over-cab bed — plus
+campervans. The campervans are **very popular**, on price: they are regarded as good value.
+The **CV 540** in particular sells well, which is worth knowing when reviewing a change to it.
+
+**Do not plan on getting this data from the manufacturer.** Asking Erwin Hymer directly is
+possible but **slow and not dependable**. The strategy for these brands is explicitly the
+opposite of the one adopted for Coachman and Chausson, where the answer to a gap was to ask:
+here, **build against the website, record the range as 2027, and re-run when the site
+changes.** The website is the source of truth.
+
+**Expect the roster to move.** August and September are when these brands are "intensely busy
+deciding on their ranges", so a run today is a snapshot of a moving target — which is the same
+window [`README.md`](README.md) describes for the model-year rollover generally.
+
+Two decisions taken during the build, both theirs:
+
+- **Payload is `MTPLM − MRO`**, in the knowledge that other derivations exist. Etrusco's table
+  offers two tempting alternatives that are not payload.
+- **A "from" price specific to one layout may be used as that layout's guide price.** Where a
+  layout has no price of its own the choice would be to apply the base price to all, ask EHG,
+  or leave FMLV as it is. In the event the question did not arise: all 28 layouts carry their
+  own price.
+
+## The site is market-segmented by path, which settles a question up front
+
+Everything sits under `/gb/en/`, so there is a genuine UK edition rather than a global site to
+be interpreted. That is a meaningfully better position than Chausson, where the UK and global
+sites turned out to be **different ranges in both directions** and the global one had no
+sterling at all. Here the question does not arise.
+
+## Where the data lives — one source, the eight family pages
+
+Plain HTTP, no JavaScript, no PDF, no login, and `robots.txt` is `Disallow:` with nothing
+disallowed. **Eight fetches for the whole range.**
+
+Each family page renders every layout's specification as **two tables**: the first holds the
+labels, one `<td>` per row, and the second the values in the same order. Tables therefore pair
+even-with-odd, and within a pair the two cell lists are zipped by position. That is safe in a
+way zipping across the page would not be — each pair is one layout's own table, generated from
+one row list — and the layout count is reconciled against the name count before anything is
+paired.
+
+The value table for the CV 540 DB, cleaned of markup:
+
+```
+Pricea)                                                    £59,099
+Length | Width | Height (cm)                               541 | 205 | 270
+Chassis                                                    Fiat Ducato
+Mass in running order* (kg)                                2751 (2613 - 2889)*
+Manufacturer-specified mass for optional equipment* (kg)   400
+Technically permissible maximum laden mass* (kg)           3500
+Permitted number of seats (including driver)*              4
+Sleeping places                                            2 - 5 OPT
+```
+
+Mapping to `Motorhome`:
+
+| Field | Source |
+|---|---|
+| `manufacturer_range` | the **bare model letter** — `CV`, `V`, `T`, `A`, `I`. See below |
+| `model` | `h4.o-floorplan__subline` minus that letter — `540 DB`, `7400 SBC`, `640 PB+` |
+| `rrp_pounds` | `Pricea)`, the layout's own sterling figure |
+| `mh_length_mm` / `mh_width_mm` / `mh_height_mm` | one cell, `541 \| 205 \| 270`, in **centimetres** |
+| `mh_passenger_seats_inc_driver` | `Permitted number of seats (including driver)` — the exact FMLV basis |
+| `berths` | `Sleeping places`, `2 - 5 OPT` → the standard figure, 2 |
+| `mtplm_kilograms` | `Technically permissible maximum laden mass` |
+| `mro_kilograms` | `Mass in running order`, leading figure, band kept for the self-check |
+| `mh_payload_kilograms` | **derived**, `MTPLM − MRO` |
+| `base_vehicle_manufacturer` | `Chassis` — first word of `Fiat Ducato` / `Ford Transit` |
+| `body_type` | the range's **model letter** — see below |
+
+**The layout name comes from the subline, not the slider.** Each layout is named twice: once in
+the floorplan slider as `h3.o-floorplan__headline`, and once as `h4.o-floorplan__subline`
+inside its own content item, beside its own tables. Only the second pairs with the tables.
+
+### FMLV names these vehicles differently from the website, and FMLV wins
+
+The real export for id 45 settled this. FMLV stores the range as the **bare model letter** and
+the model as the number alone:
+
+| | The site says | FMLV holds |
+|---|---|---|
+| range | `CV-Model Plus` | `CV` |
+| model | `CV 600 DB+` | `600 DB+` |
+| range | `T-Model Ford` | `T` |
+| model | `T 7.3 SCF` | `7.3 SCF` |
+
+So the adapter emits FMLV's form. Sending the marketing family name as the range would do two
+kinds of damage: it dilutes the word bag the matcher scores on, and every product it *did*
+match would then carry a proposed range rename — 27 of them, none wanted. The family name is
+not lost; it is in the provenance of every field, and the chassis it encodes is already in
+`base_vehicle_manufacturer`.
+
+FMLV is itself inconsistent about the Plus suffix — it holds both `600 DB+` and `640 SB +` —
+which does not matter to the matcher, because it compares words and drops punctuation. That
+same indifference is a hazard, and it bit on the first diff run: see
+[the matches to check](#three-matches-a-reviewer-must-not-accept-blind).
+
+**Body type comes from the model letter**, which is Etrusco's own taxonomy and travels with the
+vehicle name: `I 6900 SB` is an A class, `T 7.3 SCF` a coach-built low profile, `A 6.9 DB` an
+over-cab bed. `CV` and `V` ranges instead go through the roof-height rule in
+[`README.md`](README.md), and every Etrusco campervan clears it comfortably — 2700 mm on the
+Fiats, 2870 mm on the Ford vans, against a 2300 mm threshold. The letter is used rather than the
+URL path because **the paths disagree with each other**: `overcab-fiat` and
+`model-overview/t-modelle-fiat_base` are both real, and a rule keyed on the path segment worked
+on one shape and returned nothing on the other.
+
+## The roster comes from the sitemap, because neither menu is complete
+
+This is the part worth carrying to the next brand. Etrusco publish eight family pages, and
+**no single menu lists them all**:
+
+| Family | In `sitemap.xml` | On `/gb/en/modeloverview` | Path shape |
+|---|---|---|---|
+| CV-Model Fiat | yes | yes | `/models/campervans-fiat` |
+| **CV-Model Plus** | yes | yes | `/models/model-overview/cv-modelle-fiat_plus` |
+| V-Model Ford | yes | yes | `/models/vans-ford` |
+| T-Model Fiat | yes | yes | `/models/semi-integrated-fiat` |
+| **T-Model Base** | yes | yes | `/models/model-overview/t-modelle-fiat_base` |
+| **T-Model Ford** | yes | **no** | `/models/semi-integrated-ford` |
+| A-Model Base | yes | yes | `/models/overcab-fiat` |
+| I-Model Fiat | yes | yes | `/models/integrated-fiat` |
+
+Two traps, and between them the three bolded families are **12 of the 28 layouts**:
+
+1. **`semi-integrated-ford` is in neither menu** — not the page navigation, not the model
+   overview. It is only in the sitemap. Four Ford semi-integrateds, and the newest family
+   Etrusco sell here.
+2. **Two families sit under a longer path with German-spelt slugs**, `cv-modelle-fiat_plus` and
+   `t-modelle-fiat_base`. They are linked from the overview, so a menu scrape finds them, but
+   anything that builds a URL by assuming one path shape does not.
+
+The overview's seven range cards were what exposed the gap: seven "from" prices, of which two
+matched no layout the adapter had collected, and one collected family had no card at all. Both
+loose ends came from the same cause.
+
+## Why the price lists are not the source
+
+Etrusco publish two UK price lists on `/gb/en/service/downloads`. Both extract as real text and
+both look authoritative — 31 pages for the motorhomes, 17 for the campervans, spec pages laid
+out two layouts to a page exactly like Sunlight's. They are still the wrong source:
+
+- **They are labelled 2026 on the public page**, whatever the filenames say. The files are
+  `etrusco_pim_pricelist_2027_uk.pdf` and their own footers read `ENG - 2027`, which is what
+  this survey first reported. The requester challenged it and supplied the download page: the
+  visible titles say **2026**, and the `2027` is an internal PIM asset code. My probe had read
+  only the `<a>` text ("Download") and never the sibling title.
+- **They are a model year behind the site.** They lack the four Ford T-models the site lists,
+  and their weights are last season's.
+- **They carry no prices at all** — zero currency symbols in either text layer, despite the
+  "Prices and technical data" heading. The website is the only price source.
+
+The general rule this produced is in [`README.md`](README.md): **the website over-rules the
+PDFs, which are usually the last thing on a site to be updated.**
+
+## The self-check: a printed tolerance band
+
+The strongest self-check of any manufacturer so far, and the only *arithmetic* one since Swift.
+The site states the rule and then prints it per layout:
+
+```
+Mass in running order* (kg)   2799 (2659 - 2939)*
+```
+
+2799 × 0.95 = 2659.05 and 2799 × 1.05 = 2938.95. The band is a **function of the mass**, so the
+pair must be self-consistent, which makes it a free test that both were read from the same
+column. A slipped column pairs one layout's mass with another's band and fails: the T 7.3 SF's
+2858 kg against the T 7.3 SCF's `(2725 - 3011)` is two real figures from two neighbouring
+vehicles, and nothing downstream would question the result. The arithmetic does. Three
+kilograms of slack is allowed for the printed rounding. **All 28 layouts pass.**
+
+Plus one cross-document check: **each range's "Price from" figure on the model overview equals
+the cheapest layout price in that range** — two independently rendered numbers, verified on all
+seven ranges that carry a card. T-Model Ford has no card, so it has no figure to check against,
+which is the same fact that nearly lost the family.
+
+## Traps found while surveying and building
+
+1. **`Manufacturer-specified mass for optional equipment` is not payload.** It sits directly
+   between the two masses and looks like it belongs there. It is a cap on factory-fitted extras
+   — 341 kg on the T 6.9 SF, against a real payload of 701 kg — and on the I 7400 SBC it is
+   47 kg, which would have been a startling payload. [`sunlight.md`](sunlight.md) records the
+   same field and the same warning.
+2. **The Plus range repeats the base range's names with a trailing `+`.** `CV 600 DB` and
+   `CV 600 DB+` are different vehicles at different prices (£59,999 and £60,999). Dropping the
+   suffix collides six campervans onto three names, and the join back to FMLV is on the name.
+3. **Dimensions are one cell, in centimetres** — `541 | 205 | 270`. Split on the pipe and
+   multiply by ten. The same shape as Sunlight's `596 / 214 / 274`, with a different separator.
+4. **Each layout is named twice**, in the slider and beside its tables. Only the subline pairs.
+5. **The two `model-overview/` pages single-quote their head attributes** where the other six
+   double-quote them, so patterns anchored on markup must accept either.
+6. **The overview's prices are range-level.** Seven figures, seven ranges — easy to mistake for
+   per-model, since a range card looks no different from a layout row.
+7. **Two layouts can share a price legitimately.** The CV 640 SB and 640 PB are both £61,499
+   and the A 6.9 DB and SB both £68,399; they differ only in bed arrangement. A duplicate price
+   is not evidence of a collapsed parse.
+
+## First run — 19 August 2026
+
+**28 products across 8 families. Nothing skipped, nothing dropped, and zero blank fields** —
+price, berths, seats, all three dimensions, both masses, payload, chassis and body type
+populated on all 28. Eight fetches. Payload spans 421–749 kg, every layout on a 3500 kg chassis.
+
+| Family | Layouts | Prices | Body type |
+|---|---|---|---|
+| CV-Model Fiat | 5 | £59,099 – £61,499 | **campervan high top**, from the roof rule |
+| CV-Model Plus | 3 | £60,999 – £63,799 | **campervan high top** |
+| V-Model Ford | 2 | £71,590 | **campervan high top** |
+| T-Model Fiat | 4 | £68,399 – £72,799 | coach built low profile |
+| T-Model Base | 5 | £66,499 – £68,399 | coach built low profile |
+| T-Model Ford | 4 | £67,100 – £68,400 | coach built low profile |
+| A-Model Base | 2 | £68,399 | coach built over cab bed |
+| I-Model Fiat | 3 | £75,999 – £81,399 | a class |
+
+Three products hand-checked against the page text, one per URL shape and chassis:
+
+| | Source | Adapter |
+|---|---|---|
+| CV 540 DB | £59,099, `541 \| 205 \| 270`, Fiat Ducato, 2751 (2613 - 2889), 3500, 4 seats, 2 - 5 OPT | 59099, 5410×2050×2700, Fiat, MRO 2751, MTPLM 3500, payload 749, 4, **2** ✅ |
+| T 6.9 SF | £67,100, `698 \| 232 \| 287`, Ford Transit, 2799 (2659 - 2939), 3500, 4 seats, 2 - 5 OPT | 67100, 6980×2320×2870, Ford, MRO 2799, MTPLM 3500, payload 701, 4, **2** ✅ |
+| I 7400 SBC | £81,399, `740 \| 232 \| 295`, Fiat Ducato, 3079 (2925 - 3233), 3500, 4 seats, 4 - 5 OPT | 81399, 7400×2320×2950, Fiat, MRO 3079, MTPLM 3500, payload 421, 4, **4** ✅ |
+
+The berth column is the one to look at: all three publish a range, and the standard figure is
+what is recorded, per the data rules in [`README.md`](README.md).
+
+### The first diff run against the real FMLV baseline — run #8
+
+`ncc_supplier_name` is **`Etrusco`**, the same string as `fmlv_manufacturer`, confirmed by
+`fmlv fetch-export` returning 54 products (27 of them current model year).
+
+**28 scraped against 27 baseline: 24 changed, 0 unchanged, 4 new, 3 disappeared.** 156 proposed
+changes, 24 of them year bumps, and 176 fields checked and found unchanged.
+
+| | Models |
+|---|---|
+| **New** | CV 640 PB+, T 7.3 SF, T 7.3 SCF, T 7.3 QCF |
+| **Disappeared** | T 5900 FB, I 7400 SB, V 5.9 DF |
+
+Three of the four new products are the Ford semi-integrateds — the family that appears in no
+menu. Had the roster come from either menu, FMLV would have gained nothing and lost three.
+
+One correction worth noting: **FMLV records the whole V range as coach built low profile.** They
+are 2870 mm Ford vans, so the adapter proposes `campervan high top` on both, by the roof rule.
+
+#### How the 24 matched, and the three that did not match on name
+
+**21 of the 24 are byte-identical** on range and model — the naming change above did its job.
+One more differs only in FMLV's own stray space, and three are not the same name at all:
+
+| Scraped | Matched to | Score | What differs |
+|---|---|---|---|
+| CV 640 SB+ | CV 640 SB **&nbsp;+** | 1.000 | whitespace only — the same vehicle, and harmless |
+| V 6.8 SF | V **6.6** SF | 0.750 | the **number**; bed code identical |
+| T 6.9 SF | T 6.9 **BB** | 0.600 | the **bed code**; number identical |
+| CV 600 SB | CV 600 **BB** | 0.500 | the **bed code**; number identical |
+
+So each of the three shares one half of its identity with the row it was paired to and differs
+in the other half. None is a renaming of the same vehicle:
+
+| | Baseline | Scraped | Reading |
+|---|---|---|---|
+| T 6.9 **BB** → **SF** | Fiat, 4 berths, 2950 mm high, £63,090 | **Ford**, 2 berths, 2870 mm, £67,100 | a different vehicle — the SF is one of the new Ford semi-integrateds |
+| CV 600 **BB** → **SB** | 4 berths, MRO 2803 | 2 berths, MRO 2862 | same shell (5990 × 2700), different bed plan — the BB is gone for 2027 |
+| V **6.6** → **6.8** SF | 6710 mm long, MRO 2680 | 6830 mm, MRO 2872 | 120 mm longer and 192 kg heavier — a different van |
+
+In each case the site vehicle **replaces** the baseline one rather than revising it, so the
+honest outcome is one new product plus one deactivation. **A base vehicle changing manufacturer
+is the surest tell** — chassis do not change under a vehicle mid-life.
+
+Why the matcher accepts them: it scores a Jaccard similarity on the range-plus-model word bag
+and takes anything from 0.5 up. It tokenizes letters and digits only, so a bed code is one token
+of three or four and cannot outvote a shared range letter and number. Worse for the V, `6.6`
+tokenizes to `{6}` — the repeat collapses — so `6.6 SF` and `6.8 SF` come out 75% alike.
+
+This is a property of the shared matcher, not of this adapter. **And no single global threshold
+fixes it**, which is worth knowing before anyone tries:
+
+| Pair | Score | Should it match? |
+|---|---|---|
+| Adria `Matrix 670 DC Supreme Alde RHD` vs `Matrix Supreme 670 DC` | 0.667 | **yes** — the case `DEFAULT_THRESHOLD` was chosen for |
+| Etrusco `V 6.8 SF` vs `V 6.6 SF` | 0.750 | **no** |
+
+The bad Etrusco match scores *higher* than the good Adria one, so the two cannot be separated by
+a number alone. Raising the threshold to 0.8 would catch all three Etrusco pairs and orphan
+Adria's product ID. `DEFAULT_THRESHOLD` is therefore **left at 0.5**.
+
+For Etrusco alone the separation is clean — every good match scores 1.000 and every bad one
+0.750 or below — so a per-manufacturer threshold in the registry would work if this recurs on a
+third brand. Until then the three pairs are documented and left to the reviewer.
+
+#### What this means for the review, and for the real totals
+
+The run reports 4 new and 3 disappeared. **The true figures are 7 and 6**, because the three
+pairs above consumed a baseline row each: `T 6.9 BB`, `CV 600 BB` and `V 6.6 SF` are gone from
+the 2027 range but do not appear in the disappeared list, having been claimed as matches.
+
+**No name change is ever proposed, so there is nothing to reject on that count.** `model` and
+`manufacturer_range` carry no provenance, so `compare_fields` never walks them — identity is used
+for *matching* and never *proposed*. And `build.apply_decisions` starts a matched product's
+upload row from the **baseline** motorhome, so the name written back is always the one FMLV
+already holds.
+
+That makes the hazard the reverse of the obvious one. On the run detail page these three rows are
+titled with the **new** name, because the run store records what was scraped — but each is bound
+to the **old** product ID:
+
+| The page shows | It writes to | If the changes are accepted |
+|---|---|---|
+| T 6.9 SF | product 8494, `T 6.9 BB` | `6.9 BB` keeps its name and gains the Ford SF's chassis, weights and 2 berths |
+| CV 600 SB | product 6532, `CV 600 BB` | `600 BB` keeps its name and gains the SB's 2 berths and weights |
+| V 6.8 SF | product 6535, `V 6.6 SF` | `6.6 SF` keeps its name and gains the 6.8's length and weights |
+
+Each would leave FMLV with a hybrid record — old name, new vehicle — which is worse than either
+the old row or a clean new one. So **reject every proposed change on those three rows**, add the
+three vehicles as new products, and deactivate the three baseline rows they were paired to. They
+will also need their own images: they are different vehicles, not restyled ones.
+
+The four genuinely new products are unaffected — with no baseline row to copy, they are built
+fresh from the scraped identity and carry the correct names.
+
+### Two mistakes of mine worth recording, because neither was the site's fault
+
+**The parser looked for an attribute that does not exist.** The first version read layout names
+from `data-tab-title`, and the live run returned **zero products** with all six families
+narrated as skipped. The attribute is nowhere on the page. What made it survive to a live run
+was my own verification probe: it had a fallback regex I had forgotten writing, so the probe
+found 20 layouts while the adapter found none. A probe that does not fail where the adapter
+fails proves nothing. `tests/adapters/test_etrusco.py` now asserts the attribute is absent.
+
+**The roster was short by two families and I inferred the wrong reason.** Reading the price
+lists against the six family pages I had found, I concluded that T-Model Base and CV-Model Plus
+had been *dropped* from the UK range — and wrote that into the adapter's docstring as evidence
+that the PDFs were stale. They had not been dropped; they were on the site at a URL shape I had
+not looked for. The PDFs were stale for a different reason. The lesson is narrow and practical:
+**an absence you cannot explain is a gap in the search, not a fact about the manufacturer.**
+The overview's own count — seven cards against six families — was sitting there the whole time.
+
+## Known gaps and what is unverified
+
+- **The three token-tie matches above** need a human decision before the run is accepted.
+- **The `Pricea)` footnote text has not been read**, so the price basis — on-the-road or
+  ex-works — is not recorded, which the guide-price rule in [`README.md`](README.md) asks for
+  where it is known.
+- **The T 7.4 SBC is priced £68,339** where its siblings T 7.4 SB and T 7.4 QBC are £68,399.
+  Most likely a typo on Etrusco's side; recorded as published rather than corrected.
+- **Model year is asserted, not stated.** Nothing on the site says 2027; the range is recorded
+  as 2027 on the requester's instruction and the rollover timing in [`README.md`](README.md).
+
+## What this adds to the general pattern
+
+- **Take the roster from the sitemap, and reconcile the count against a second menu.** Neither
+  Etrusco menu is complete, and one URL shape is not enough. The overview's card count is what
+  caught it — a cheap check any brand with a range index can supply.
+- **A path-segmented site answers the market question for free.** `/gb/en/` is unambiguous,
+  where Chausson needed a supplied URL and a comparison of two rosters to establish the same
+  thing. Check for a market path before assuming a single global site.
+- **A live page can beat a good PDF.** The survey planned to parse the price lists because
+  [`README.md`](README.md) says to look for one first, and that ordering is still right — but
+  the test is whether the document is *current*, and the answer here was on the download page
+  rather than in the file. See the PDF-versus-website rule in [`README.md`](README.md).
+- **Verify with the code that will ship, not with a probe that has fallbacks.** A probe more
+  forgiving than the adapter hides exactly the failure it was written to find.

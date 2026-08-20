@@ -132,6 +132,112 @@ years to be live at once during the window; and **re-check at the end of Septemb
 revisions often arrive. Morelo and Sunlight had both moved to MY2027 by 6 August 2026
 while Auto-Trail was still publishing "2026 SEASON" — the whole spread in one snapshot.
 
+### A "non-core" brand's UK site is a deliberate subset, not a partial rendering
+
+Some European manufacturers are **non-core** to the UK market: Etrusco, Bürstner, Carado and
+Eriba are Erwin Hymer Group brands of which only **a selection of the full European range** is
+sold here. Where such a manufacturer publishes a market path — Etrusco's is `/gb/en/` — that
+path **is** the UK range, and it should be taken as authoritative rather than reconciled
+against the European roster, which lists models the UK does not get.
+
+Two practical consequences, from the NCC side on 19 August 2026:
+
+- **Do not treat a shorter UK roster as evidence of a parse failure.** It is the point.
+  Chausson makes the same trap concrete from the other direction: its UK and global sites are
+  different ranges *in both directions*, seven models the UK lacks and one it uniquely has.
+- **For these brands the website is the source of truth, not the manufacturer.** Asking Erwin
+  Hymer directly is possible but slow and undependable, so the strategy is to build against
+  the site, record the model year, and re-run when the site changes — rather than to write to
+  the contact, which is the right move for Coachman and Chausson but not here.
+
+### The website overrules the PDF, and a document's year is what the page says
+
+Where a site and its downloadable documents disagree, **the site wins**. A PDF is usually the
+last thing on a website to be updated, so a price list can be a model year behind the pages
+around it. Rule from the NCC side, 19 August 2026.
+
+**Establish a document's model year from the page that links it, not from its filename.**
+Etrusco's price lists are served from `etrusco_pim_pricelist_2027_atvi_uk.pdf` and carry
+`ENG - 2027` in their own footer, yet the download page labels them **2026** — the 2027 is an
+internal PIM asset code. They are a model year behind the site: they lack four of the families
+it lists, and their weights are last season's. Building on them would have put year-old
+figures on the whole range while missing a tenth of it.
+
+When checking, read what a **customer** sees. The year sat in the card's title element; the
+text inside the `<a>` tag was only the word "Download".
+
+### No single menu is a complete roster
+
+**Take the list of ranges from the sitemap, then reconcile it against a second count.** Rule
+from Etrusco, 19 August 2026, where every individual source was short:
+
+| Source | Families listed | Missing |
+|---|---|---|
+| Page navigation | 5 of 8 | the three below |
+| `/gb/en/modeloverview` | 7 of 8 | `semi-integrated-ford`, four layouts |
+| `sitemap.xml` | 8 of 8 | — |
+| The 2026 price lists | 7 of 8 | the same family, plus stale weights |
+
+Two failure modes, and they compound:
+
+- **A range can be in no menu at all.** Etrusco's Ford semi-integrateds are their newest
+  family and appear only in the sitemap. Nothing on the site links them.
+- **URL shape is not uniform.** Six Etrusco families sit at `/models/<segment>`, two at
+  `/models/model-overview/<german-slug>`. Code that builds a URL from a pattern finds the six
+  and silently misses the two — and anything deriving meaning from the path (body type, for
+  instance) needs a rule that survives both shapes. Prefer the manufacturer's own naming, such
+  as the model letter every Etrusco layout carries.
+
+The reconciliation is the point, not the sitemap. A range index that publishes a count, a card
+per range, or a "from" price per range gives a free check that the roster is complete: seven
+overview cards against six collected families is what exposed the gap. **An absence you cannot
+explain is a gap in the search, not a fact about the manufacturer** — do not write it up as a
+discontinued range until a second source agrees.
+
+### Let the FMLV export decide the range and model strings, not the website
+
+**Fetch the baseline export before choosing what to put in `manufacturer_range` and `model`.**
+`fmlv fetch-export "<name>"` needs only `ncc_supplier_name`, and it answers a question no amount
+of reading the manufacturer's site can: what FMLV already calls these vehicles.
+
+Etrusco's site markets `CV-Model Plus` and names the vehicle `CV 600 DB+`. FMLV holds range
+`CV`, model `600 DB+`. Emitting the site's form would have cost twice over — a weaker fuzzy
+match on every product, and then a proposed range rename on all 27 that did match. The
+manufacturer's own family name still belongs in the provenance, where a reviewer can see it.
+
+**Two things to check in the export while it is open:**
+
+- **How the identity is split.** Which half carries the range letter, prefix or trim name.
+- **Whether the existing data is right.** FMLV recorded Etrusco's whole V range as coach built
+  low profile; they are 2870 mm Ford vans. Proposing the correction is the adapter working, not
+  a parse error — but know which of the two you are looking at before accepting it.
+
+**And know the matcher's limits.** `diff/matching.py` scores a Jaccard similarity on the
+range-plus-model word bag and accepts anything from 0.5 up. It tokenizes letters and digits only,
+so a trailing `+` disappears and `6.6` collapses to `{6}`. Two consequences, both seen on
+Etrusco's first run:
+
+- **A differing bed code is one token of three or four**, so `6.9 SF` against `6.9 BB` scores
+  0.600 and `600 SB` against `600 BB` scores 0.500 — both matched.
+- **A differing number can score higher still**: `6.8 SF` against `6.6 SF` scores 0.750, because
+  the repeated digit in `6.6` collapses to a single token.
+
+All three were *replacement* vehicles reported as revisions of the ones they replaced. The names
+tell you: each shared one half of its identity — number or bed code — and differed in the other.
+**A base vehicle changing manufacturer is the surest tell**, since chassis do not change under a
+vehicle mid-life. Check any match whose proposal includes one, and any where only half the model
+name lines up.
+
+**Do not try to fix this by raising `DEFAULT_THRESHOLD`.** Adria's documented good match scores
+**0.667** — lower than Etrusco's worst bad match at 0.750 — so the two cannot be separated by a
+number. Anything high enough to reject the Etrusco pairs orphans Adria's product ID. A
+per-manufacturer threshold would work (Etrusco's good matches are all 1.000) and is the shape to
+reach for if a third brand hits this.
+
+**A wrong match also hides a discontinuation**, which is easy to miss when reading the counts: a
+claimed baseline row cannot also be reported as disappeared. Etrusco's run said 4 new and 3
+disappeared where the truth was 7 and 6.
+
 ## Start here: is there a brochure or price list PDF?
 
 **Ask this before looking at the website's rendering behaviour at all.** It was the
@@ -355,3 +461,8 @@ as a generic capability, not something specific to Adria.
   scripting the interaction that produces it every time.
 - Are weights/dimensions ever in the HTML/JSON path at all, or always PDF-only? This
   was Adria's answer; DESIGN.md §9 open question 6 expects this to vary by manufacturer.
+- **Does the roster agree across the sitemap, the navigation and the range index?** Take it
+  from the sitemap and reconcile — see "No single menu is a complete roster" above.
+- **Does your verification probe fail where the adapter fails?** A throwaway script with a
+  fallback the adapter lacks will report a healthy parse while the adapter collects nothing.
+  Etrusco's first live run returned zero products for exactly this reason.

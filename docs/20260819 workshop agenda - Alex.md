@@ -1,7 +1,7 @@
 # Attendees
-Ben Molyneaux
-Francis Doyle
-Alex White
+- Ben Molyneaux
+- Francis Doyle
+- Alex White
 
 # Agenda
 

@@ -1,7 +1,7 @@
 # Attendees
-Ben Molyneaux
-Francis Doyle
-Blanca Borbely
+- Ben Molyneaux
+- Francis Doyle
+- Blanca Borbely
 
 # Agenda
 
@@ -18,3 +18,5 @@ Blanca Borbely
 
 
 # Actions arising
+- Add Alex and Oliver on Github repo
+- Write up getting started from scratch guide for Blanca (VSC, Python, Claude Code extension, playwright)

@@ -33,6 +33,12 @@ DEFAULT_WAIT_UNTIL = "networkidle"
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_BACKOFF_SECONDS = 3.0
 
+#: Fraction of the viewport height one scroll step may cover. A step larger than the
+#: viewport leaves *gaps* between rest positions, and an intersection observer watching
+#: a short element never fires if the element falls in one — see `_scroll_to_bottom`.
+#: A half-viewport step overlaps consecutive positions, so nothing is skipped.
+SCROLL_STEP_VIEWPORT_FRACTION = 0.5
+
 
 class BrowserFetcher:
     """Renders a page with headless Chromium and snapshots the resulting HTML.
@@ -120,7 +126,7 @@ class BrowserFetcher:
         *,
         capture_url_contains: str,
         scroll: bool = False,
-        scroll_steps: int = 20,
+        scroll_steps: int = 60,
         scroll_pixels: int = 2000,
         scroll_pause_ms: int = 400,
         settle_ms: int = 2000,
@@ -131,7 +137,10 @@ class BrowserFetcher:
         empty on load and only fetch their real data once a component scrolls into
         view — an intersection-observer-triggered AJAX call, not present in either
         a plain HTTP fetch or a `fetch()` that only waits for `networkidle`. Setting
-        `scroll=True` scrolls the page in steps to trigger that kind of lazy load;
+        `scroll=True` scrolls the page in overlapping steps to trigger that kind of
+        lazy load — `scroll_steps` caps how many steps are taken and `scroll_pixels`
+        caps how far each one goes, but a step is never allowed to exceed half a
+        viewport whatever `scroll_pixels` says (see `_scroll_to_bottom`);
         every response whose URL contains `capture_url_contains` is snapshotted
         exactly like any other fetch, so it is just as reproducible and diffable
         (DESIGN.md §6.6) even though it never went through `Fetcher` directly.
@@ -180,17 +189,38 @@ class BrowserFetcher:
 
     @staticmethod
     def _scroll_to_bottom(page: object, *, steps: int, pixels: int, pause_ms: int) -> None:
-        """Scroll down in fixed steps, triggering any intersection-observer lazy loads.
+        """Scroll to the bottom in overlapping steps, triggering lazy loads on the way.
 
-        Runs the full step count unconditionally rather than stopping once
-        `scrollHeight` stops growing: that signal only means the page's *total*
-        height is stable, which is true from the first step on a fixed-height page
-        — it says nothing about whether we've scrolled far enough to bring a
-        lazy-loaded component into view.
+        **Every step is capped at half a viewport** (`SCROLL_STEP_VIEWPORT_FRACTION`),
+        which is the whole point of this method and is not a tuning preference. A step
+        bigger than the viewport tiles the page with *gaps*: an element shorter than the
+        gap sits below the viewport at one rest position and above it at the next, is
+        never on screen while the page is still, and its intersection observer never
+        fires. That is not hypothetical — Adria's 60Y range pages returned zero captures
+        under the previous 2000px step against a 720px viewport, because the element
+        carrying `x-intersect` is 20px tall and landed in exactly such a gap. The same
+        element on `/motorhomes/matrix` happened to land inside a rest position, so the
+        bug looked like "those three pages are built differently" rather than a scroll
+        defect. Overlapping steps make it impossible to skip anything.
+
+        Stops on reaching the bottom rather than always running `steps` iterations,
+        since the smaller step would otherwise make a full sweep several times slower.
+        `steps` is now a **cap**, guarding against an infinite-scroll page — the
+        distance actually needed comes from the document's own height, re-read each
+        step so a page that grows as it loads is still followed to its new bottom.
         """
+        viewport = page.viewport_size or {}  # type: ignore[attr-defined]
+        viewport_height = viewport.get("height") or pixels
+        step = max(1, min(pixels, int(viewport_height * SCROLL_STEP_VIEWPORT_FRACTION)))
+
         for _ in range(steps):
-            page.mouse.wheel(0, pixels)  # type: ignore[attr-defined]
+            page.mouse.wheel(0, step)  # type: ignore[attr-defined]
             page.wait_for_timeout(pause_ms)  # type: ignore[attr-defined]
+            at_bottom = page.evaluate(  # type: ignore[attr-defined]
+                "window.scrollY + window.innerHeight >= document.body.scrollHeight - 1"
+            )
+            if at_bottom:
+                return
 
     def _snapshot_html(
         self,

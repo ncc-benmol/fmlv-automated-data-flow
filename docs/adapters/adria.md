@@ -69,6 +69,119 @@ would come from, but parsing it reliably is a harder problem than the numeric fi
 and, per DESIGN.md §4.3, lower priority for an *existing* product. **Not attempted in
 this first adapter** — a known, deliberate gap, not an oversight.
 
+### 3. The 60Y anniversary editions — same shape, three unlisted pages
+
+Added 2026-08-20. Adria's 60th-anniversary editions sit at `/60y/matrix`, `/60y/coral`
+and `/60y/twin`, one layout each, and are built exactly like an ordinary range page —
+same Livewire component, same `configuratorURL`, same technical-data PDF.
+
+Two things about them are worth carrying forward:
+
+- **They are in no index.** `/motorhomes` and `/campervans` list nine ranges between
+  them and none of these three. This is `docs/adapters/README.md`'s "no single menu is a
+  complete roster" again, and it is why the follow-up below — reading the range list off
+  the index pages instead of hardcoding it — would have *lost* these three rather than
+  found them. Whatever replaces `RANGES` has to reconcile against a second source.
+- **Neither is their data duplicated.** `/motorhomes/matrix` returns seven
+  configurations and none is the 60Y (checked 2026-08-20), so sweeping these pages adds
+  products rather than double-counting existing ones.
+
+**FMLV files them under the ordinary range, marked in the model** — product 8195 is
+range `Matrix`, model `670 SL 60Y`, per `docs/adapters/README.md`'s rule that the export
+decides these strings. That forced `RangeConfig` to separate two things this adapter had
+previously treated as one string:
+
+| | Ordinary range | 60Y edition |
+|---|---|---|
+| `label` — what `--range` and `schedule.csv` name | `Matrix` | `Matrix 60Y` |
+| `fmlv_range` — what lands in `manufacturer_range` | `Matrix` | `Matrix` |
+| Model | layout + trim (`670 DC Supreme Alde RHD`) | layout + `60Y` (`670 SL 60Y`) |
+
+The trim is dropped for a 60Y product because it carries nothing: it is a different
+shape on each of the three pages (`60 years RHD`, `Coral 60Y 670 DL`, `Twin 60Y 640
+SGX`) and on two of them merely repeats the layout code. Each PDF titles itself exactly
+as FMLV names the product (`MATRIX 670 SL 60Y`), which is a useful independent
+confirmation that this naming is Adria's own and not an invention of this adapter.
+
+**A consequence worth knowing about, because it reaches outside the adapter.** A
+`--range`-narrowed run filters the baseline export so it only diffs against rows in the
+swept ranges. That filter used to be a match on `manufacturer_range`, which cannot work
+once label and range differ — and it fails destructively in *both* directions: too
+narrow and the 60Y products find no baseline, are classified `NEW_PRODUCT`, and would be
+uploaded as duplicates of products the NCC already holds; too wide and `--range Matrix`
+pulls in the 60Y row it never sweeps and reports a live product as disappeared. So
+`cli.baseline_scope` now delegates to an optional `baseline_in_scope(motorhome, labels)`
+the adapter may declare — the same `getattr` opt-in as `DEFAULT_RANGES`, leaving every
+other adapter untouched. Adria's implementation reads the `60Y` suffix on `model`,
+because that is the only place FMLV records the distinction at all.
+
+### The scroll bug these pages exposed
+
+All three returned **zero** configurations at first, and the reason was not in this
+adapter: `BrowserFetcher._scroll_to_bottom` scrolled in 2000px steps against a 720px
+viewport. That tiles a page with gaps, and the element carrying Adria's `x-intersect` is
+**20px tall** — on these three pages it landed in a gap, was never on screen while the
+page was still, and its intersection observer never fired. On `/motorhomes/matrix` the
+same element happens to land inside a rest position, which is the only reason the
+adapter ever worked.
+
+The fix is generic and lives in `fetch/browser.py`: no step may exceed half a viewport,
+so consecutive positions overlap and nothing can be skipped. Regression test:
+`tests/fetch/test_browser.py::test_fetch_with_capture_finds_a_trigger_that_falls_between_scroll_steps`.
+
+**The general lesson is about the failure mode, not the arithmetic.** A page yielding no
+captures is indistinguishable from a page that has no lazy-loaded data, so this bug
+presents as "those pages must be built differently" and can silently cost a whole range
+on any future JS-driven site. `collect` now narrates a range page that made no
+`livewire/update` call at all, so the next occurrence says so out loud.
+
+## Self-checks
+
+Added 2026-08-20, and this adapter needs them more than any other: it reaches its
+weights and dimensions by **constructing** a URL from an id rather than following a
+link, so the failure to defend against is a spec sheet that belongs to a different
+vehicle — plausible, internally consistent, and invisible to everything downstream.
+
+Adria publishes no payload to reconcile against its two masses (see above), so the
+redundancy `docs/adapters/README.md` asks for is found in two other places:
+
+| Check | What it catches | On failure |
+|---|---|---|
+| The PDF's own running title names the layout it was fetched for | A constructed URL resolving to another vehicle's sheet | **Drop** |
+| Mass in running order is below max authorised weight | A mis-parse; a non-positive payload, which would otherwise satisfy `validation.py`'s `payload == mtplm - mro` check by construction | **Drop** |
+| The range page's JSON and the PDF agree on berths and seats | A definitional difference between two independently maintained sources | **Warn, keep, show both** |
+
+The third only warns *because* the first exists. Once the title has confirmed the
+document is the right vehicle's, a berths disagreement is a question about definitions —
+Adria's seats row varies by chassis rating — and dropping the product would discard a
+correct price and correct dimensions over something a reviewer is better placed to
+settle. Both figures go into the provenance snippet instead.
+
+The title is read from the running footer (`<title>\nCreated date:`), which every page
+repeats, rather than from the first line of the extracted text — it is then the document
+*stating* what it describes rather than an assumption about layout.
+
+## Fields added 2026-08-20
+
+- **`base_vehicle_manufacturer`**, from the spec sheet's own chassis section heading
+  (`CA. Fiat Chassis`, `CB. Mercedes Chassis`). Adria's spelling is already FMLV's:
+  `Fiat`, `Mercedes`, `MAN`, `Renault` are the four in the real baseline, and `Mercedes`
+  rather than `Mercedes-Benz` matches on both sides. Deliberately *not* read from the
+  `Chassis type ...` line, which gives the variant (`special`, `panel van`, `AL - KO`)
+  and not the manufacturer. A document whose headings disagree leaves the field unset
+  rather than taking the first hit. Validated on the live Matrix run: it agreed with the
+  baseline on all six existing rows and proposed a value only where the baseline was
+  blank.
+- **`mh_payload_kilograms` now carries provenance**, so it is actually diffed. It was
+  computed before but had no `Provenance` entry, and `diff/compare.py` only compares
+  fields the provenance dict covers — so a payload change was silently never proposed.
+  The snippet shows the subtraction, as `burstner.py` does.
+- **Provenance snippets now keep the qualifier the recorded figure drops.** Adria writes
+  `Nr. of seats 3 AT 3,500KG (4 AT 3,650KG)` and `Nr. of berths 2 (OPTIONAL 3RD BERTH)`;
+  the base figure is what FMLV records per `docs/adapters/README.md`, but the snippet
+  stopped at the digit and threw the rest away. On a seats row that differs by chassis
+  rating, the discarded half was the whole story.
+
 ## Validation against the real baseline export
 
 Ran the adapter live against the Matrix range (7 configurations) and compared to the
@@ -86,10 +199,13 @@ Ran the adapter live against the Matrix range (7 configurations) and compared to
 
 ## Known gaps / follow-ups
 
-- **Range list is hardcoded** (`DEFAULT_RANGES` in `adria.py`), read off the site nav
-  by hand during the survey — 6 motorhome ranges + 3 campervan ranges. A new range
-  won't be picked up until the constant is updated; reading it dynamically from the
-  `/motorhomes` and `/campervans` index pages would remove that.
+- **Range list is hardcoded** (`RANGES` in `adria.py`), read off the site nav by hand
+  during the survey — 6 motorhome ranges + 3 campervan ranges, re-confirmed unchanged
+  2026-08-20, plus the 3 60Y pages. A new range won't be picked up until the constant is
+  updated. Reading it dynamically from the `/motorhomes` and `/campervans` index pages
+  is the obvious fix but is **not sufficient on its own**: neither index lists any of
+  the three 60Y pages, so an index-driven roster would have to be reconciled against a
+  second source or it would quietly drop them.
 - **Model naming won't match the baseline's naming 1:1.** The site names a
   configuration by layout code + trim (`"670 DC" + "Supreme Alde RHD"`); the baseline
   export uses `"Supreme 670 DC"`. Same product, different word order/casing — Phase 5's
@@ -98,7 +214,13 @@ Ran the adapter live against the Matrix range (7 configurations) and compared to
   least one row (`"Matrix Supreme"` vs `"Matrix"` for a `Supreme MB` product) — a
   pre-existing baseline quirk, not something this adapter introduced.
 - **Layout flags (body type, bed types, bathroom layout, heating, …) are not
-  extracted.** Deliberately deferred — see above.
+  extracted.** Deliberately deferred — see above. One caution for whoever picks this up:
+  the `✕` semantics recorded above (`✕` = not fitted) does **not** survive contact with
+  the sheets. `Driver airbag ✕`, `ABS + EBD ✕` and `Right hand drive ✕` all appear on a
+  RHD vehicle, while the *unmarked* lines are things like `Roof-mounted air conditioning`
+  and `Solar panel 1x (set)` — which reads as the opposite convention. Settle this
+  against a known product before writing any of it: getting it backwards would flip
+  ~40 columns on every product at once.
 - **Cost/politeness at full scale**: each PDF is ~5 MB; a full run across all 9 ranges
   with several configurations each means dozens of multi-megabyte fetches. Fine at
   prototype scale per DESIGN.md §8.1, but worth keeping an eye on once content-hash

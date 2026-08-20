@@ -77,6 +77,27 @@ def test_fetch_with_capture_snapshots_a_scroll_triggered_xhr(
     assert captured[0].file_path.read_text(encoding="utf-8").strip() == '{"hello": "world"}'
 
 
+def test_fetch_with_capture_finds_a_trigger_that_falls_between_scroll_steps(
+    browser_fetcher: BrowserFetcher, fixture_server: str
+) -> None:
+    """A short lazy-load trigger mid-page must still be found.
+
+    This is the Adria 60Y regression: with a scroll step larger than the viewport, the
+    trigger in this fixture sits in a gap between two rest positions, is never on screen
+    while the page is still, and the whole range page yields nothing. Passing
+    `scroll_pixels=2000` explicitly pins the fix rather than the default — the step is
+    capped at half a viewport whatever the caller asks for.
+    """
+    _page_result, captured = browser_fetcher.fetch_with_capture(
+        f"{fixture_server}/lazy_load_in_a_scroll_gap.html",
+        capture_url_contains="data.json",
+        scroll=True,
+        scroll_pixels=2000,
+    )
+
+    assert len(captured) == 1
+
+
 def _unlaunched_fetcher(*, max_retries: int, sleeps: list[float]) -> BrowserFetcher:
     """A `BrowserFetcher` with `_goto`'s dependencies set but no real browser launched.
 

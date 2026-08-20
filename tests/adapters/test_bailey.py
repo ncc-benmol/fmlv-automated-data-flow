@@ -14,6 +14,7 @@ from pathlib import Path
 from src.adapters.bailey import (
     RANGE_NAME_CORRECTIONS,
     BaileyProduct,
+    _build_extracted_motorhome,
     _field,
     _hero_price,
     _is_blank,
@@ -25,6 +26,7 @@ from src.adapters.bailey import (
     parse_model_page,
 )
 from src.product_model.enums import BodyType
+from src.product_model.schema import IN_SCOPE
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -207,6 +209,37 @@ def test_a_decimal_kilogram_figure_is_not_truncated_at_the_decimal_point() -> No
     assert product.mh_payload_kilograms_published == 1068  # 1068.5 rounded
     assert product.mtplm_kilograms == 4500
     assert _reconciles(product) is True
+
+
+def test_both_halves_of_the_identity_are_proposed_so_the_xl_is_not_dropped() -> None:
+    """The XL layouts are why `model` must carry provenance as well as the range.
+
+    FMLV holds these as range "Adamo XL" + model "I"; the site as range "Adamo" +
+    model "XL-I". Proposing only the range left the baseline's "I" in place and wrote
+    back "Adamo I", losing the XL from the vehicle's name. `model` was invisible to the
+    diff because `compare_fields` only walks fields with provenance, and the in-scope
+    missing-field check only fires when the adapter found nothing at all.
+    """
+    product = parse_model_page(_page("adamo_xl_i"), is_campervan=False)
+    extracted = _build_extracted_motorhome(product, "https://example.test/adamo-xl-i/")
+
+    assert extracted.motorhome.manufacturer_range == "Adamo"
+    assert extracted.motorhome.model == "XL-I"
+    # Both must be present, or accepting one silently corrupts the name.
+    assert "manufacturer_range" in extracted.provenance
+    assert "model" in extracted.provenance
+
+
+def test_the_adapter_does_not_collect_the_duplicate_price_column() -> None:
+    # FMLV carries one price in two columns; `price_min_range_pounds` is mirrored from
+    # `rrp_pounds` when the upload row is built, not scraped, so it must never appear
+    # as a second price row in the review queue. See output.build._mirror_guide_price.
+    product = parse_model_page(_page("adamo_60_2"), is_campervan=False)
+    extracted = _build_extracted_motorhome(product, "https://example.test/adamo-60-2/")
+
+    assert "rrp_pounds" in extracted.provenance
+    assert "price_min_range_pounds" not in extracted.provenance
+    assert "price_min_range_pounds" not in IN_SCOPE
 
 
 def test_range_name_corrections_only_contains_autograph() -> None:

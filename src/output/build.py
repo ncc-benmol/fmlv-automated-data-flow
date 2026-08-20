@@ -143,6 +143,31 @@ def apply_field(motorhome: Motorhome, field_name: str, raw_value: str | None) ->
     raise ValueError(msg)
 
 
+def _mirror_guide_price(motorhome: Motorhome) -> Motorhome:
+    """Keep `price_min_range_pounds` equal to `rrp_pounds`, as FMLV holds it.
+
+    **FMLV carries one price in two columns.** The NCC-side rule (20 August 2026) is
+    that the column headings are not meaningful — the figure is neither strictly an RRP
+    nor strictly a minimum, it is the guide price taken from whatever the manufacturer
+    published next to the vehicle — and both columns always hold that same figure. The
+    baseline exports bear this out: across all 179 active products in six manufacturers'
+    exports the two were equal on every row, never differing and never one-blank.
+
+    So this is applied here, at the point the upload row is built, rather than being
+    collected. No adapter reads `price_min_range_pounds` — it is deliberately out of
+    scope in `config/field_guide_motorhome.csv` — precisely so it never reaches the
+    review queue as a second price row for a reviewer to confirm alongside the first.
+    Deriving it here instead keeps the two columns in step without that noise: whatever
+    price a reviewer accepts, both columns carry it.
+
+    Only ever copied where there is a price to copy. Swift, Rimor and Chausson publish
+    none at all, and a blank must stay blank rather than becoming a figure nobody read.
+    """
+    if motorhome.rrp_pounds is None:
+        return motorhome
+    return motorhome.model_copy(update={"price_min_range_pounds": motorhome.rrp_pounds})
+
+
 def _approved_value(entry: ChangeQueueEntry) -> str | None:
     """The value to write for one approved entry — the correction if there was one."""
     assert entry.decision is not None
@@ -198,7 +223,7 @@ def build_upload_motorhomes(
         for entry in approved:
             motorhome = apply_field(motorhome, entry.change.field, _approved_value(entry))
 
-        results.append(motorhome)
+        results.append(_mirror_guide_price(motorhome))
 
     return results
 

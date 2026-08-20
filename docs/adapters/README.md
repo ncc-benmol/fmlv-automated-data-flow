@@ -97,23 +97,26 @@ real price move.
 RRP, but what FMLV offers a reader is a guide price, so the published figure is taken as-is
 rather than adjusted towards some notional recommended retail price.
 
-**No adapter needs to read `price_min_range_pounds`.** It is in scope, but FMLV holds it
-**equal to `rrp_pounds` on every product in every real export** — 179 of 179 active rows
-across six manufacturers on 20 August 2026, never differing and never blank where
-`rrp_pounds` was set — and its companion `price_max_range_pounds` is blank throughout and
-out of scope, so there is no genuine price *range*, only one guide price stored twice.
-`product_model.derive` mirrors it centrally after `collect()`, so an adapter that sets
-`rrp_pounds` gets it for free and none can forget it.
+**FMLV carries that one price in two columns, and no adapter should read the second.**
+The column headings are not meaningful — the figure is neither strictly an RRP nor
+strictly a minimum — and `price_min_range_pounds` holds the same figure as `rrp_pounds`
+on **every product in every real export**: 179 of 179 active rows across six
+manufacturers on 20 August 2026, never differing, never one blank. Its companion
+`price_max_range_pounds` is blank throughout, so there is no genuine price *range* being
+expressed at all.
 
-Two things follow, and the second is the trap:
+So `price_min_range_pounds` is deliberately **out of scope** in
+`config/field_guide_motorhome.csv`, and `output.build._mirror_guide_price` copies
+`rrp_pounds` into it when the upload row is built. Deriving it at *output* rather than at
+*collect* is the whole point: an in-scope field no adapter populates prompts the reviewer
+to confirm it by hand on every matched product, and collecting it instead just replaces
+that with a second, always-identical price row to accept. Neither is worth a reviewer's
+attention. Mirroring at the end keeps both columns in step with whatever price they
+actually approved.
 
-- **A brand with no published price gets no mirrored value either.** Swift, Rimor and
-  Chausson publish none, so the field stays honestly missing rather than being filled with
-  a figure nobody read.
-- **A synthetic baseline must carry it too.** A test fixture with a price but no min-price
-  is a state that does not occur in real data, and an otherwise-identical product built
-  from one will propose a change — which is exactly how this was found. See
-  `tests/test_cli.py`'s `make_baseline`.
+**A brand with no published price gets no mirrored value.** Swift, Rimor and Chausson
+publish none, so both columns stay blank rather than being filled with a figure nobody
+read.
 
 ### A figure that could not be found must be visible, and must never be inherited
 
@@ -234,6 +237,20 @@ manufacturer's own family name still belongs in the provenance, where a reviewer
 - **Whether the existing data is right.** FMLV recorded Etrusco's whole V range as coach built
   low profile; they are 2870 mm Ford vans. Proposing the correction is the adapter working, not
   a parse error — but know which of the two you are looking at before accepting it.
+
+**If you propose one half of the identity, propose both.** The two are a single name split
+across two columns, and moving one without the other corrupts it. Bailey is the worked
+example: FMLV holds the XL layouts as range `Adamo XL` + model `I`, the site as range
+`Adamo` + model `XL-I`. The adapter proposed the range alone, so accepting it left the
+baseline's `I` in place and wrote back **`Adamo I`** — the XL gone from the vehicle's name
+altogether.
+
+**And `model` will not warn you.** `compare_fields` walks only fields that *have
+provenance*, while the in-scope missing-field check fires only where the adapter found
+**nothing at all** — so a `model` that was read but never given a provenance entry is
+neither compared nor reported missing. It falls between the two and is silently invisible.
+Record provenance for both halves, and say in each snippet that they belong together, so a
+reviewer accepting one knows to accept the other.
 
 **And know the matcher's limits.** `diff/matching.py` scores a Jaccard similarity on the
 range-plus-model word bag and accepts anything from 0.5 up. It tokenizes letters and digits only,

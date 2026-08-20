@@ -21,7 +21,7 @@ type_a_class,A class,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,
 mh_passenger_seats_inc_driver,Passenger seats inc driver,REQUIRED FIELD,in_scope
 berths,Berths ,REQUIRED FIELD,in_scope
 rrp_pounds,RRP (£),REQUIRED FIELD,in_scope
-price_min_range_pounds,Min price guide,NOT REQUIRED,in_scope
+price_min_range_pounds,Min price guide,NOT REQUIRED,
 price_max_range_pounds,Max range,NOT REQUIRED,
 mro_kilograms,MRO (kg),REQUIRED FIELD,in_scope
 mtplm_kilograms,MTPLM (kg),REQUIRED FIELD,in_scope

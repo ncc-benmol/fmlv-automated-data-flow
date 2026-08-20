@@ -361,6 +361,18 @@ def _build_extracted_motorhome(product: BaileyProduct, source_url: str) -> Extra
             else f"Roof Profile '{product.roof_profile_published}'"
         )
         record("body_type", f"{basis}")
+    # Both halves of the identity are recorded, and they have to move together.
+    #
+    # `manufacturer_range` alone was proposed at first, which silently corrupted the
+    # three XL layouts: FMLV holds them as range "Adamo XL" + model "I", the site as
+    # range "Adamo" + model "XL-I". Proposing only the range gave range "Adamo" with
+    # the baseline's model "I" still in place — "Adamo I", with the XL dropped from the
+    # vehicle's name altogether.
+    #
+    # `model` fell through a gap that made this invisible: `compare_fields` only walks
+    # fields that have provenance, and the in-scope "missing field" check only fires
+    # when the adapter found *nothing*, so a model that was read but had no provenance
+    # was neither compared nor reported. Recording it closes that gap.
     record(
         "manufacturer_range",
         f"Range '{product.range_label}' read from the page's own field"
@@ -368,7 +380,15 @@ def _build_extracted_motorhome(product: BaileyProduct, source_url: str) -> Extra
             f" (site states '{product.range_label}' verbatim)"
             if product.range_label not in RANGE_NAME_CORRECTIONS.values()
             else " (corrected from the site's own name against the real FMLV export)"
-        ),
+        )
+        + ". Paired with the model below — accept or reject both together, since the "
+        "vehicle's full name is the two joined",
+    )
+    record(
+        "model",
+        f"Model '{product.model}' read from the page's own field, verbatim. Paired with "
+        f"the range above: together they are '{product.label}', which is how the site "
+        f"names this vehicle",
     )
 
     return ExtractedMotorhome(motorhome=motorhome, provenance=provenance)

@@ -117,12 +117,6 @@ def make_baseline(**overrides: Any) -> Motorhome:
         "manufacturer_range": "Matrix",
         "model": "Supreme 670 DC",
         "rrp_pounds": 93950,
-        # FMLV holds this equal to `rrp_pounds` on every product in every real export
-        # (179 of 179 active rows across six manufacturers, never blank where
-        # `rrp_pounds` is set), and `product_model.derive` mirrors it for that reason.
-        # A baseline carrying a price but no min-price does not occur in real data, and
-        # leaving it out here would make an otherwise-identical product propose a change.
-        "price_min_range_pounds": 93950,
         "mro_kilograms": 3184,
     }
     fields.update(overrides)
@@ -595,9 +589,7 @@ def test_without_bump_year_an_unchanged_product_proposes_nothing(
     )
 
     assert summary.persisted.proposed == 0
-    # rrp_pounds and mro_kilograms from the adapter, plus price_min_range_pounds
-    # mirrored from the price by `product_model.derive`.
-    assert summary.persisted.verified == 3
+    assert summary.persisted.verified == 2
 
 
 def test_on_progress_is_threaded_through_to_the_adapter(

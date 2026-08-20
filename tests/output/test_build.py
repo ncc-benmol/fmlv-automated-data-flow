@@ -346,3 +346,115 @@ def test_generate_upload_surfaces_validation_issues_without_blocking_the_write(
     issues_text = result.issues_path.read_text(encoding="utf-8")
     assert "[ERROR]" in issues_text
     assert "missing" in issues_text
+
+
+# --------------------------------------------------------------------------- #
+# The duplicate price column
+# --------------------------------------------------------------------------- #
+
+
+def test_accepted_price_is_written_to_both_price_columns(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    """FMLV carries one price in two columns, and they must not drift apart.
+
+    `price_min_range_pounds` is deliberately out of scope, so no adapter collects it and
+    it never reaches the review queue as a second price row. It is mirrored here instead,
+    which means an accepted price has to land in both columns — otherwise the duplicate
+    silently keeps last season's figure.
+    """
+    baseline = make_baseline()
+    diffs = diff_products([make_extracted(rrp_pounds=93920)], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    entry = next(
+        e for e in store.list_change_queue(connection, run_id) if e.change.field == "rrp_pounds"
+    )
+    store.record_decision(
+        connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
+    )
+
+    [motorhome] = build_upload_motorhomes(
+        connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
+    )
+
+    assert motorhome.rrp_pounds == 93920
+    assert motorhome.price_min_range_pounds == 93920
+
+
+def _extracted_with_weight(**fields: object) -> ExtractedMotorhome:
+    """An extracted product whose mass is proposable too, not just its price.
+
+    `make_extracted` records provenance for `rrp_pounds` alone, so nothing else it
+    carries is ever compared. These two tests need a *second* proposable field: one to
+    accept while the price is rejected, and one to accept where there is no price at all
+    — without an accepted change the product contributes no upload row to inspect.
+    """
+    url = "https://www.adria.co.uk/motorhomes/matrix"
+    return ExtractedMotorhome(
+        motorhome=Motorhome(
+            manufacturer="Adria Mobil",
+            manufacturer_range="Matrix",
+            model="Supreme 670 DC",
+            **fields,  # type: ignore[arg-type]
+        ),
+        provenance={
+            "rrp_pounds": Provenance(source_url=url, snippet="price"),
+            "mro_kilograms": Provenance(source_url=url, snippet="MIRO"),
+        },
+    )
+
+
+def test_a_rejected_price_leaves_both_columns_on_the_baseline_figure(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    baseline = make_baseline()
+    diffs = diff_products(
+        [_extracted_with_weight(rrp_pounds=93920, mro_kilograms=3111)], [baseline]
+    )
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    queue = store.list_change_queue(connection, run_id)
+    price = next(e for e in queue if e.change.field == "rrp_pounds")
+    store.record_decision(
+        connection, proposed_change_id=price.change.id, action="reject", decided_by="ben"
+    )
+    # Something else has to be accepted, or the product contributes no upload row at all.
+    other = next(e for e in queue if e.change.field == "mro_kilograms")
+    store.record_decision(
+        connection, proposed_change_id=other.change.id, action="accept", decided_by="ben"
+    )
+
+    [motorhome] = build_upload_motorhomes(
+        connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
+    )
+
+    # The mirror must follow the *decided* price, not the scraped one it rejected.
+    assert motorhome.rrp_pounds == 93950
+    assert motorhome.price_min_range_pounds == 93950
+
+
+def test_a_brand_with_no_price_gets_no_mirrored_price(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    # Swift, Rimor and Chausson publish no price at all. A blank must stay blank rather
+    # than becoming a figure nobody read.
+    baseline = make_baseline(rrp_pounds=None, price_min_range_pounds=None)
+    diffs = diff_products([_extracted_with_weight(mro_kilograms=3111)], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    entry = next(
+        e
+        for e in store.list_change_queue(connection, run_id)
+        if e.change.field == "mro_kilograms"
+    )
+    store.record_decision(
+        connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
+    )
+
+    [motorhome] = build_upload_motorhomes(
+        connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
+    )
+
+    assert motorhome.rrp_pounds is None
+    assert motorhome.price_min_range_pounds is None

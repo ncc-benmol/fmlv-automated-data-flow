@@ -21,6 +21,7 @@ warning every time.
 | `manufacturer_id` | yes | integer | The manufacturer's identifier. Used as the stable key for folder names, DB rows and matching runs across time — never changes, even if the brand renames. **Open question:** confirm what system this ID actually comes from and whether it's guaranteed stable (see TODO.md) — it's currently populated with NCC-side numeric IDs (e.g. `3` for Adria Mobil) rather than a slug we invented. |
 | `fmlv_manufacturer` | yes | free text | **Must match the `manufacturer` column in the FMLV export exactly** (e.g. `Adria Mobil`). This is how we join scraped data back to existing product IDs. |
 | `fmlv_display_name` | | free text | Matches the FMLV `manufacturer_display_name` column (e.g. `Adria`). |
+| `ncc_supplier_name` | for `fmlv fetch-export` | free text | The exact label this manufacturer has in the NCC site's own "Export Products by Supplier" dropdown (`/nova/resources/products` → `...` → Export Products by Supplier). Not always the same string as `fmlv_manufacturer` (e.g. `Adria Mobil` vs `Adria Caravans & Motorhomes`) — confirm by opening the dropdown, don't guess. |
 | `categories` | | `motorhome`, `caravan`, or both comma-separated | Which FMLV export schema(s) this manufacturer appears in. Blank is treated as "motorhome" by default (the prototype's only scope right now) — the loader raises a `categories_unset` warning so the gap gets noticed rather than silently assumed forever. |
 | `status` | | `active` / `paused` / `retired` | `paused` = skip in scheduled sweeps but still runnable manually. `retired` = brand no longer trading. |
 | `pilot_priority` | | integer, 1 = first | Ordering for the prototype. Leave blank for anything not in the pilot set. |
@@ -30,7 +31,6 @@ warning every time.
 | `models_index_url` | | URL | The page that lists all current models/ranges. This is the crawl entry point — the single most valuable field to fill in. |
 | `price_list_url` | | URL | Current retail price list, usually a PDF. Likely the authoritative price source. |
 | `brochure_url` | | URL | Full brochure PDF, often carries the technical specification tables. |
-| `ncc_supplier_name` | for `fmlv fetch-export` | free text | The exact label this manufacturer has in the NCC site's own "Export Products by Supplier" dropdown (`/nova/resources/products` → `...` → Export Products by Supplier). Not always the same string as `fmlv_manufacturer` (e.g. `Adria Mobil` vs `Adria Caravans & Motorhomes`) — confirm by opening the dropdown, don't guess. |
 | `specs_format` | | `html_table` / `json` / `pdf` / `mixed` / `unknown` | Filled in during the exploration spike. Decides whether we write a deterministic parser or send it to Claude. |
 | `needs_javascript` | | `yes` / `no` / `unknown` | Whether the spec data is server-rendered or requires a headless browser. Cost/latency driver. |
 | `login_required` | | `yes` / `no` | Dealer-portal gated data. |

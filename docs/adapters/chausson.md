@@ -283,6 +283,55 @@ Two things to take from it: compare a compiled pattern against a known-good lite
 `repr()` when it fails inconsistently, and prefer editing source with a proper editor over
 patching it with escaped strings.
 
+## First run against the real FMLV baseline — 20 August 2026, run #12
+
+**Nothing matched: 0 changed, 18 new, 25 disappeared.** The scrape itself was clean — 18
+products, 19 fetches, one warning for the Low profile 640's missing price, exactly as the
+build run behaved. The diff is the problem, and it has two causes, one now fixed and one open.
+
+### `ncc_supplier_name` was wrong, so no run had ever been possible
+
+The registry recorded it as `Trigano VDL Chausson` and this file's notes said it was confirmed
+on 19 August. It was not: Nova's "Export Products by Supplier" dropdown has 112 labels and the
+one for this brand is plain **`Chausson`**. `fetch-export` failed with a Playwright timeout on
+`select_option`, which reads as a site problem rather than a bad value — the real message is
+buried in "did not find some options".
+
+Corrected to `Chausson`, after which the export downloads: **129 products, 25 of them 2026.**
+Two things that export settles:
+
+- **`fmlv_manufacturer = "Trigano VDL Chausson"` is right** — that is the literal `manufacturer`
+  value on all 129 rows, with `Chausson` as the display name. The two strings genuinely differ,
+  which is exactly the case `manufacturers.README.md` warns about.
+- **Confirming a supplier label by eye is not confirming it.** The only proof is a successful
+  `fetch-export`. Enumerating the dropdown takes one Playwright call and is worth doing for any
+  brand whose label has not actually been used.
+
+### FMLV keys Chausson by finish line, the adapter by body style — nothing overlaps
+
+| | Ranges |
+|---|---|
+| The adapter emits | `Low profiles`, `S Low Profiles`, `Overcab`, `Vans`, `X` |
+| FMLV holds | `First`, `Sport`, `Titanium`, `Exclusive`, `Ultimate` |
+
+Model numbers line up well — FMLV's `650`, `640`, `X550`, `C514`, `S614`, `V594` are the
+adapter's — but the ranges share no token, so `Low profiles 650` against `Titanium 650` scores
+0.25 and falls below the 0.5 threshold. Hence 18 new and 25 disappeared with nothing in between.
+
+**FMLV's model is layout × finish line, and it is not a mistake.** The same layout appears under
+two lines at different prices: `S514` is £55,790 as a First and £58,290 as a Sport; `640` is
+£67,290 as a Titanium and £69,290 as an Ultimate. That is 25 rows from roughly 18 layouts.
+
+**The site publishes the lines, but prices only one of them.** Each model page carries a
+Body / Furnishings / Fabrics block pairing decors with lines — "Alto — Sport Line", "Sarinen —
+Ultimate Line", "Sydney — First Line" — so which lines a layout is offered in *is* discoverable.
+What is not discoverable is a price or a weight per line: the card price is a single figure, and
+it matches the cheapest line (the S514 card says £55,790, the First price; the Low profiles
+"From £66,590" is the Titanium 650). So the site can currently support the entry-line variant of
+each layout and no more.
+
+**This is left as an open decision, not guessed at** — see the last item under Known gaps.
+
 ## Known gaps
 
 - **`x650` is a stale link, not a model. The real count is 18, not 19.** `/model/x650/`
@@ -332,6 +381,19 @@ patching it with escaped strings.
   information PDF" above.
 - Because prices are quoted in sterling on the UK site, **there is no currency to convert** —
   Morelo's fixed exchange rate has no equivalent here.
+
+- **OPEN DECISION: how the finish lines should be modelled.** Until this is settled, a Chausson
+  run cannot produce a usable diff. Four routes, for the NCC side to choose between:
+
+  1. **Emit range = finish line, entry line only.** Matches roughly 18 of FMLV's 25 rows and
+     leaves the higher-line rows reported as disappeared every run, which is noise a reviewer
+     would have to learn to ignore.
+  2. **Emit one product per (layout, line) the site lists**, carrying the entry price for all of
+     them. Reaches all 25, at the cost of a knowingly wrong price on the dearer lines - which
+     the guide-price rule in [README.md](README.md) may or may not tolerate.
+  3. **Ask Trigano for a price list per line.** No PDF price list exists anywhere on the UK site,
+     so this is the only route to real per-line prices.
+  4. **Leave Chausson scrape-only** until FMLV's own trim-level modelling is revisited.
 
 ## Traps found while surveying
 

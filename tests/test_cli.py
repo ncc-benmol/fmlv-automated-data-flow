@@ -126,6 +126,7 @@ def make_baseline(**overrides: Any) -> Motorhome:
 def make_extracted(**overrides: Any) -> ExtractedMotorhome:
     fields: dict[str, Any] = {
         "manufacturer": "Adria Mobil",
+        "manufacturer_display_name": "Adria",
         "manufacturer_range": "Matrix",
         "model": "670 DC Supreme Alde RHD",
         "rrp_pounds": 93950,

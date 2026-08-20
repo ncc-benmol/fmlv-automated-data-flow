@@ -1,7 +1,7 @@
 """Matching scraped products to the baseline export and diffing them field by field."""
 
 from .classify import ChangeKind, ProductDiff, diff_products
-from .compare import FieldChange, Priority, compare_fields, field_value, sort_changes
+from .compare import FieldChange, MissingField, Priority, compare_fields, field_value, sort_changes
 from .matching import DEFAULT_THRESHOLD, MatchResult, match_products, token_similarity
 from .year_rollover import ROLLOVER_WINDOW, bump_year, in_rollover_window
 
@@ -11,6 +11,7 @@ __all__ = [
     "ChangeKind",
     "FieldChange",
     "MatchResult",
+    "MissingField",
     "Priority",
     "ProductDiff",
     "bump_year",

@@ -68,6 +68,17 @@ DISAPPEARANCE_NOTE = (
     "Nova site."
 )
 
+#: `source_snippet` for a `diff.MissingField` proposal — an in-scope field
+#: (`schema.IN_SCOPE`) the adapter couldn't find this run. Reviewer templates match
+#: on this exact text (`webapp.app`'s `is_missing_field` global) the same way
+#: `ARCHIVE_SNIPPET`/`YEAR_ROLLOVER_SNIPPET` are matched on, since `proposed_change`
+#: has no column of its own for "why was this proposed".
+MISSING_FIELD_SNIPPET = (
+    "This field is marked in-scope for automated collection, but was not found on "
+    "the manufacturer's site this run. Confirm the existing figure is still "
+    "correct, or enter a replacement."
+)
+
 #: How `_serialize` joins a multi-valued field (e.g. `bed_types`) into one TEXT column.
 #: `output.build.apply_field` is `_serialize`'s inverse and splits on this same
 #: constant — keep them in sync.
@@ -159,6 +170,8 @@ class PersistResult:
     verified: int = 0
     suppressed_rejections: int = 0
     year_rollover_proposed: int = 0
+    archive_proposed: int = 0
+    missing_field_proposed: int = 0
     disappeared_noted: int = 0
 
 
@@ -337,6 +350,8 @@ def persist_diff(
     verified = 0
     suppressed = 0
     year_rollover_proposed = 0
+    archive_proposed = 0
+    missing_field_proposed = 0
     disappeared_noted = 0
 
     for diff in diffs:
@@ -431,11 +446,33 @@ def persist_diff(
             record_verification(connection, run_id=run_id, product_id=product.id, field=field_name)
             verified += 1
 
+        for missing in diff.missing_fields:
+            # No `was_previously_rejected` gate here, unlike an ordinary proposal:
+            # "reject" isn't a coherent action for a field that's simply missing —
+            # the review UI only offers "keep existing" (accept) or "replace"
+            # (correct) for these — so a still-missing field keeps being asked
+            # about every run until a reviewer resolves it one way or the other.
+            old_serialized = _serialize(missing.old_value)
+            record_proposed_change(
+                connection,
+                run_id=run_id,
+                product_id=product.id,
+                field=missing.field,
+                old_value=old_serialized,
+                new_value=old_serialized,
+                source_url=None,
+                source_snippet=MISSING_FIELD_SNIPPET,
+            )
+            proposed += 1
+            missing_field_proposed += 1
+
     return PersistResult(
         proposed=proposed,
         verified=verified,
         suppressed_rejections=suppressed,
         year_rollover_proposed=year_rollover_proposed,
+        archive_proposed=archive_proposed,
+        missing_field_proposed=missing_field_proposed,
         disappeared_noted=disappeared_noted,
     )
 

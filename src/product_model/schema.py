@@ -16,6 +16,9 @@ the pipeline treats them differently as a result:
 
 from __future__ import annotations
 
+import csv
+
+from .. import paths
 from .enums import (
     BathroomLayout,
     BedType,
@@ -106,6 +109,26 @@ REQUIRED: frozenset[str] = frozenset(
 DEALER_ONLY: frozenset[str] = frozenset(
     {"dealer_specials_range", "dealer", "dealer_model_variant"}
 )
+
+def _load_in_scope() -> frozenset[str]:
+    """Read the field guide's `automated_collection_scope_flag` column for `in_scope` rows.
+
+    Loaded from `config/field_guide_motorhome.csv` at import time, rather than
+    hand-copied here, so a reviewer can change what's in scope by editing that one
+    column without touching code.
+    """
+    with paths.field_guide_path().open(newline="", encoding="utf-8-sig") as handle:
+        return frozenset(
+            row["field_name"]
+            for row in csv.DictReader(handle)
+            if row.get("automated_collection_scope_flag", "").strip() == "in_scope"
+        )
+
+
+#: Every run must attempt these — if an adapter can't find one on a matched
+#: (existing) product, that's surfaced to the reviewer as "confirm or replace"
+#: rather than silently left unchecked. See `diff.compare.compare_fields`.
+IN_SCOPE: frozenset[str] = _load_in_scope()
 
 #: The Yes/No layout columns, all of which map into an enum group.
 LAYOUT: frozenset[str] = frozenset(

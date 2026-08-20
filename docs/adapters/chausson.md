@@ -334,11 +334,17 @@ each layout and no more.
 
 ## Known gaps
 
-- **`x650` is a stale link, not a model. The real count is 18, not 19.** `/model/x650/`
-  returns HTTP 200 but soft-404s: its `<title>` is the `/ranges/` page's, its `<h1>` reads
-  "Find your ideal Chausson camper", and it has **no specification accordion at all**. It is
-  linked from `/ranges/` and has no card. Treat a model page without an accordion as absent
-  rather than as a product with no data.
+- **`x650` has a broken page, but it IS a model — this reverses the 19 August conclusion.**
+  `/model/x650/` returns HTTP 200 and soft-404s: its `<title>` is the `/ranges/` page's, its
+  `<h1>` reads "Find your ideal Chausson camper", it has **no specification accordion**, and it
+  has no card. That much is unchanged, and skipping it is still right — there is nothing to
+  read. What was wrong was inferring the *vehicle* did not exist: the FMLV export holds
+  **`Exclusive X650`, product 7420, year 2026, `archived=No`** — a live product. So the roster
+  is arguably 19 with one page broken, not 18. Worth reporting to Trigano as a site fault.
+  **The lesson is the general one:** a missing page is evidence about the website, not about
+  the range. Confirm a discontinuation against a second source before writing it down — the
+  same mistake made on Etrusco's two "dropped" families, which turned out to be at a URL I had
+  not looked for.
 - **`/model/640/` publishes two vehicles' figures in the same cells**, separated by ` / `:
 
   ```
@@ -361,12 +367,13 @@ each layout and no more.
 - **The card's displayed name is not unique.** `x550` and `x640` render as `550` and `640`,
   and `640` is *also* a Low profile — two cards show `640` with different prices, chassis and
   berths. The **slug** is the identity; the displayed name is not.
-- ~~**`ncc_supplier_name`** unconfirmed~~ — **confirmed 19 August 2026 as
-  `Trigano VDL Chausson`**, the same string as `fmlv_manufacturer`. Worth noting that it
-  matches here, because Adria's does not (`Adria Caravans & Motorhomes` against
-  `Adria Mobil`), so the two columns cannot be assumed equal in general.
-- **`fmlv_manufacturer = "Trigano VDL Chausson"`** is the canonical NCC name for id 53 and
-  is not confirmed against a real FMLV export. The export may well say just "Chausson".
+- ~~**`ncc_supplier_name` confirmed as `Trigano VDL Chausson`**~~ — **wrong, and corrected on
+  20 August 2026 to `Chausson`.** It had never been used, and a label agreed by eye is not a
+  confirmed label. See "First run against the real FMLV baseline" above.
+- ~~**`fmlv_manufacturer`** not confirmed against a real export~~ — **confirmed 20 August 2026.**
+  `Trigano VDL Chausson` is the literal `manufacturer` value on all 129 exported rows, with
+  `Chausson` as the display name. The guess above that "the export may well say just Chausson"
+  was half right: that is the *display* name and the *supplier* label, but not the join key.
 - ~~**The X line's body type** is undecided~~ — **decided 19 August 2026: coach built, and
   specifically `coach_built_low_profile`.** FMLV offers no plain "coach built", only low
   profile and over cab bed, and the X has no over-cab bed — it is a compact on a 3.8 m

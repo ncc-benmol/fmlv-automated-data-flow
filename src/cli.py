@@ -67,6 +67,7 @@ from .fetch.http import Fetcher
 from .fetch.ncc import NccCredentials, NccCredentialsError, NccExportError, download_export
 from .output import generate_upload
 from .product_model import io
+from .product_model.derive import apply_mirrored_fields
 from .product_model.model import Motorhome
 from .registry import Manufacturer, loader
 from .store.runs import Trigger
@@ -394,6 +395,13 @@ def execute_run(
                 f"Scraped {len(scraped)} product(s) "
                 f"(website sweep took {time.monotonic() - scrape_started:.1f}s)"
             )
+
+            # Columns FMLV keeps equal to another column rather than publishing
+            # separately. Done here rather than in each adapter so no adapter can
+            # forget one — see `product_model.derive`.
+            mirrored = apply_mirrored_fields(scraped)
+            if mirrored:
+                on_progress(f"Derived {mirrored} mirrored field value(s)")
 
             diff_started = time.monotonic()
             diffs = diff_products(scraped, baseline)

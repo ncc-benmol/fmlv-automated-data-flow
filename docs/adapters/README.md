@@ -92,6 +92,29 @@ change. Auto-Trail moving from on-the-road to ex works would look like £635 off
 layouts. With the basis recorded that is diagnosable in seconds; without it, it reads as a
 real price move.
 
+**Whatever the manufacturer publishes on the page is the guide price, and it goes into
+`rrp_pounds`.** Rule restated from the NCC side, 20 August 2026: the field is *labelled*
+RRP, but what FMLV offers a reader is a guide price, so the published figure is taken as-is
+rather than adjusted towards some notional recommended retail price.
+
+**No adapter needs to read `price_min_range_pounds`.** It is in scope, but FMLV holds it
+**equal to `rrp_pounds` on every product in every real export** — 179 of 179 active rows
+across six manufacturers on 20 August 2026, never differing and never blank where
+`rrp_pounds` was set — and its companion `price_max_range_pounds` is blank throughout and
+out of scope, so there is no genuine price *range*, only one guide price stored twice.
+`product_model.derive` mirrors it centrally after `collect()`, so an adapter that sets
+`rrp_pounds` gets it for free and none can forget it.
+
+Two things follow, and the second is the trap:
+
+- **A brand with no published price gets no mirrored value either.** Swift, Rimor and
+  Chausson publish none, so the field stays honestly missing rather than being filled with
+  a figure nobody read.
+- **A synthetic baseline must carry it too.** A test fixture with a price but no min-price
+  is a state that does not occur in real data, and an otherwise-identical product built
+  from one will propose a change — which is exactly how this was found. See
+  `tests/test_cli.py`'s `make_baseline`.
+
 ### A figure that could not be found must be visible, and must never be inherited
 
 Where a manufacturer normally publishes a spec and it is **absent for a particular model**,

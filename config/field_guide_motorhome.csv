@@ -3,7 +3,7 @@ product_id,FMLV Product ID,PLEASE Leave as is!,
 year,Model Year,PLEASE Leave as is!,
 manufacturing_release_date,Manufacturer Release Date,PLEASE Leave as is!,
 manufacturer,MANUFACTURER NAME of MOTORHOME OR CAMPERVAN,REQUIRED FIELD,in_scope
-base_vehicle_manufacturer,Base vehicle manufacturer make (e.g. FIAT),REQUIRED FIELD,in_scope
+base_vehicle_manufacturer,Base vehicle manufacturer make (e.g. FIAT),REQUIRED FIELD,
 manufacturer_display_name,Brand name of model,REQUIRED FIELD,in_scope
 manufacturer_range,Range name,REQUIRED FIELD,in_scope
 dealer_specials_range,"Or, Dealer EXCLUSIVE range name",LEAVE BLANK UNLESS DEALER EXCLUSIVE,

@@ -18,6 +18,9 @@ learned from the four adapters written so far, and it is the reference for *how*
 these judgements. This skill is the running order and the things that must not be skipped.
 Read it at the point where the running order tells you to.
 
+**Branch:** always work on the `master` branch for this skill, unless the user explicitly
+asks you not to.
+
 Work in three stages, and **stop at the checkpoint between stage 1 and stage 2**. Stage 1
 takes minutes and decides everything; stage 2 takes an hour and is expensive to undo.
 
@@ -30,17 +33,22 @@ discoverable from the website at any price: when the new model year is announced
 range is actually caravans, which sub-brand sits on a separate site, that last season's
 price list was withdrawn and reissued with different weights.
 
-Ask both of these in a single message, in plain language, and say clearly that both are
-optional:
+Run the `AskUserQuestion` tool for three questions:
 
 1. **What do you know about this manufacturer?** Anything worth watching out for, any
    ranges that are unusual or that people get wrong, anything that has caught someone out
    before, anything the adapter should pay particular attention to.
 2. **Any URLs you already have?** The models page, a price list, a brochure, a UK
    importer's site — paste in whatever you have.
+3. **What is the NCC supplier name?** Ask the user to go to
+[Export Products by Supplier](https://findmyleisurevehicle.co.uk/nova/resources/products),
+open the supplier drop-down there, and give you the exact value as it appears in that list.
+
+Do not proceed past stage 0 without the NCC supplier name — write it into the `ncc_supplier_name` field of the registry row in step 1.6.
 
 Do not ask them about `specs_format`, JavaScript, or PDF structure. Those are yours to work
 out in stage 1.
+
 
 Three rules for what comes back:
 
@@ -145,7 +153,8 @@ following `config/manufacturers.README.md` column by column.
   registered under. Getting it subtly wrong (a trailing space, `Ltd` vs `Ltd.`) means the
   run finds an empty baseline and proposes every product as new.
 - `ncc_supplier_name` is a *different* string — the label in the NCC site's own export
-  dropdown. Do not assume it matches; leave it blank if unconfirmed rather than guessing.
+  dropdown, given to you by the user in stage 0. It can be different from
+  `fmlv_manufacturer`, and do not guess it yourself.
 - Fill `specs_format`, `needs_javascript`, `models_index_url`, `price_list_url` and
   `brochure_url` from what you actually found in 1.2 and 1.3.
 - Put the user's stage 0 context in `notes`, and today's date in `last_verified`.

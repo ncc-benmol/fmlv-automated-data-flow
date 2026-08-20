@@ -34,7 +34,9 @@ and a person still uploads the finished file — this just removes the tedious
 find-and-compare work beforehand.
 
 See [DESIGN.md](DESIGN.md) for the full design, the reasoning behind each decision, and
-open questions still being worked through.
+open questions still being worked through, and
+[docs/architecture-overview.html](docs/architecture-overview.html) for a high-level
+diagram of how it all fits together (open the file directly in a browser).
 
 ## Scheduled runs
 
@@ -68,10 +70,13 @@ column-by-column field guide and how "due" is worked out.
 This project uses [uv](https://docs.astral.sh/uv/) to manage its Python environment and
 requires Python 3.14+.
 
+Set up your developer environment - see [docs/setup-dev-environment.md](docs/setup-dev-environment.md) for a full walkthrough.
+(Git, uv, VS Code, the Claude Code extension, and connecting VS Code to GitHub). If
+you've already got all that set up, skip straight to the next step.
 
 Install the required packages:
 ```bash
-uv sync                          # install dependencies
+uv sync                              # install dependencies
 uv run playwright install chromium   # one-time, needed for JS-rendered manufacturer sites
 ```
 
@@ -129,29 +134,9 @@ The app runs as a **Windows service**, not in a container — see
 [DESIGN.md §8.2](DESIGN.md) for why. It's installed with [NSSM](https://nssm.cc/) as
 service **`FMLVReviewApp`**, listening on port **8000**, running as `LocalSystem`.
 
-Full deploy instructions, including a Windows-onboarding smoke test that should be run
-once on any new VM before the real app goes anywhere near it, live in
-[`deploy/windows/README.md`](deploy/windows/README.md). In short, from an elevated
-PowerShell on the VM, in order:
+- Quick instructions are here: [`docs/deploy-app-on-server.md`](docs/deploy-app-on-server.md)
+- Full README here: [`deploy/windows/README.md`](deploy/windows/README.md)
 
-```powershell
-cd deploy\windows
-.\01-bootstrap.ps1            # installs uv + Python 3.14, checks outbound internet
-.\04-provision-app.ps1        # uv sync, playwright install chromium, creates data\
-.\05-install-app-service.ps1  # registers and starts the FMLVReviewApp service
-```
-
-`04` and `05` both need a real `.env` in the repo root first (copy `.env.example`,
-fill in `FMLV_NOVA_LOGIN_EMAIL`/`FMLV_NOVA_LOGIN_PASSWORD`) and must be run elevated — the shared
-cache under `C:\fmlv` is only writable by `SYSTEM`/`Administrators`.
-
-**Updating a running deployment:**
-
-```powershell
-cd C:\apps\fmlv-automated-data-flow
-git pull
-.\deploy\windows\05-install-app-service.ps1   # elevated; safe to re-run, restarts the service
-```
 
 **Useful commands on the VM:**
 

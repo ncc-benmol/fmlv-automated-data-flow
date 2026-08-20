@@ -207,6 +207,29 @@ def _is_current_model_year(year: int | None, *, today: date | None = None) -> bo
     return year in (current_year, current_year + 1)
 
 
+def baseline_scope(
+    adapter: Adapter, ranges: Sequence[tuple[str, str]]
+) -> Callable[[Motorhome], bool]:
+    """Which baseline rows a `--range`-narrowed run should diff against.
+
+    Usually a range selector *is* the FMLV `manufacturer_range`, so the default is a
+    straight match on that column. An adapter whose selectors don't map that way
+    declares a `baseline_in_scope(motorhome, labels)` function and this defers to it —
+    the same `getattr` opt-in as `DEFAULT_RANGES`, so no other adapter is affected.
+
+    Adria is the case that needs it: its 60Y editions live on their own range pages but
+    FMLV files them under the ordinary range, marked in the model. Getting the scope
+    wrong is not cosmetic in either direction — too narrow and a product the NCC already
+    holds is proposed as new (a duplicate on upload), too wide and live products the run
+    never swept are reported as disappeared.
+    """
+    labels = {label for _path, label in ranges}
+    hook = getattr(adapter, "baseline_in_scope", None)
+    if hook is None:
+        return lambda motorhome: motorhome.manufacturer_range in labels
+    return lambda motorhome: bool(hook(motorhome, labels))
+
+
 def _dedupe_baseline(motorhomes: Iterable[Motorhome]) -> list[Motorhome]:
     """Collapse baseline rows sharing a `(manufacturer_range, model)` to the newest.
 
@@ -321,7 +344,7 @@ def execute_run(
     try:
         ranges = (collect_kwargs or {}).get("ranges")
         range_label = ", ".join(label for _path, label in ranges) if ranges else None
-        wanted_range_labels = {label for _path, label in ranges} if ranges else None
+        in_scope = baseline_scope(adapter, ranges) if ranges else None
         run = store.start_run(
             connection,
             manufacturer_id=manufacturer.manufacturer_id,
@@ -354,7 +377,7 @@ def execute_run(
                 if motorhome.manufacturer == manufacturer.fmlv_manufacturer
                 and not motorhome.archived
                 and _is_current_model_year(motorhome.year)
-                and (wanted_range_labels is None or motorhome.manufacturer_range in wanted_range_labels)
+                and (in_scope is None or in_scope(motorhome))
             )
 
             # One browser process and one HTTP client for the whole run — the browser
@@ -430,6 +453,11 @@ def format_summary(summary: RunSummary) -> str:
         lines.append(
             f"  missing     {persisted.disappeared_noted} product(s) not found on the "
             "site — no CSV change proposed, consider deactivating manually"
+        )
+    if persisted.missing_field_proposed:
+        lines.append(
+            f"              of which {persisted.missing_field_proposed} are "
+            "in-scope fields not found this run"
         )
     lines.append(f"  verified    {persisted.verified} fields checked and unchanged")
     if persisted.suppressed_rejections:

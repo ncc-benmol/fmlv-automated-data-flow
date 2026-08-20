@@ -15,7 +15,7 @@ from enum import Enum
 
 from ..adapters.base import ExtractedMotorhome
 from ..product_model.model import Motorhome
-from .compare import FieldChange, compare_fields, sort_changes
+from .compare import FieldChange, MissingField, compare_fields, sort_changes
 from .matching import DEFAULT_THRESHOLD, match_products
 from .year_rollover import in_rollover_window
 
@@ -44,6 +44,7 @@ class ProductDiff:
     extracted: ExtractedMotorhome | None
     changes: list[FieldChange] = field(default_factory=list)
     confirmed_fields: list[str] = field(default_factory=list)
+    missing_fields: list[MissingField] = field(default_factory=list)
     match_score: float | None = None
     match_method: str | None = None
     #: A plausible (not certain) sign this changed product is a model-year rollover —
@@ -86,7 +87,7 @@ def diff_products(
 
         assert result.baseline_index is not None
         matched_baseline_indices.add(result.baseline_index)
-        changes, confirmed = compare_fields(result.baseline, result.extracted)
+        changes, confirmed, missing = compare_fields(result.baseline, result.extracted)
         kind = ChangeKind.CHANGED_FIELD if changes else ChangeKind.UNCHANGED_CONFIRMED
         diffs.append(
             ProductDiff(
@@ -97,6 +98,7 @@ def diff_products(
                 extracted=result.extracted,
                 changes=sort_changes(changes),
                 confirmed_fields=confirmed,
+                missing_fields=missing,
                 match_score=result.score,
                 match_method=result.method,
                 year_rollover_eligible=(

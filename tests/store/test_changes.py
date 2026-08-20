@@ -84,6 +84,29 @@ def test_changed_field_is_persisted_as_a_proposed_change(
     assert entry.decision is None
 
 
+def test_missing_in_scope_field_is_persisted_as_a_confirm_or_replace_proposal(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    # mro_kilograms is in_scope (schema.IN_SCOPE) and has a baseline figure, but
+    # this run's adapter never found it — must be surfaced for review, not skipped.
+    baseline = make_baseline(rrp_pounds=93920, mro_kilograms=2944)
+    extracted = make_extracted(rrp_pounds=93920)
+    diffs = diff_products([extracted], [baseline])
+
+    result = store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    assert result.proposed == 1
+    assert result.missing_field_proposed == 1
+    queue = store.list_change_queue(connection, run_id)
+    assert len(queue) == 1
+    entry = queue[0]
+    assert entry.change.field == "mro_kilograms"
+    assert entry.change.old_value == "2944"
+    assert entry.change.new_value == "2944"
+    assert entry.change.source_snippet == store.MISSING_FIELD_SNIPPET
+    assert entry.change.source_url is None
+
+
 def test_unchanged_confirmed_is_persisted_as_a_verification_not_a_change(
     connection: sqlite3.Connection, run_id: int
 ) -> None:

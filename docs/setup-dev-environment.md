@@ -77,6 +77,24 @@ cd fmlv-automated-data-flow
 code .
 ```
 
+## 7. Set up your `.env` file
+
+Some parts of the project (like logging into Nova) need credentials that must never be
+committed to the repository. These are kept in a local `.env` file, which is
+gitignored.
+
+1. From the repository folder, copy the example file:
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+2. Open `.env` in VS Code and fill in the blank values, e.g.:
+   ```
+   FMLV_NOVA_LOGIN_EMAIL=your.email@thencc.org.uk
+   FMLV_NOVA_LOGIN_PASSWORD=your-password
+   ```
+3. Save the file. Because `.env` is gitignored, it will never show up in `git status` or
+   be pushed to GitHub.
+
 ## Next steps
 
 With all of the above done, follow

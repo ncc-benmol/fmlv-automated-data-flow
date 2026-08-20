@@ -421,6 +421,24 @@ means:
    unauthenticated URL keyed by a product ID that *was* in the JSON. Once known, that
    PDF is a plain deterministic fetch — no browser needed for it at all.
 
+**A scroll-triggered load can be missed by scrolling too fast, and it looks identical to
+having no data.** Adria's three 60Y range pages returned zero captures for a reason that
+was not in the adapter at all: `BrowserFetcher` scrolled in 2000px steps against a 720px
+viewport, which tiles a page with gaps, and the element carrying `x-intersect` is 20px
+tall. It fell in a gap, was never on screen while the page was still, and its
+intersection observer never fired. The same element on the ordinary range pages happens
+to land inside a rest position — which is the only reason the adapter ever worked.
+
+Two things generalise:
+
+- **Never scroll further than a viewport per step.** `_scroll_to_bottom` now caps every
+  step at half a viewport so consecutive positions overlap. Fixed in the shared fetcher,
+  so no adapter has to know about it.
+- **Narrate "no captures", because silence is ambiguous.** A page that yields nothing
+  looks exactly like a page with no lazy-loaded data, so this presents as "those pages
+  must be built differently" rather than as a defect. Any adapter capturing XHR should
+  say out loud when a page it expected to fire made no matching call.
+
 The general shape this suggests: **expect two fetches per product, not one** — a
 JS-rendered page (or its underlying AJAX response) for identity/price/layout, and a
 separate, often-plain-HTTP, document for the numeric technical spec. Don't assume the

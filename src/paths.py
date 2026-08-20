@@ -57,6 +57,11 @@ def schedule_path(*, root: Path = CONFIG_DIR) -> Path:
     return root / "schedule.csv"
 
 
+def field_guide_path(*, root: Path = CONFIG_DIR) -> Path:
+    """The field guide CSV — the source of truth for `product_model.schema.IN_SCOPE`."""
+    return root / "field_guide_motorhome.csv"
+
+
 def snapshot_dir(manufacturer_id: int, run_id: int, *, root: Path = DATA_DIR) -> Path:
     """Where fetched pages/files for one manufacturer's run are snapshotted."""
     return root / "snapshots" / str(manufacturer_id) / str(run_id)

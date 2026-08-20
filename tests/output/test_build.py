@@ -111,7 +111,8 @@ def test_accepted_change_is_applied_on_top_of_the_baseline(
     diffs = diff_products([extracted], [baseline])
     store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
 
-    [entry] = store.list_change_queue(connection, run_id)
+    queue = store.list_change_queue(connection, run_id)
+    entry = next(e for e in queue if e.change.field == "rrp_pounds")
     store.record_decision(
         connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
     )
@@ -135,7 +136,8 @@ def test_corrected_change_uses_the_corrected_value_not_the_proposal(
     diffs = diff_products([extracted], [baseline])
     store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
 
-    [entry] = store.list_change_queue(connection, run_id)
+    queue = store.list_change_queue(connection, run_id)
+    entry = next(e for e in queue if e.change.field == "rrp_pounds")
     store.record_decision(
         connection,
         proposed_change_id=entry.change.id,
@@ -159,7 +161,8 @@ def test_rejected_change_leaves_the_baseline_value_untouched(
     diffs = diff_products([extracted], [baseline])
     store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
 
-    [entry] = store.list_change_queue(connection, run_id)
+    queue = store.list_change_queue(connection, run_id)
+    entry = next(e for e in queue if e.change.field == "rrp_pounds")
     store.record_decision(
         connection, proposed_change_id=entry.change.id, action="reject", decided_by="ben"
     )
@@ -267,7 +270,8 @@ def test_generate_upload_writes_a_csv_in_fmlv_column_order_and_carries_product_i
     diffs = diff_products([extracted], [baseline])
     store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
 
-    [entry] = store.list_change_queue(connection, run_id)
+    queue = store.list_change_queue(connection, run_id)
+    entry = next(e for e in queue if e.change.field == "rrp_pounds")
     store.record_decision(
         connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
     )

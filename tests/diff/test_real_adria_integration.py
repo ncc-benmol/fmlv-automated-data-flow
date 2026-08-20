@@ -18,8 +18,11 @@ from pathlib import Path
 
 from src.adapters.adria import (
     _build_extracted_motorhome,
+    cross_source_disagreements,
+    parse_base_vehicle_manufacturer,
     parse_livewire_products,
     parse_technical_data_pdf,
+    range_config,
 )
 from src.diff import ChangeKind, diff_products, match_products
 from src.product_model.io import read_xlsx
@@ -42,10 +45,12 @@ def _real_scraped_670dc():
     specs = parse_technical_data_pdf(pdf_text)
     return _build_extracted_motorhome(
         supreme_alde,
-        "Matrix",
+        range_config("motorhomes/matrix", "Matrix"),
         "https://www.adria.co.uk/motorhomes/matrix",
         "https://configure.adria-mobil.com/gb/25-26/x/pdf",
         specs,
+        parse_base_vehicle_manufacturer(pdf_text),
+        cross_source_disagreements(supreme_alde, specs),
     )
 
 

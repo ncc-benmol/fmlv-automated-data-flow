@@ -1,0 +1,30 @@
+<html>
+<body>
+<!--
+  The regression fixture for the scroll-step gap that made Adria's 60Y range pages
+  return zero captures (see `BrowserFetcher._scroll_to_bottom`).
+
+  The trigger is 20px tall and sits at y=3000, with more page below it. Against a 720px
+  viewport, a scroller taking 2000px steps rests at 0, 2000, 4000 ... — showing 0-720,
+  2000-2720, 4000-4720 — and the trigger falls in the gap between the second and third
+  rest positions. It is never on screen while the page is still, so its intersection
+  observer never fires, and the page looks like one that simply has no lazy-loaded data.
+  Any step no larger than the viewport finds it.
+-->
+<div style="height: 3000px;">spacer: puts the target past the first rest positions</div>
+<div id="target" style="height: 20px;">not yet loaded</div>
+<div style="height: 4000px;">spacer: keeps the target away from the bottom of the page</div>
+<script>
+  const target = document.getElementById('target');
+  const observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      fetch('/data.json').then((r) => r.json()).then((data) => {
+        target.textContent = 'loaded: ' + data.hello;
+      });
+      observer.disconnect();
+    }
+  });
+  observer.observe(target);
+</script>
+</body>
+</html>

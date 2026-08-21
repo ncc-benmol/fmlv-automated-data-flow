@@ -243,6 +243,54 @@ def test_absorbing_a_phantom_keeps_its_review_history(
     assert moved["product_id"] == real.id
 
 
+def test_a_retired_product_gives_up_the_name_it_is_holding(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    """The day-after case: the row holding the name has since been archived in FMLV.
+
+    Chausson had two live products called `Low profiles 640`. Product 1612 won the baseline
+    dedupe and took the name locally, was then archived in FMLV, and 5554 — the one the NCC
+    kept — could not take the name it now holds on its own. A row not seen in this run is out
+    of the baseline, so it yields the name rather than blocking the run.
+    """
+    retired = store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=1612,
+        manufacturer_range="Low profiles",
+        model="640",
+        run_id=run_id,
+    )
+    later = store.start_run(
+        connection, manufacturer_id=53, fmlv_manufacturer="Trigano VDL Chausson", trigger="manual"
+    )
+    kept = store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=5554,
+        manufacturer_range="Titanium",
+        model="640",
+        run_id=later.id,
+    )
+
+    renamed = store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=5554,
+        manufacturer_range="Low profiles",
+        model="640",
+        run_id=later.id,
+    )
+
+    assert renamed.id == kept.id
+    assert renamed.model == "640"
+    # The retired row keeps its FMLV identity, which is how it is found, and says why it
+    # no longer holds the name.
+    still_there = store.get_product(connection, retired.id)
+    assert still_there.fmlv_product_id == 1612
+    assert still_there.model == "640 (superseded by 5554)"
+
+
 def test_two_real_products_sharing_a_name_is_an_error_worth_reading(
     connection: sqlite3.Connection, run_id: int
 ) -> None:
@@ -282,6 +330,7 @@ def test_two_real_products_sharing_a_name_is_an_error_worth_reading(
     message = str(caught.value)
     assert "5559" in message and "5560" in message
     assert "archive or rename one of them" in message
+    assert "in this run" in message  # both were seen in it, so both are live
 
 
 def test_get_product_raises_for_unknown_id(connection: sqlite3.Connection) -> None:

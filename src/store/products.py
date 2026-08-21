@@ -85,6 +85,7 @@ def _absorb_clash(
     manufacturer_id: int,
     manufacturer_range: str | None,
     model: str | None,
+    run_id: int,
 ) -> None:
     """Clear the way for `keeping` to take a name another local row already holds.
 
@@ -102,9 +103,17 @@ def _absorb_clash(
     at the surviving row first, so a reviewer's history survives the merge, and any
     decisions follow their changes untouched.
 
-    Two rows that *both* carry an `fmlv_product_id` are a different matter — genuinely
-    two FMLV products sharing one name, which no local surgery can resolve — so that
-    raises `ProductIdentityConflict`.
+    Two rows that both carry an `fmlv_product_id` are a different matter, and which one it
+    is turns on whether the clashing row has been seen in **this** run:
+
+    * **Seen this run** — two live FMLV products really do share one name, which no local
+      surgery can resolve, so this raises `ProductIdentityConflict`.
+    * **Not seen this run** — the clashing product has left the baseline, archived or
+      retired, and is holding a name the live product is entitled to. Chausson hit this the
+      day after the rename: `1612` had won a dedupe and taken `Low profiles 640` locally,
+      was then archived in FMLV, and `5554` could not take the name it now holds. The stale
+      row keeps its `fmlv_product_id`, which is how it is found, and its name is marked as
+      superseded so the constraint is satisfied and the history stays readable.
     """
     clash = connection.execute(
         """
@@ -118,12 +127,19 @@ def _absorb_clash(
 
     survivor = connection.execute("SELECT * FROM product WHERE id = ?", (keeping,)).fetchone()
     if clash["fmlv_product_id"] is not None:
-        msg = (
-            f"FMLV products {survivor['fmlv_product_id']} and {clash['fmlv_product_id']} are "
-            f"both named {manufacturer_range!r} {model!r}. Two live products cannot share a "
-            f"name — archive or rename one of them in FMLV, then run again."
+        if clash["last_seen_run_id"] == run_id:
+            msg = (
+                f"FMLV products {survivor['fmlv_product_id']} and {clash['fmlv_product_id']} "
+                f"are both named {manufacturer_range!r} {model!r} in this run. Two live "
+                f"products cannot share a name — archive or rename one of them in FMLV, then "
+                f"run again."
+            )
+            raise ProductIdentityConflict(msg)
+        connection.execute(
+            "UPDATE product SET model = ? WHERE id = ?",
+            (f"{model} (superseded by {survivor['fmlv_product_id']})", clash["id"]),
         )
-        raise ProductIdentityConflict(msg)
+        return
 
     for table in _PRODUCT_CHILD_TABLES:
         connection.execute(
@@ -172,6 +188,7 @@ def upsert_seen(
             manufacturer_id=manufacturer_id,
             manufacturer_range=manufacturer_range,
             model=model,
+            run_id=run_id,
         )
         connection.execute(
             """

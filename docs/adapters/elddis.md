@@ -481,13 +481,34 @@ The 322 proposals decompose cleanly, and the shape is the point — nothing unex
 which looks like the raised-pop-top height recorded as the vehicle height. The other 27
 matched products agree on height exactly.
 
-**The 29 year bumps are pipeline behaviour, not the adapter's, and should be rejected.**
-`store.changes` offers a `year` bump for any changed product during
-`year_rollover.ROLLOVER_WINDOW` (1 June - 30 September); all 29 changed on price, so all 29
-became eligible. Its `source_url` is `None` and its snippet says the suggestion came from
-the pipeline noticing the season. **Every Elddis page says `Year: 2026`**, so the honest
-answer is to reject them — and `was_previously_rejected` means they will not be offered
-again. Revisit after the October NEC, when Elddis may genuinely move to 2027.
+**The 29 year bumps are pipeline behaviour, not the adapter's — and should be left
+undecided rather than rejected.** `store.changes` offers a `year` bump for any changed
+product during `year_rollover.ROLLOVER_WINDOW` (1 June - 30 September); all 29 changed on
+price, so all 29 became eligible. Its `source_url` is `None` and its snippet says the
+suggestion came from the pipeline noticing the season, not from the site — and **every
+Elddis page says `Year: 2026`**, so the suggestion is wrong today.
+
+**But rejecting it is a one-way door, which is why "leave it" is the advice.**
+`was_previously_rejected` matches on `(product_id, field, new_value)` with **no run
+scoping**, so a rejected `year 2026 -> 2027` stays suppressed on every future run. Two
+things follow, and neither is obvious:
+
+- **`--bump-year` does not escape it.** Route 1 and the seasonal route converge on the same
+  `was_previously_rejected` gate in `store.changes`, so a rejection blocks the deliberate
+  manufacturer-wide rollover too.
+- **The site publishing 2027 will not reopen it.** `year` is a carry-through field and this
+  adapter never proposes one, by design (`year_rollover.py`: advancing it is always a human
+  decision). So these two routes are the *only* ways the year can ever move, and rejecting
+  now closes both for those 29 products.
+
+An undecided proposal is simply not applied, and a later run re-proposes it freely. So the
+cost of leaving them is nothing, and the cost of rejecting them is the rollover itself.
+Revisit after the October NEC, when Elddis may genuinely move to 2027 — `can_bump_year`
+still gates on the baseline year being the current calendar year, so the offer holds while
+FMLV reads 2026.
+
+Corrected here on 21 August 2026: this section originally said to reject them, which was
+wrong for exactly the reason above.
 
 ### One bug of mine, found by running `--range`
 
@@ -507,8 +528,9 @@ Both body-type questions are **closed**, confirmed by the requester on 21 August
 Whirlwind GTV is a `campervan_high_top` at 2610 mm, and the Autoquest CV60 has no elevating
 roof as standard. The adapter already emitted both, so nothing changed in the code.
 
-1. **Re-check late September** for MY2027, per the model-year note above — and reject the
-   pipeline's seasonal `year` bumps until Elddis actually publishes 2027.
+1. **Re-check late September / after the October NEC** for MY2027, per the model-year note
+   above. Leave the seasonal `year` bumps **undecided** in the meantime — never rejected,
+   for the one-way-door reason set out above.
 2. **Autoquest Apex CV80's £399 real price move**, the one product whose gap is not £1,690.
    Not acted on: the requester's instruction is to stick to the headline price with no
    per-product exceptions, so this is a note for whoever reviews that row, not a rule.

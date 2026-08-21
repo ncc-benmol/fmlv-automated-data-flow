@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src.product_model import io, validation
+from src.product_model import io, schema, validation
 
 ADRIA_EXPORT = (
     Path(__file__).parents[2]
@@ -82,10 +82,45 @@ def test_round_trip_through_csv_is_lossless(adria_result: io.ReadResult, tmp_pat
     reread = io.read_csv(out_path)
 
     assert reread.motorhomes == adria_result.motorhomes
-    # The writer always emits exactly one Yes per single-select group (or none), so a
-    # round trip resolves any ambiguity the original file had — re-reading our own
-    # output can never raise an "ambiguous_layout_group" issue.
-    assert reread.issues == []
+    # Ambiguity in the source survives the round trip, and that is deliberate. This test
+    # used to assert the opposite — that writing "resolves" a group with two members set,
+    # emitting one Yes and clearing the rest. That normalisation was silent data loss: it
+    # cleared flags the NCC had set, and it reached FMLV on 22 real Chausson products
+    # before anyone noticed. An upload must give a column back as it found it.
+    assert [i.code for i in reread.issues] == [i.code for i in adria_result.issues]
+    assert all(i.code == "ambiguous_layout_group" for i in reread.issues)
+
+
+def test_a_column_the_model_cannot_represent_is_given_back_unchanged(tmp_path: Path) -> None:
+    """FMLV holds both members of an exclusive group on some rows; both must survive.
+
+    `refrigeration` can only hold one value, so reading a row with `fridge` and
+    `fridge_freezer` both set keeps the first and records the second in
+    `extra_column_flags`. Writing must then re-assert it. 37 Chausson rows look like this.
+    """
+    row = dict.fromkeys(schema.COLUMNS, "")
+    row.update(
+        {
+            "product_id": "1636",
+            "manufacturer": "Trigano VDL Chausson",
+            "manufacturer_range": "Low profiles",
+            "model": "630",
+            "fridge": "Yes",
+            "fridge_freezer": "Yes",
+            "rear_shower_toilet": "Yes",
+            "separate_shower_toilet": "Yes",
+        }
+    )
+
+    motorhome, issues = io.row_to_motorhome(row)
+
+    assert sorted(motorhome.extra_column_flags) == ["fridge_freezer", "separate_shower_toilet"]
+    assert len(issues) == 2  # still reported, because the source data really is ambiguous
+
+    written = io.motorhome_to_row(motorhome)
+
+    for column in ("fridge", "fridge_freezer", "rear_shower_toilet", "separate_shower_toilet"):
+        assert written[column] == schema.YES, column
 
 
 def test_write_csv_preserves_column_order(adria_result: io.ReadResult, tmp_path: Path) -> None:

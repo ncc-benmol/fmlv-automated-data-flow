@@ -65,6 +65,19 @@ class Motorhome(BaseModel):
     images: list[str] = Field(default_factory=list)
     archived: bool = False
 
+    #: Column names FMLV has set to `Yes` that this model cannot otherwise represent.
+    #:
+    #: The single-select groups (`refrigeration`, `bathroom_layout`, …) hold exactly one
+    #: member each, because the FMLV guide says one should be set. Real rows disagree: 37
+    #: Chausson products carry both `fridge` and `fridge_freezer`, or both
+    #: `rear_shower_toilet` and `separate_shower_toilet`. Reading such a row keeps the first
+    #: member and records the rest here, so writing it back re-asserts them instead of
+    #: silently clearing a flag the NCC set deliberately.
+    #:
+    #: Adapters never populate this — a scraped product states its own layout — so it stays
+    #: empty for everything except a product read back from an export.
+    extra_column_flags: list[str] = Field(default_factory=list)
+
     # --- Identity -------------------------------------------------------------
     manufacturer: str | None = None
     base_vehicle_manufacturer: str | None = None

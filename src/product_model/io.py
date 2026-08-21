@@ -93,16 +93,20 @@ def _to_images(value: Any) -> list[str]:
 
 def _select_single(
     row: dict[str, Any], enum_cls: type[ColumnEnum], product_key: str
-) -> tuple[ColumnEnum | None, list[Issue]]:
-    """Pick the one member whose column is 'Yes'.
+) -> tuple[ColumnEnum | None, list[str], list[Issue]]:
+    """Pick the one member whose column is 'Yes', and report any others that were too.
 
     The guide says exactly one should be set, but real data can disagree — flag more
     than one as an issue rather than raising, and fall back to the first match so the
     row still parses.
+
+    The extra members are returned so `Motorhome.extra_column_flags` can carry them, which
+    is what stops a write-back clearing a flag the NCC set on purpose. Chausson has 37 rows
+    like this, and losing them was silent until it reached a real upload.
     """
     matches = [member for member in enum_cls if _is_yes(row.get(member.value))]
     if len(matches) <= 1:
-        return (matches[0] if matches else None), []
+        return (matches[0] if matches else None), [], []
     issue = Issue(
         severity="warning",
         code="ambiguous_layout_group",
@@ -113,7 +117,7 @@ def _select_single(
         product_key=product_key,
         field=enum_cls.__name__,
     )
-    return matches[0], [issue]
+    return matches[0], [member.value for member in matches[1:]], [issue]
 
 
 def _select_many(row: dict[str, Any], enum_cls: type[ColumnEnum]) -> list[ColumnEnum]:
@@ -129,9 +133,11 @@ def row_to_motorhome(row: dict[str, Any]) -> tuple[Motorhome, list[Issue]]:
     )
 
     selected: dict[str, ColumnEnum | None] = {}
+    extra_column_flags: list[str] = []
     for field_name, enum_cls in _SINGLE_SELECT_FIELDS:
-        value, group_issues = _select_single(row, enum_cls, key_hint)
+        value, extras, group_issues = _select_single(row, enum_cls, key_hint)
         selected[field_name] = value
+        extra_column_flags.extend(extras)
         issues.extend(group_issues)
 
     bed_types = _select_many(row, BedType)
@@ -152,6 +158,7 @@ def row_to_motorhome(row: dict[str, Any]) -> tuple[Motorhome, list[Issue]]:
         latest_model_id=_to_int(row.get("latest_model_id")),
         images=_to_images(row.get("images")),
         archived=_is_yes(row.get("archived")),
+        extra_column_flags=extra_column_flags,
         manufacturer=_to_str(row.get("manufacturer")),
         base_vehicle_manufacturer=_to_str(row.get("base_vehicle_manufacturer")),
         manufacturer_display_name=_to_str(row.get("manufacturer_display_name")),
@@ -214,6 +221,13 @@ def motorhome_to_row(motorhome: Motorhome) -> dict[str, str]:
         selected_member = getattr(motorhome, field_name)
         for member in enum_cls:
             row[member.value] = schema.YES if member is selected_member else schema.NO
+
+    # Re-assert flags FMLV holds that the single-select fields above have just written off.
+    # Without this, writing back a row that had two members of one group set clears the
+    # second one — see `Motorhome.extra_column_flags`.
+    for column in motorhome.extra_column_flags:
+        if column in row:
+            row[column] = schema.YES
 
     for member in BedType:
         row[member.value] = schema.YES if member in motorhome.bed_types else schema.NO

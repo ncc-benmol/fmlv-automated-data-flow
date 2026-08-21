@@ -152,6 +152,138 @@ def test_upsert_seen_assigns_fmlv_id_once_the_new_product_is_uploaded(
     assert len(store.list_products(connection, manufacturer_id=3)) == 1
 
 
+def test_a_rename_onto_a_phantom_absorbs_it_instead_of_failing(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    """The Chausson case: FMLV renames a product to the name a phantom row already holds.
+
+    A product first seen while absent from FMLV is stored under the manufacturer's own name
+    with no `fmlv_product_id`. When the NCC renames the real product to match, the run
+    arrives with both a real id and that same name. Before this was handled the `UPDATE`
+    tripped `UNIQUE (manufacturer_id, manufacturer_range, model)` and the run died with a
+    bare `IntegrityError` — on 16 products at once, in the real case.
+    """
+    phantom = store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=None,
+        manufacturer_range="Low profiles",
+        model="650",
+        run_id=run_id,
+    )
+    real = store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=1648,
+        manufacturer_range="Titanium",
+        model="650",
+        run_id=run_id,
+    )
+    assert phantom.id != real.id
+
+    renamed = store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=1648,
+        manufacturer_range="Low profiles",
+        model="650",
+        run_id=run_id,
+    )
+
+    assert renamed.id == real.id  # the row with the FMLV identity is the one that survives
+    assert renamed.fmlv_product_id == 1648
+    assert renamed.manufacturer_range == "Low profiles"
+    remaining = store.list_products(connection, manufacturer_id=53)
+    assert len(remaining) == 1
+
+
+def test_absorbing_a_phantom_keeps_its_review_history(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    """A reviewer's proposed changes must follow the merge, not vanish with the phantom."""
+    phantom = store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=None,
+        manufacturer_range="X",
+        model="X550",
+        run_id=run_id,
+    )
+    change = store.record_proposed_change(
+        connection,
+        run_id=run_id,
+        product_id=phantom.id,
+        field="rrp_pounds",
+        old_value=None,
+        new_value="73990",
+    )
+    store.record_verification(connection, run_id=run_id, product_id=phantom.id, field="berths")
+    real = store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=7419,
+        manufacturer_range="Exclusive",
+        model="X550",
+        run_id=run_id,
+    )
+
+    store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=7419,
+        manufacturer_range="X",
+        model="X550",
+        run_id=run_id,
+    )
+
+    assert store.get_proposed_change(connection, change.id).product_id == real.id
+    moved = connection.execute(
+        "SELECT product_id FROM verification WHERE run_id = ?", (run_id,)
+    ).fetchone()
+    assert moved["product_id"] == real.id
+
+
+def test_two_real_products_sharing_a_name_is_an_error_worth_reading(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    """No local surgery can fix two live FMLV products with one name, so say so plainly.
+
+    This is the other half of the Chausson rename: five layouts had two trim variants each,
+    and renaming both to the manufacturer's single name would have collided. The message
+    names both products, where the raw `IntegrityError` named only the columns.
+    """
+    store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=5559,
+        manufacturer_range="S Low Profiles",
+        model="S514",
+        run_id=run_id,
+    )
+    store.upsert_seen(
+        connection,
+        manufacturer_id=53,
+        fmlv_product_id=5560,
+        manufacturer_range="Sport",
+        model="S514",
+        run_id=run_id,
+    )
+
+    with pytest.raises(store.ProductIdentityConflict) as caught:
+        store.upsert_seen(
+            connection,
+            manufacturer_id=53,
+            fmlv_product_id=5560,
+            manufacturer_range="S Low Profiles",
+            model="S514",
+            run_id=run_id,
+        )
+
+    message = str(caught.value)
+    assert "5559" in message and "5560" in message
+    assert "archive or rename one of them" in message
+
+
 def test_get_product_raises_for_unknown_id(connection: sqlite3.Connection) -> None:
     with pytest.raises(KeyError):
         store.get_product(connection, 999)

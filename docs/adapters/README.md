@@ -524,3 +524,24 @@ as a generic capability, not something specific to Adria.
 - **Does your verification probe fail where the adapter fails?** A throwaway script with a
   fallback the adapter lacks will report a healthy parse while the adapter collects nothing.
   Etrusco's first live run returned zero products for exactly this reason.
+- **Does the same site label the same field differently per vehicle type?** Elddis heads its
+  spec block `Technical Specification` on motorhomes and `Technical Specifications` on
+  campervans, with `NOTES` against `Notes` — one plural away from silently dropping all 15
+  campervans while collecting all 34 motorhomes. A count that looks plausible is the only
+  symptom. Check one page of *each* type before trusting a label, and prefer the roster's
+  own count over "it parsed" as the success condition.
+- **Check the units per range, not per site.** Elddis publishes millimetres everywhere
+  except its three newest campervans, which use metres to two decimal places — so a
+  pattern anchored on `mm` returns nothing for those three, and their dimensions are
+  genuinely only good to the nearest 10mm. A brand-new range is where a template
+  convention breaks.
+- **Run `--range` before calling an adapter done.** A completeness check that compares a
+  run against the manufacturer's full published roster will cry wolf on every legitimate
+  single-range run unless it is gated on what was actually *requested*. Elddis's did, and a
+  check that fires on correct runs trains a reviewer to ignore it — which is worse than not
+  having one.
+- **Read the export's `year` column before writing up "disappeared".** Elddis's export has
+  77 un-archived rows against 49 products on sale, which reads as 48 discontinued vehicles
+  — but `cli._is_current_model_year` already drops them, because they carry 2024 and 2022.
+  The baseline the diff sees was 29 and nothing disappeared. Count against the *filtered*
+  baseline, not the raw export.

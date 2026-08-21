@@ -542,13 +542,47 @@ def test_gtv_dimensions_are_published_in_metres():
 
 
 def test_gtv_height_is_not_the_raised_pop_top_figure():
-    """`Overall Height Including Pop Top` is 2.81m and sits two lines from the one
-    wanted."""
+    """The base vehicle's height, not the optional pop-top's. On the 554 the label states
+    the condition outright, which is why the taller figure is not the vehicle's height:
+
+        Overall Height Excluding Aerial: 2.61m
+        Overall Height Including Pop Top (If option is selected): 2.81m
+
+    Confirmed by the requester on 2026-08-21. The two lines are adjacent, both are
+    `Overall Height…`, and only exact label matching separates them.
+    """
+    fields = spec_fields(_text_lines(_fixture("elddis_whirlwind_gtv_554.html")))
+    # Both figures really are present, so this is a live hazard rather than a hypothetical.
+    assert fields["Overall Height Excluding Aerial"].startswith("2.61")
+    assert any(
+        "pop top" in label.lower() and "2.81" in value
+        for label, value in fields.items()
+    )
+
     product = _parse(
         "elddis_whirlwind_gtv_554.html", segment="whirlwind-gtv", is_campervan=True
     )
     assert product.mh_height_mm == 2610
     assert product.mh_height_mm != 2810
+
+
+def test_gtv_is_a_high_top_at_2610mm():
+    """Confirmed by the requester on 2026-08-21: 2610mm on a Peugeot Boxer is a high top.
+
+    Worth pinning because 2610 is below the "around 2680mm" figure `README.md` quotes, so
+    the tempting reading is a plain campervan — and because it is the evidence that the
+    shared `HIGH_TOP_ABOVE_MM` needed no Elddis-specific adjustment.
+    """
+    from src.adapters.elddis import HIGH_TOP_ABOVE_MM
+
+    assert HIGH_TOP_ABOVE_MM == 2300
+    for name in (
+        "elddis_whirlwind_gtv_554.html",
+        "elddis_whirlwind_gtv_563.html",
+    ):
+        product = _parse(name, segment="whirlwind-gtv", is_campervan=True)
+        assert product.mh_height_mm == 2610
+        assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
 
 
 def test_gtv_masses_carry_thousands_separators():

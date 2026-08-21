@@ -325,11 +325,13 @@ Height evidence: all Autoquest CV models publish 2670 mm; the Whirlwind GTV publ
 **This reproduces FMLV's existing value on all 8 matched campervans**, which is the reason
 for reusing the shared threshold rather than inventing an Elddis-specific one. Two notes:
 
-- At the checkpoint the Whirlwind GTV was sketched as a plain `campervan` on the grounds
-  that 2610 mm is below `README.md`'s "around 2680 mm" remark. The shared 2300 mm threshold
-  makes it `campervan_high_top` instead, and that is what the adapter emits. Worth an eye —
-  it is a one-line change if the GTV should be a plain campervan, but a brand-specific
-  threshold between 2610 and 2670 would be a suspiciously convenient constant.
+- **The Whirlwind GTV is `campervan_high_top`, confirmed by the requester on 21 August
+  2026**: *"The Whirlwind GTV body type is a campervan high top. Its height is 2.61
+  metres… it's 2.61 without a pop top."* At the checkpoint it had been sketched as a plain
+  `campervan`, on the grounds that 2610 mm is below `README.md`'s "around 2680 mm" remark.
+  The shared 2300 mm threshold gives the high top, and the high top is right — so the
+  threshold needed no brand-specific adjustment, which is the outcome to prefer: a constant
+  chosen to fall between 2610 and 2670 would have been suspiciously convenient.
 - **The adapter corrects Autoquest CV60, and this is confirmed.** FMLV holds it as
   `campervan_high_top_elevating_roof`; its page mentions a pop-top zero times, so the
   adapter proposes `campervan_high_top`. Confirmed by the requester on 21 August 2026:
@@ -351,6 +353,21 @@ The detection across all 15 campervans, for the record:
 The GTV row is the useful one: mention count is not the signal. Those pages talk about the
 pop-top more than the CV80s do, but always as a variant with its own weights and berth
 count, which makes it an option however prominent.
+
+**And the GTV 554 says so in the label itself**, which is the clearest statement of the
+option rule anywhere on the site:
+
+```
+Overall Height Excluding Aerial: 2.61m
+Overall Height Including Pop Top (If option is selected): 2.81m
+```
+
+Two things follow. The height to record is **2610**, because the 2810 figure is explicitly
+conditional on buying the option — and `_exact` matches only
+`Overall Height Including/Excluding Aerial`, so the longer label cannot be picked up by
+accident. And the pop-top is definitionally an option on this range, which is what
+`_offers_pop_top_variant` detects: it matches any label containing "pop top", including this
+one.
 
 ## The Whirlwind GTV campervans are the parsing trap
 
@@ -486,14 +503,16 @@ cries wolf on a legitimate run trains a reviewer to ignore it.
 
 ## Open items
 
-1. **Whirlwind GTV body type** — the adapter emits `campervan_high_top` on the shared
-   2300 mm threshold; a plain `campervan` is arguable at 2610 mm. One line if it should
-   change.
-2. **Autoquest CV60's body-type correction** — proposed on the absence of any pop-top
-   mention. Worth a human confirming, since absence is weaker evidence than presence.
-3. **Autoquest Apex CV80's £399 real price move**, the one product whose gap is not £1,690.
-4. **Re-check late September** for MY2027, per the model-year note above.
-5. **Automatic-variant figures for GTV 560 and 563.** Those two publish automatic MIRO and
+Both body-type questions are **closed**, confirmed by the requester on 21 August 2026: the
+Whirlwind GTV is a `campervan_high_top` at 2610 mm, and the Autoquest CV60 has no elevating
+roof as standard. The adapter already emitted both, so nothing changed in the code.
+
+1. **Re-check late September** for MY2027, per the model-year note above — and reject the
+   pipeline's seasonal `year` bumps until Elddis actually publishes 2027.
+2. **Autoquest Apex CV80's £399 real price move**, the one product whose gap is not £1,690.
+   Not acted on: the requester's instruction is to stick to the headline price with no
+   per-product exceptions, so this is a note for whoever reviews that row, not a rule.
+3. **Automatic-variant figures for GTV 560 and 563.** Those two publish automatic MIRO and
    payload, and the option price is £3,246, so `AutomaticVariant` could be populated for
    them. Not attempted: `validation` treats the group as all-or-nothing, FMLV currently has
    it set on none of the 77 rows, and two products out of 49 is not obviously worth the

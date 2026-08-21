@@ -83,7 +83,21 @@ any mention is sufficient grounds to correct it.
 Note the corollary: a model that prices the pop-top as an *alternative configuration* — its
 own weights, its own berth count — is also offering an option, however prominently. The
 three Whirlwind GTVs mention a pop-top six to eleven times each and still take the
-fixed-roof body type and the fixed-roof berth count.
+fixed-roof body type and the fixed-roof berth count. The GTV 554 puts it in the label:
+
+```
+Overall Height Excluding Aerial: 2.61m
+Overall Height Including Pop Top (If option is selected): 2.81m
+```
+
+**Which is also the rule for the height itself:** record 2610, not 2810. Where a
+manufacturer publishes a second, taller figure conditional on an option, the base vehicle's
+figure is the one FMLV holds — the same reasoning that takes the mirrors-excluded width and
+the lower berth count. A raised pop-top is not the vehicle's height any more than an
+extended awning is its width. Confirmed for Elddis on 21 August 2026, where the requester
+also settled the classification: 2610 mm on a Peugeot Boxer **is** a high top, so the shared
+`HIGH_TOP_ABOVE_MM = 2300` needed no adjustment — worth knowing, because 2610 sits below the
+"around 2680 mm" figure quoted above and the temptation was to treat it as a plain campervan.
 
 **Where the body height cannot be established, leave `body_type` unset** rather than
 assuming a high top. The missing-data rule applies here as it does to any other field.

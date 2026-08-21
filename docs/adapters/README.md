@@ -65,6 +65,26 @@ option* does not change what the vehicle is — Auto-Trail's Expedition Van list
 while the Adventure lists the same line as `Included` and is therefore
 `campervan_high_top_elevating_roof`. The word after the feature decides it.
 
+**And silence means "option", not "standard".** Rule from the NCC side, 21 August 2026: if a
+model's page does not state that the elevating roof is *included*, assume it is an option and
+therefore not part of the standard specification. A pop-top is a headline selling feature —
+a manufacturer fitting one as standard says so, and usually more than once — so an
+unmentioned roof is a missing feature, not an undocumented one.
+
+This is the opposite default to the missing-data rule below, and deliberately so. The
+question is not "what is this vehicle's roof height?", which is unknown when unstated; it is
+"does the standard specification include an elevating roof?", and *that* has a safe default,
+because the base vehicle is the vehicle without the extras. Elddis is the worked example:
+the CV20, CV40 and CV60 layouts mention a pop-top **zero** times and are plain high tops,
+while the three CV80s say "comes with a pop-top" and get the elevating variant. FMLV held
+Autoquest CV60 as `campervan_high_top_elevating_roof`; that was wrong, and the absence of
+any mention is sufficient grounds to correct it.
+
+Note the corollary: a model that prices the pop-top as an *alternative configuration* — its
+own weights, its own berth count — is also offering an option, however prominently. The
+three Whirlwind GTVs mention a pop-top six to eleven times each and still take the
+fixed-roof body type and the fixed-roof berth count.
+
 **Where the body height cannot be established, leave `body_type` unset** rather than
 assuming a high top. The missing-data rule applies here as it does to any other field.
 

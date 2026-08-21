@@ -153,10 +153,20 @@ _MOTORHOME_BODY_TYPE = BodyType.COACH_BUILT_LOW_PROFILE
 #: A pop-top fitted **as standard**, which does change the body type. Only the three CV80
 #: layouts say this, and they say it twice ("comes with a pop-top with an opening
 #: Skylight", "adds a pop-top roof to create a flexible 4-berth campervan under 6m");
-#: CV20, CV40 and CV60 never mention a pop-top at all. Contrast the Whirlwind GTVs, which
-#: offer one as a *cost option* ("All models are available as a pop-top 5 berth version")
-#: and are therefore excluded by `_offers_pop_top_variant` below — per the base-vehicle
-#: rule in `docs/adapters/README.md`, the word after the feature decides it.
+#: CV20, CV40 and CV60 never mention a pop-top at all.
+#:
+#: Matching a positive statement — rather than looking for the *absence* of the word
+#: "option" — is what implements `README.md`'s rule that **silence means option**: a page
+#: that does not say the roof is included is taken not to have one, because a pop-top is a
+#: headline selling feature and a manufacturer fitting one as standard says so. Confirmed
+#: for Autoquest CV60 by the requester on 2026-08-21, which is why the adapter's correction
+#: of FMLV's `campervan_high_top_elevating_roof` there is right rather than a guess.
+#:
+#: Contrast the Whirlwind GTVs, which offer one as a *cost option* ("All models are
+#: available as a pop-top 5 berth version") and are excluded by `_offers_pop_top_variant`
+#: below. Note they mention a pop-top six to eleven times each — far more than the CV80s —
+#: so mention count is emphatically not the signal, and a naive keyword search would give
+#: all three an elevating roof they do not have as standard.
 _STANDARD_POP_TOP = re.compile(r"comes with a pop[-\s]?top", re.IGNORECASE)
 
 #: The hero price, from the `<h1>` that carries the model name. Anchored on `</h1>` so it

@@ -29,6 +29,7 @@ sees. Apart from that substitution the fixtures are the bytes the site served.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -460,6 +461,47 @@ def test_optional_pop_top_does_not_change_the_body_type():
     assert product.pop_top_standard is False
     assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
     assert product.berths == 3  # not the pop-top's 5
+
+
+def test_silence_about_a_pop_top_means_the_vehicle_has_none():
+    """`README.md`'s rule, confirmed for the CV60 by the requester on 2026-08-21: a page
+    that does not state the elevating roof is included is taken not to have one.
+
+    FMLV holds Autoquest CV60 as `campervan_high_top_elevating_roof`; its page mentions a
+    pop-top zero times, so the adapter proposes the plain high top. The CV20 fixture stands
+    in for the same template — neither it, the CV40 nor the CV60 mentions one.
+    """
+    html = _fixture("elddis_autoquest_cv20.html")
+    assert not re.search(r"pop[-\s]?top", html, re.IGNORECASE)
+    product = _parse(
+        "elddis_autoquest_cv20.html", segment="autoquest-cv", is_campervan=True
+    )
+    assert product.pop_top_standard is False
+    assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
+
+
+def test_mention_count_is_not_the_pop_top_signal():
+    """The GTVs talk about the pop-top far more than the CV80s do, and still do not have
+    one as standard. A naive keyword search would give all three an elevating roof.
+
+    This is the test that stops someone "simplifying" the detection into a substring
+    search for "pop-top".
+    """
+    gtv = _fixture("elddis_whirlwind_gtv_563.html")
+    cv80 = _fixture("elddis_autoquest_cv80.html")
+    gtv_mentions = len(re.findall(r"pop[-\s]?top", gtv, re.IGNORECASE))
+    cv80_mentions = len(re.findall(r"pop[-\s]?top", cv80, re.IGNORECASE))
+    assert gtv_mentions > cv80_mentions > 0
+
+    gtv_product = _parse(
+        "elddis_whirlwind_gtv_563.html", segment="whirlwind-gtv", is_campervan=True
+    )
+    cv80_product = _parse(
+        "elddis_autoquest_cv80.html", segment="autoquest-cv", is_campervan=True
+    )
+    # More mentions, no elevating roof; fewer mentions, elevating roof.
+    assert gtv_product.body_type is BodyType.CAMPERVAN_HIGH_TOP
+    assert cv80_product.body_type is BodyType.CAMPERVAN_HIGH_TOP_ELEVATING_ROOF
 
 
 def test_body_type_is_left_unset_when_height_is_unknown():

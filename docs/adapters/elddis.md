@@ -330,11 +330,27 @@ for reusing the shared threshold rather than inventing an Elddis-specific one. T
   makes it `campervan_high_top` instead, and that is what the adapter emits. Worth an eye —
   it is a one-line change if the GTV should be a plain campervan, but a brand-specific
   threshold between 2610 and 2670 would be a suspiciously convenient constant.
-- **The adapter corrects Autoquest CV60.** FMLV holds it as
-  `campervan_high_top_elevating_roof`; its page mentions no pop-top at all, so the adapter
-  proposes `campervan_high_top`. That is the one body-type change on the first run, and it
-  is the adapter working rather than a parse error — but it is a proposal a human should
-  confirm, since the evidence is an absence.
+- **The adapter corrects Autoquest CV60, and this is confirmed.** FMLV holds it as
+  `campervan_high_top_elevating_roof`; its page mentions a pop-top zero times, so the
+  adapter proposes `campervan_high_top`. Confirmed by the requester on 21 August 2026:
+  *"the Autoquest CV60 doesn't come with an elevating roof pop top as standard"*, with the
+  general rule that **if a page does not mention a feature as included, it is normally an
+  option and not part of the standard specification.** That rule is now recorded in
+  `README.md`, since it applies to every brand and not just this one. So the absence of a
+  mention is sufficient grounds here, and this is the adapter correcting FMLV rather than a
+  proposal needing further evidence.
+
+The detection across all 15 campervans, for the record:
+
+| Layouts | "pop-top" mentions | Verdict | Body type |
+|---|---|---|---|
+| CV20, CV40, CV60 (all three families) | **0** | not fitted | `campervan_high_top` |
+| CV80 (all three families) | 3, incl. "comes with a pop-top" | standard | `campervan_high_top_elevating_roof` |
+| Whirlwind GTV 554 / 560 / 563 | 6 / 8 / 11, as an alternative configuration | option | `campervan_high_top` |
+
+The GTV row is the useful one: mention count is not the signal. Those pages talk about the
+pop-top more than the CV80s do, but always as a variant with its own weights and berth
+count, which makes it an option however prominent.
 
 ## The Whirlwind GTV campervans are the parsing trap
 

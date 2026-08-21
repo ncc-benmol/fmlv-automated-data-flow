@@ -400,6 +400,16 @@ each layout and no more.
      with the **price as the discriminator** where FMLV held two trim rows for one layout — the
      site quotes only the entry line, so `S514` at £55,790 identified the `First` row against
      the `Sport` one at £58,290. 16 of 18 matched; 2 were genuinely new.
+
+     **That mapping is kept, at
+     [`resources/chausson-id-mapping-2026-08-20.csv`](../../resources/chausson-id-mapping-2026-08-20.csv).**
+     It is the only record of which FMLV `product_id` each site layout was judged to be, and
+     its `basis` column says *why* each row was decided — `only candidate`,
+     `price matches exactly`, `CHECK — cheapest of several` with the runners-up named in
+     `other_candidates`, `NO FMLV ROW — genuinely new`, and `NOT ON THE SITE` for the FMLV
+     rows that had no counterpart. Nothing in the codebase reads it and nothing regenerates
+     it: it is a human judgement, so it is evidence rather than output. Keep it if the
+     Chausson identities are ever questioned, and read the `CHECK` rows first.
   2. **A rename upload carrying the existing IDs**, built by copying the export's cells
      verbatim and changing only `manufacturer_range` and `model`.
   3. **The dearer trim twins archived** — five layouts had two, and once renamed they would

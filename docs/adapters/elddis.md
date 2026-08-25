@@ -8,9 +8,14 @@ Elddis is the British arm of Erwin Hymer Group UK Ltd, built at Consett, County 
 roster to reconcile against, and `elddis.co.uk` is the whole of the range.
 
 **Verdict: the single safest source surveyed so far.** One product per URL, a labelled
-`key: value` technical specification block in server-rendered HTML, no JavaScript, no PDF, and
-a published self-check. Attribution is free — there are no columns to align, so the entire
+`key: value` technical specification block in server-rendered HTML, no JavaScript, and a
+published self-check. Attribution is free — there are no columns to align, so the entire
 class of failure that dominates the PDF adapters cannot occur here.
+
+The one exception is the **Evolve ranges' weights**, which the website publishes wrongly and
+the adapter takes from Elddis's own 2026 brochure instead. That is the only place this
+adapter reads a PDF, and it is designed to stop doing so on its own once Elddis correct
+their site.
 
 ## What the requester brought to the survey
 
@@ -71,9 +76,21 @@ M.T.P.L.M: 3500kgs/68.89cwt
 NOTES
 ```
 
-**There is no PDF anywhere on the site** — no price list, no brochure, no downloads page, no
-`.pdf` link on any page fetched. `README.md` says to ask the PDF question first; the answer
-here is a clean no, and it costs nothing, because the HTML already does what a good PDF does.
+**There is no price list**, and the HTML carries everything the pipeline needs, so the model
+pages are the source for all 49 products.
+
+> **Correction, 25 August 2026 — this section originally said "there is no PDF anywhere on
+> the site", and that was wrong.** Elddis publish a full downloads page at
+> [`/help-support/brochures`](https://elddis.co.uk/help-support/brochures) with 30+ PDFs,
+> including the current **Elddis Brochure 2026 – Motorhome** and **– Campervan**. The
+> original survey searched the pages it had fetched, found no `.pdf` links on any of them,
+> and stated the conclusion far more strongly than that evidence supported: the brochures
+> page was sitting in `sitemap.xml` the whole time and was simply never fetched.
+>
+> It matters, because the brochure turned out to hold the **correct Evolve weights that the
+> website gets wrong** — see below. The lesson is in `README.md` now: an orphan page is
+> exactly the page a link-following search cannot find, so the PDF question has to be asked
+> against the sitemap, not against the pages you happen to have.
 
 `needs_javascript` is **no**. The site is Kirby with Alpine.js sprinkled on for carousels and
 the enquiry form; every number above is in the initial HTML response.
@@ -417,6 +434,71 @@ exists. Selected that way the self-check passes exactly, with no tolerance:
 | GTV 563 | 3500 | 2856 (manual, fixed roof) | 644 | 644 |
 
 And berths is **3**, not 5 — the pop-top is an option, per the base-vehicle rule.
+
+## The website's Evolve weights are wrong, and the brochure's are right
+
+Found on 25 August 2026, when the requester asked whether the 20 "new" products were really
+new or just renamed existing ones. They are genuinely new — Evolve is a concurrent trim
+level, not a rename, and all three tiers are listed side by side on
+`/campervan-specification` — but checking it turned up something worse.
+
+**The website publishes the base range's weights on every Evolve page, byte for byte.**
+Autoquest Evolve CV20 is shown with the Autoquest CV20's MIRO of 2835kg. That cannot be
+right: the Evolve pack adds a 110W solar panel, an awning, cab blinds, an anti-theft alarm
+and a tracker, and a vehicle carrying all that does not weigh what the vehicle without it
+weighs.
+
+**Elddis's own 2026 brochure gives the real figures**, and they are self-consistent:
+
+| Range | MIRO delta | Payload delta |
+|---|---|---|
+| Whirlwind GT Evolve | +19 to +58 kg | −19 to −59 kg |
+| Avalon Evolve | +41 kg | −41 kg |
+| Autoquest Evolve CV20/40/60 | +49 kg | −49 kg |
+| Autoquest Evolve **CV80** | **+24 kg** | **−24 kg** |
+
+Three things establish the brochure as the trustworthy source:
+
+- **Every other range agrees.** Autoquest CV, Autoquest APEX, Autoquest APEX CV, Avalon and
+  Whirlwind GTV match the website exactly, figure for figure. *Only* the Evolve tables
+  diverge, and they diverge by repeating a different vehicle's numbers — the signature of a
+  copy-paste, not of a disagreement.
+- **The arithmetic holds.** Every kilogram added to MIRO comes off payload. The apparent
+  1kg mismatches are the +1.5% MIRO tolerance being applied, exactly as Note 9 describes,
+  and all 17 pass this adapter's own `_reconciles` band.
+- **The odd one out explains itself.** The CV80 gains 24kg where its siblings gain 49 — and
+  its equipment list says *"Solar panel not available for Evolve CV80"*. The one van without
+  the panel is the one with the smaller gain.
+
+**Decision (NCC side, 25 August 2026): take the brochure's weights for the 17 Evolve
+products**, and query it with Erwin Hymer. Publishing the website's figures would overstate
+payload by 19–59kg on 17 products, and payload overstatement is the direction that matters,
+since MTPLM is a legal limit.
+
+### This inverts `README.md`'s "the website overrules the PDF", deliberately
+
+That rule exists because a PDF is normally the last thing on a site to be updated, so it is
+usually a model year behind — Etrusco's price lists are the worked example. Here the
+opposite is true: the brochure is the current 2026 edition, it is internally consistent, and
+the website is provably wrong. **The rule's reasoning does not apply, so the rule does not
+either.** Stated here rather than quietly diverged from, as `README.md` asks.
+
+### The override retires itself
+
+Two brochure editions at 100MB and 120MB took one Elddis run from 9MB of snapshots to
+**221MB**, which is not a price worth paying every run for a workaround. So the adapter
+checks first, in `_evolve_weights_look_copied`: it compares each Evolve layout's weights
+against the same layout in its base range, both read from the site in that run.
+
+- Still identical → the bug is live → fetch the brochure and override.
+- Different → Elddis have fixed their site → **no brochure is fetched at all**, and the
+  site's own figures are used.
+
+So the workaround costs nothing once it is no longer needed, and nobody has to remember to
+remove it. `test_brochure_is_skipped_once_elddis_publish_real_evolve_weights` is the test
+that will start passing differently when that day comes; when it has held for a run or two,
+delete `apply_brochure_weights`, `_evolve_weights_look_copied` and the brochure constants.
+A run covering no Evolve range never fetches a brochure either — 1.4MB and ten seconds.
 
 ## Smaller traps
 

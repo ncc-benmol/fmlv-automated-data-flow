@@ -43,8 +43,11 @@ from src.adapters.elddis import (
     _model_code,
     _reconciles,
     _text_lines,
+    apply_brochure_weights,
     count_index_cards,
+    find_brochure_url,
     find_model_urls,
+    parse_brochure_weights,
     parse_model_page,
     spec_fields,
 )
@@ -638,6 +641,221 @@ def test_gtv_berths_read_the_fixed_roof_figure_from_prose():
         )
         == 4
     )
+
+
+# --------------------------------------------------------------------------------------
+# The 2026 brochure, and the Evolve weights the website gets wrong
+# --------------------------------------------------------------------------------------
+#
+# Fixtures here are the *extracted text* of single brochure pages, not the PDFs — those are
+# 100MB and 120MB, and `tests/fetch/test_pdf.py` already covers extraction itself.
+
+
+def test_brochure_discovery_picks_the_right_document_by_its_label():
+    """The downloads page lists 30+ PDFs, including three superseded model years and the
+    Buccaneer and Xplore equivalents — every one a near miss for a loose filename match."""
+    index = _fixture("elddis_brochures_index.html")
+    motorhome = find_brochure_url(index, "motorhome")
+    campervan = find_brochure_url(index, "campervan")
+    assert motorhome is not None and motorhome.endswith("elddis-brochure-2026-motorhome.pdf")
+    assert campervan is not None and campervan.endswith("elddis-brochure-2026-campervan.pdf")
+    # Never another brand's brochure, and never an older year.
+    for url in (motorhome, campervan):
+        assert "buccaneer" not in url and "xplore" not in url and "compass" not in url
+        assert "2025" not in url and "2023" not in url and "2022" not in url
+
+
+def test_brochure_discovery_returns_none_when_absent():
+    assert find_brochure_url("<html><body>no brochures here</body></html>", "motorhome") is None
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        (
+            "elddis_brochure_2026_autoquest_evolve_page.txt",
+            {
+                ("Autoquest Evolve", "CV20"): {"mtplm": 3500, "mro": 2884, "payload": 573},
+                ("Autoquest Evolve", "CV80"): {"mtplm": 3500, "mro": 3059, "payload": 441},
+            },
+        ),
+        (
+            "elddis_brochure_2026_avalon_evolve_page.txt",
+            {
+                ("Avalon Evolve", "250"): {"mtplm": 3500, "mro": 3131, "payload": 369},
+                ("Avalon Evolve", "295"): {"mtplm": 3500, "mro": 3091, "payload": 363},
+            },
+        ),
+        (
+            "elddis_brochure_2026_whirlwind_gt_evolve_page.txt",
+            {
+                ("Whirlwind GT Evolve", "105"): {"mtplm": 3500, "mro": 2721, "payload": 738},
+                # The 196+ is the only one plated at 3650, and the brochure agrees with the
+                # website on that — which is what makes MTPLM a usable alignment check.
+                ("Whirlwind GT Evolve", "196P"): {"mtplm": 3650, "mro": 3009, "payload": 596},
+            },
+        ),
+    ],
+)
+def test_brochure_weights_parse(fixture: str, expected: dict):
+    parsed = parse_brochure_weights(_fixture(fixture))
+    for key, values in expected.items():
+        assert parsed[key] == values, f"{key} parsed as {parsed.get(key)}"
+
+
+def test_brochure_model_codes_are_normalised_to_fmlv_form():
+    """The brochure spaces the campervan codes (`CV 20`) and writes `196+`; FMLV uses
+    `CV20` and `196P`. A mismatch here would silently apply no override at all."""
+    campervan = parse_brochure_weights(
+        _fixture("elddis_brochure_2026_autoquest_evolve_page.txt")
+    )
+    assert {model for _, model in campervan} == {"CV20", "CV40", "CV60", "CV80"}
+    motorhome = parse_brochure_weights(
+        _fixture("elddis_brochure_2026_whirlwind_gt_evolve_page.txt")
+    )
+    assert "196P" in {model for _, model in motorhome}
+    assert "196+" not in {model for _, model in motorhome}
+
+
+def test_brochure_parser_ignores_non_evolve_tables():
+    """The base Autoquest CV table has the identical shape. Only Evolve is overridden,
+    because only Evolve diverges — every other range agrees with the website exactly."""
+    assert parse_brochure_weights(
+        _fixture("elddis_brochure_2026_autoquest_cv_base_page.txt")
+    ) == {}
+
+
+def test_brochure_row_with_the_wrong_number_of_values_is_dropped():
+    """The values are positional, so a missing cell would shift every later model onto its
+    neighbour's weights — plausibly, since all the numbers are in range. Whole table goes.
+    """
+    text = (
+        "AUTOQUEST EVOLVE CV 20 CV 40 CV 60 CV 80\n"
+        "Max technical permissible laden mass 3500KG 3500KG 3500KG 3500KG\n"
+        "Mass in running order 2884KG 2954KG 2895KG\n"  # one short
+        "Max user payload 573KG 502KG 562KG 441KG\n"
+    )
+    assert parse_brochure_weights(text) == {}
+
+
+def test_brochure_override_replaces_the_site_weights():
+    product = _parse(
+        "elddis_autoquest_cv20.html", segment="autoquest-cv-evolve", is_campervan=True
+    )
+    assert (product.mro_kilograms, product.mh_payload_kilograms) == (2835, 622)
+
+    brochure = parse_brochure_weights(
+        _fixture("elddis_brochure_2026_autoquest_evolve_page.txt")
+    )
+    updated = apply_brochure_weights(product, brochure)
+    assert updated.mro_kilograms == 2884
+    assert updated.mh_payload_kilograms == 573
+    assert updated.weights_from_brochure is True
+    # The site's figures are kept so the provenance can show a reviewer both.
+    assert updated.site_mro_kilograms == 2835
+    assert updated.site_payload_kilograms == 622
+    # And the brochure's figures must survive the same arithmetic as the site's.
+    assert _reconciles(updated)
+
+
+def test_brochure_override_is_refused_when_mtplm_disagrees():
+    """MTPLM is the fixed plating limit, so two current documents should never differ on
+    it. If they do, the wrong table has been read and the override is unsafe."""
+    product = _parse(
+        "elddis_autoquest_cv20.html", segment="autoquest-cv-evolve", is_campervan=True
+    )
+    bad = {("Autoquest Evolve", "CV20"): {"mtplm": 3650, "mro": 2884, "payload": 573}}
+    unchanged = apply_brochure_weights(product, bad)
+    assert unchanged.mro_kilograms == 2835
+    assert unchanged.weights_from_brochure is False
+
+
+def test_products_with_no_brochure_entry_keep_the_site_weights():
+    """Base ranges are never overridden — the brochure agrees with them anyway."""
+    product = _parse(
+        "elddis_autoquest_cv20.html", segment="autoquest-cv", is_campervan=True
+    )
+    brochure = parse_brochure_weights(
+        _fixture("elddis_brochure_2026_autoquest_evolve_page.txt")
+    )
+    unchanged = apply_brochure_weights(product, brochure)
+    assert unchanged.mro_kilograms == 2835
+    assert unchanged.weights_from_brochure is False
+
+
+def _fake(manufacturer_range: str, model: str, mro: int, payload: int):
+    from src.adapters.elddis import ElddisProduct
+
+    return (
+        ElddisProduct(
+            manufacturer_range=manufacturer_range,
+            model=model,
+            site_model_name=f"{manufacturer_range} {model}",
+            is_campervan=False,
+            mtplm_kilograms=3500,
+            mro_kilograms=mro,
+            mh_payload_kilograms=payload,
+        ),
+        "https://example.test",
+    )
+
+
+def test_brochure_is_fetched_while_the_site_still_copies_base_weights():
+    """The bug as it stands today: Evolve 155 carries Whirlwind GT 155's figures."""
+    from src.adapters.elddis import _evolve_weights_look_copied
+
+    parsed = [
+        _fake("Whirlwind GT", "155", 2926, 530),
+        _fake("Whirlwind GT Evolve", "155", 2926, 530),
+    ]
+    assert _evolve_weights_look_copied(parsed) is True
+
+
+def test_brochure_is_skipped_once_elddis_publish_real_evolve_weights():
+    """The override retires itself. When the site starts publishing the heavier Evolve
+    figures, no 100MB brochure is downloaded and the site's own numbers are used.
+
+    This is the test that should start failing — usefully — when Elddis fix their site.
+    """
+    from src.adapters.elddis import _evolve_weights_look_copied
+
+    parsed = [
+        _fake("Whirlwind GT", "155", 2926, 530),
+        _fake("Whirlwind GT Evolve", "155", 2984, 471),  # the brochure's real figures
+    ]
+    assert _evolve_weights_look_copied(parsed) is False
+
+
+def test_brochure_is_fetched_when_there_is_no_base_range_to_compare():
+    """`--range "Avalon Evolve"` collects no base range, so nothing can be compared.
+    Assume the bug is present: that costs a download, where assuming otherwise would cost
+    a wrong weight."""
+    from src.adapters.elddis import _evolve_weights_look_copied
+
+    assert _evolve_weights_look_copied([_fake("Avalon Evolve", "250", 3090, 410)]) is True
+
+
+def test_no_brochure_for_a_run_with_no_evolve_range_at_all():
+    from src.adapters.elddis import _evolve_weights_look_copied
+
+    parsed = [_fake("Whirlwind GTV", "554", 2710, 790), _fake("Avalon", "250", 3090, 410)]
+    assert _evolve_weights_look_copied(parsed) is False
+
+
+def test_only_evolve_ranges_trigger_a_brochure_download():
+    """The brochures are 100MB and 120MB, so a run with no Evolve range must not fetch
+    one. `--range "Whirlwind GTV"` stays a six-fetch run."""
+    from src.adapters.elddis import _EVOLVE_SEGMENTS
+
+    assert _EVOLVE_SEGMENTS == {
+        "whirlwind-gt-evolve",
+        "avalon-evolve",
+        "autoquest-cv-evolve",
+    }
+    non_evolve = {
+        path.partition("/")[2] for path, _ in DEFAULT_RANGES
+    } - _EVOLVE_SEGMENTS
+    assert not (non_evolve & _EVOLVE_SEGMENTS)
 
 
 # --------------------------------------------------------------------------------------

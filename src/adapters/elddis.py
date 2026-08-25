@@ -2,9 +2,14 @@
 
 See `docs/adapters/elddis.md` for the full write-up. Structurally this is the safest
 source surveyed: **one URL is one vehicle**, plain server-rendered HTML, no JavaScript,
-no PDF anywhere on the site, and every number sits in a labelled `Label: value` block
-that the page heads "Technical Specification". There are no columns, so the
-misattribution failure that dominates the PDF adapters cannot happen here.
+and every number sits in a labelled `Label: value` block that the page heads "Technical
+Specification". There are no columns, so the misattribution failure that dominates the
+PDF adapters cannot happen here.
+
+The website is the source for everything **except the Evolve ranges' weights**, which are
+demonstrably wrong on the site and are taken from Elddis's own 2026 brochure instead — see
+`apply_brochure_weights`. The brochure is fetched only when an Evolve range is in scope,
+because the two editions are 100MB and 120MB.
 
     Technical Specification
     Year: 2026
@@ -77,11 +82,12 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from html import unescape
 from pathlib import Path
 
 from ..fetch.http import Fetcher
+from ..fetch.pdf import extract_text
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
 from .base import ExtractedMotorhome, Provenance
@@ -195,6 +201,131 @@ _MODEL_CODE = re.compile(r"(CV\d+|\d+\+?)$", re.IGNORECASE)
 _MODEL_PATH = re.compile(
     r"^https://elddis\.co\.uk/(motorhomes|campervans)/([^/]+)/([^/]+)$"
 )
+
+
+#: Elddis's downloads page. Not linked from any menu — like the two `*-specification`
+#: indexes, it is an orphan page, reachable only from `sitemap.xml` or a search engine.
+BROCHURES_URL = f"{BASE_URL}/help-support/brochures"
+
+#: One brochure link. The customer-visible label sits in a `<span>` *after* an inline SVG
+#: icon, inside the same `<a>`, so the two are separated by several hundred characters of
+#: markup. `docs/adapters/README.md` says to establish a document's model year from the
+#: page that links it rather than its filename, which is why the label is captured at all —
+#: here the two happen to agree, but the label is the one a customer reads.
+_BROCHURE_LINK = re.compile(
+    r'<a[^>]+href="([^"]+\.pdf)"[^>]*>[\s\S]{0,1500}?<span[^>]*>\s*([^<]+?)\s*</span>\s*</a>',
+    re.IGNORECASE,
+)
+_BROCHURE_LABEL = re.compile(
+    r"Elddis\s+Brochure\s+(\d{4})\s*-\s*(Motorhome|Campervan)", re.IGNORECASE
+)
+
+#: The brochure's own heading for an Evolve weights table, mapped to the FMLV range. Only
+#: the Evolve ranges are listed, because only they need the brochure — see
+#: `apply_brochure_weights`. Base Autoquest CV, Autoquest APEX, Autoquest APEX CV, Avalon
+#: and Whirlwind GTV were all checked and the brochure agrees with the website exactly, so
+#: reading them from here would add parsing risk for no gain.
+#: The URL segments whose products need the brochure — the three Evolve ranges. Used to
+#: decide whether a run downloads a brochure at all; see `_collect_brochure_weights`.
+_EVOLVE_SEGMENTS: frozenset[str] = frozenset(
+    {"whirlwind-gt-evolve", "avalon-evolve", "autoquest-cv-evolve"}
+)
+
+#: Each Evolve range and the base range it upgrades, used by `_evolve_weights_look_copied`
+#: to tell whether the website is still repeating base-range weights on its Evolve pages.
+_EVOLVE_BASE_RANGES: dict[str, str] = {
+    "Whirlwind GT Evolve": "Whirlwind GT",
+    "Avalon Evolve": "Avalon",
+    "Autoquest Evolve": "Autoquest",
+}
+
+_BROCHURE_EVOLVE_RANGES: dict[str, str] = {
+    "WHIRLWIND GT EVOLVE": "Whirlwind GT Evolve",
+    "AVALON EVOLVE": "Avalon Evolve",
+    "AUTOQUEST EVOLVE": "Autoquest Evolve",
+}
+
+_BROCHURE_HEADER = re.compile(
+    r"^\s*(" + "|".join(_BROCHURE_EVOLVE_RANGES) + r")\s+(.+?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+#: A model code in a brochure header: `105`, `196+`, or `CV 20` — note the brochure spaces
+#: the campervan codes (`CV 20`) where the website and FMLV do not (`CV20`).
+_BROCHURE_MODEL = re.compile(r"CV\s*\d+|\d+\+?", re.IGNORECASE)
+_BROCHURE_ROWS: dict[str, str] = {
+    "mtplm": "Max technical permissible laden mass",
+    "mro": "Mass in running order",
+    "payload": "Max user payload",
+}
+
+
+def find_brochure_url(brochures_html: str, vehicle_type: str) -> str | None:
+    """The newest `Elddis Brochure <year> - <Motorhome|Campervan>` PDF, by its own label.
+
+    Rediscovered per run rather than hardcoded: the URLs carry a cache-busting hash
+    (`.../322c3ff8bf-1771852690/elddis-brochure-2026-campervan.pdf`) that changes whenever
+    the file is reissued, and the page lists three model years of superseded brochures plus
+    the Buccaneer and Xplore equivalents — every one of which is a near miss for a loose
+    filename match. `docs/adapters/README.md`: match precisely, prefer the newest.
+    """
+    best: tuple[int, str] | None = None
+    for match in _BROCHURE_LINK.finditer(brochures_html):
+        label = _BROCHURE_LABEL.search(match.group(2))
+        if label is None or label.group(2).lower() != vehicle_type.lower():
+            continue
+        year = int(label.group(1))
+        if best is None or year > best[0]:
+            best = (year, match.group(1))
+    return best[1] if best else None
+
+
+def _brochure_model_code(raw: str) -> str:
+    """`'CV 20'` -> `'CV20'`, `'196+'` -> `'196P'` — the form FMLV and `_model_code` use."""
+    return re.sub(r"\s+", "", raw).upper().replace("+", "P")
+
+
+def parse_brochure_weights(page_text: str) -> dict[tuple[str, str], dict[str, int]]:
+    """Evolve weights from one brochure page, keyed by `(fmlv_range, model)`.
+
+    Returns `{}` for a page that carries no Evolve weights table, which is most of them.
+
+    Each table is one header line naming the range and its models, then one line per
+    measurement with a value per model:
+
+        WHIRLWIND GT EVOLVE 105 115 120 150 155 185 194 196 196+
+        Max technical permissible laden mass 3500KG ... 3650KG
+        Mass in running order 2721KG 2740KG 2687KG ...
+        Max user payload 738KG 719KG 773KG ...
+
+    **A row whose value count does not match the model count is dropped, and the whole
+    table with it.** That is the defence `docs/adapters/README.md` demands: these values
+    are positional, so a single missing cell would shift every later model onto its
+    neighbour's weights — silently, and plausibly, since all the numbers are in range.
+    """
+    header = _BROCHURE_HEADER.search(page_text)
+    if header is None:
+        return {}
+    manufacturer_range = _BROCHURE_EVOLVE_RANGES[header.group(1).upper()]
+    models = [_brochure_model_code(m) for m in _BROCHURE_MODEL.findall(header.group(2))]
+    if not models:
+        return {}
+
+    columns: dict[str, list[int]] = {}
+    for key, label in _BROCHURE_ROWS.items():
+        row = re.search(rf"{re.escape(label)}([^\n]*)", page_text, re.IGNORECASE)
+        if row is None:
+            return {}
+        values = [
+            int(v.replace(",", "")) for v in re.findall(r"(\d[\d,]*)\s*KG", row.group(1), re.I)
+        ]
+        if len(values) != len(models):
+            return {}
+        columns[key] = values
+
+    return {
+        (manufacturer_range, model): {key: columns[key][i] for key in _BROCHURE_ROWS}
+        for i, model in enumerate(models)
+    }
 
 
 def _text_lines(html: str) -> list[str]:
@@ -397,6 +528,13 @@ class ElddisProduct:
     berths: int | None = None
     rrp_pounds: int | None = None
 
+    #: Set when `apply_brochure_weights` replaced the site's MIRO and payload. The two
+    #: `site_*` fields keep what the website said, so the provenance snippet can show a
+    #: reviewer both figures and say which was taken and why.
+    weights_from_brochure: bool = False
+    site_mro_kilograms: int | None = None
+    site_payload_kilograms: int | None = None
+
     @property
     def label(self) -> str:
         return f"{self.manufacturer_range} {self.model}"
@@ -433,6 +571,78 @@ class ElddisProduct:
                 else BodyType.CAMPERVAN_ELEVATING_ROOF
             )
         return BodyType.CAMPERVAN_HIGH_TOP if high_top else BodyType.CAMPERVAN
+
+
+def apply_brochure_weights(
+    product: ElddisProduct,
+    brochure: dict[tuple[str, str], dict[str, int]],
+    *,
+    on_progress: Callable[[str], None] = lambda message: None,
+) -> ElddisProduct:
+    """Replace an Evolve product's MIRO and payload with the brochure's, where they differ.
+
+    **Why this exists.** Elddis's website publishes the *base* range's weights on every
+    Evolve page — byte for byte. The Evolve packs add a solar panel, an awning, cab blinds,
+    an alarm and a tracker, so the vehicles cannot weigh the same, and the 2026 brochure
+    agrees: it gives Evolve +41 to +58kg of MIRO with payload down by the matching amount.
+    The Autoquest Evolve CV80 gains only +24kg, and its own equipment list says
+    "Solar panel not available for Evolve CV80" — the one van without the panel is the one
+    with the smaller gain, which is not a coincidence bad data produces.
+
+    Confirmed by the requester on 25 August 2026, who is querying it with Erwin Hymer. The
+    override should be removed once Elddis correct their site, and the survey document says
+    so.
+
+    **This deliberately inverts `docs/adapters/README.md`'s "the website overrules the
+    PDF".** That rule exists because a PDF is usually the last thing on a site to be
+    updated, so it is normally a model year behind. Here the reverse holds: the brochure is
+    the current 2026 edition, it is internally consistent, and the website is provably
+    wrong — its Evolve figures are a copy of a different vehicle's. The rule's reasoning
+    does not apply, so the rule does not either. Only the three Evolve ranges are touched;
+    every other range was checked and the two sources agree exactly.
+
+    Nothing is overridden silently, and nothing is invented: a product with no brochure
+    entry keeps the site's figures.
+    """
+    entry = brochure.get((product.manufacturer_range, product.model))
+    if entry is None:
+        return product
+
+    # MTPLM must agree, or the wrong table has been read. It is the fixed plating limit,
+    # so it is the one figure that should never differ between two current documents —
+    # which makes it the right thing to check the alignment against.
+    if (
+        product.mtplm_kilograms is not None
+        and entry["mtplm"] != product.mtplm_kilograms
+    ):
+        on_progress(
+            f"[{product.label}] brochure IGNORED: it gives MTPLM {entry['mtplm']}kg where "
+            f"the site gives {product.mtplm_kilograms}kg, so the two may not be describing "
+            f"the same vehicle. Keeping the site's weights"
+        )
+        return product
+
+    if (
+        entry["mro"] == product.mro_kilograms
+        and entry["payload"] == product.mh_payload_kilograms
+    ):
+        return product
+
+    on_progress(
+        f"[{product.label}] weights taken from the 2026 brochure: MIRO "
+        f"{product.mro_kilograms}kg -> {entry['mro']}kg, payload "
+        f"{product.mh_payload_kilograms}kg -> {entry['payload']}kg. The website repeats the "
+        f"base range's figures on every Evolve page, which cannot be right for a vehicle "
+        f"carrying the Evolve equipment pack"
+    )
+    return replace(
+        product,
+        mro_kilograms=entry["mro"],
+        mh_payload_kilograms=entry["payload"],
+        weights_from_brochure=True,
+        site_mro_kilograms=product.mro_kilograms,
+        site_payload_kilograms=product.mh_payload_kilograms,
+    )
 
 
 def _reconciles(product: ElddisProduct) -> bool:
@@ -625,16 +835,27 @@ def _build_extracted_motorhome(
         record("mh_height_mm", f"Overall Height: {product.mh_height_mm}mm")
     if product.mtplm_kilograms is not None:
         record("mtplm_kilograms", f"M.T.P.L.M: {product.mtplm_kilograms}kg")
+    brochure_note = (
+        f" Taken from Elddis's own 2026 brochure, not the model page: the website repeats "
+        f"the base range's weights on every Evolve page (it says "
+        f"{product.site_mro_kilograms}kg MIRO / {product.site_payload_kilograms}kg "
+        f"payload, identical to the non-Evolve model), which cannot be right for a vehicle "
+        f"carrying the Evolve equipment pack. Elddis have been asked to confirm; revert to "
+        f"the site once they correct it."
+        if product.weights_from_brochure
+        else ""
+    )
     if product.mro_kilograms is not None:
         record(
-            "mro_kilograms", f"Mass in Running Order (MIRO): {product.mro_kilograms}kg"
+            "mro_kilograms",
+            f"Mass in Running Order (MIRO): {product.mro_kilograms}kg.{brochure_note}",
         )
     if product.mh_payload_kilograms is not None:
         record(
             "mh_payload_kilograms",
             f"Maximum User Payload: {product.mh_payload_kilograms}kg as published. Note "
             f"this is usually less than MTPLM - MIRO, because Elddis applies the +1.5% "
-            f"MIRO tolerance its own footnotes cite from NCC COP 304/402",
+            f"MIRO tolerance its own footnotes cite from NCC COP 304/402.{brochure_note}",
         )
     if product.base_vehicle_manufacturer is not None:
         record(
@@ -707,6 +928,7 @@ def collect(
         raise RuntimeError(message)
     sitemap_xml = sitemap.file_path.read_text(encoding="utf-8", errors="replace")
 
+    parsed: list[tuple[ElddisProduct, str]] = []
     results: list[ExtractedMotorhome] = []
     expected_by_type: dict[str, int] = {"motorhome": 0, "campervan": 0}
 
@@ -740,26 +962,7 @@ def collect(
                 )
                 continue
 
-            if not _reconciles(product):
-                on_progress(
-                    f"[{product.label}] SKIPPED: published payload "
-                    f"({product.mh_payload_kilograms}kg) is outside the band implied by "
-                    f"MTPLM {product.mtplm_kilograms}kg and MIRO {product.mro_kilograms}kg "
-                    f"(expected {product.mtplm_kilograms - round(product.mro_kilograms * 1.015)}"
-                    f"-{product.mtplm_kilograms - product.mro_kilograms}kg), so a mass may "
-                    f"have been misread from {model_url}"
-                )
-                continue
-
-            if product.rrp_pounds is None:
-                on_progress(f"[{product.label}] WARNING: no price found, left blank")
-            if product.body_type is None:
-                on_progress(
-                    f"[{product.label}] WARNING: body type not known (no usable height), "
-                    f"left blank rather than guessed"
-                )
-
-            results.append(_build_extracted_motorhome(product, model_url))
+            parsed.append((product, model_url))
             collected_here += 1
 
         if collected_here != len(model_urls):
@@ -768,10 +971,165 @@ def collect(
                 f"{len(model_urls)} model page(s) listed in the sitemap"
             )
 
+    # The brochure is only fetched once every model page has been read, because whether it
+    # is needed at all depends on what they said — see `_evolve_weights_look_copied`.
+    brochure = (
+        _collect_brochure_weights(http, ranges, on_progress)
+        if _evolve_weights_look_copied(parsed, on_progress)
+        else {}
+    )
+
+    for product, model_url in parsed:
+        product = apply_brochure_weights(product, brochure, on_progress=on_progress)
+
+        # Deliberately after the override, so the brochure's figures are checked by the
+        # same arithmetic as the site's rather than trusted because they came from a PDF.
+        if not _reconciles(product):
+            on_progress(
+                f"[{product.label}] SKIPPED: published payload "
+                f"({product.mh_payload_kilograms}kg) is outside the band implied by "
+                f"MTPLM {product.mtplm_kilograms}kg and MIRO {product.mro_kilograms}kg "
+                f"(expected {product.mtplm_kilograms - round(product.mro_kilograms * 1.015)}"
+                f"-{product.mtplm_kilograms - product.mro_kilograms}kg), so a mass may "
+                f"have been misread from {model_url}"
+            )
+            continue
+
+        if product.rrp_pounds is None:
+            on_progress(f"[{product.label}] WARNING: no price found, left blank")
+        if product.body_type is None:
+            on_progress(
+                f"[{product.label}] WARNING: body type not known (no usable height), "
+                f"left blank rather than guessed"
+            )
+
+        results.append(_build_extracted_motorhome(product, model_url))
+
     _cross_check_roster(http, expected_by_type, ranges, on_progress)
 
     on_progress(f"{len(results)} product(s) collected")
     return results
+
+
+def _evolve_weights_look_copied(
+    parsed: list[tuple[ElddisProduct, str]],
+    on_progress: Callable[[str], None] = lambda message: None,
+) -> bool:
+    """Whether the website is still publishing base-range weights on its Evolve pages.
+
+    **This is what stops the brochure being downloaded on every run, and what retires the
+    override without anyone having to remember.** The two 2026 brochures are 100MB and
+    120MB, and `Fetcher` snapshots every byte, so fetching them unconditionally took one
+    Elddis run from 9MB of snapshots to 221MB. They are only worth fetching while the bug
+    they work around is still there.
+
+    The test is direct: compare each Evolve layout's MIRO and payload with the same layout
+    in its base range, both read from the site in this run. Elddis's bug makes them
+    identical. Real figures cannot be — the Evolve pack adds 41-58kg — so the moment Elddis
+    correct their site, this returns False, no brochure is fetched, and the site's own
+    (now correct) numbers are used. Delete `apply_brochure_weights` and this function when
+    that has held for a run or two.
+
+    Returns True when there is nothing to compare against — a `--range "Avalon Evolve"` run
+    collects no base range, and assuming the bug is still present is the safe default,
+    since it costs a download rather than a wrong weight.
+    """
+    by_key = {(p.manufacturer_range, p.model): p for p, _ in parsed}
+    compared = copied = 0
+    for (manufacturer_range, model), product in by_key.items():
+        base_range = _EVOLVE_BASE_RANGES.get(manufacturer_range)
+        if base_range is None:
+            continue
+        base = by_key.get((base_range, model))
+        if base is None:
+            continue
+        compared += 1
+        if (
+            product.mro_kilograms == base.mro_kilograms
+            and product.mh_payload_kilograms == base.mh_payload_kilograms
+        ):
+            copied += 1
+
+    if compared == 0:
+        return any(
+            manufacturer_range in _EVOLVE_BASE_RANGES for manufacturer_range, _ in by_key
+        )
+    if copied:
+        on_progress(
+            f"{copied} of {compared} Evolve layout(s) still carry their base range's "
+            f"weights on the website, so the 2026 brochure is needed to correct them"
+        )
+        return True
+    on_progress(
+        f"all {compared} Evolve layout(s) now publish their own weights on the website — "
+        f"the brochure is not needed, and the override in `apply_brochure_weights` can be "
+        f"removed"
+    )
+    return False
+
+
+def _collect_brochure_weights(
+    http: Fetcher,
+    ranges: tuple[tuple[str, str], ...],
+    on_progress: Callable[[str], None],
+) -> dict[tuple[str, str], dict[str, int]]:
+    """Evolve weights from whichever 2026 brochures this run's ranges actually need.
+
+    **Gated on the ranges in scope, because these files are large** — the 2026 campervan
+    brochure is 120MB and the motorhome one 100MB, and `Fetcher` snapshots every byte to
+    disk. A run covering no Evolve range downloads neither, so `--range "Whirlwind GTV"`
+    stays a six-fetch run.
+
+    Never fatal. A brochure that cannot be fetched or parsed leaves the Evolve products on
+    the website's figures, narrated — the website's numbers are wrong but present, and
+    losing 17 products entirely would be a worse outcome than publishing figures a reviewer
+    has already been told about.
+    """
+    needed = {
+        "campervan" if path.startswith("campervans/") else "motorhome"
+        for path, _ in ranges
+        if path.partition("/")[2] in _EVOLVE_SEGMENTS
+    }
+    if not needed:
+        return {}
+
+    on_progress(f"fetching the brochure index from {BROCHURES_URL} ...")
+    index = http.fetch(BROCHURES_URL)
+    if index.status_code != 200:
+        on_progress(
+            f"WARNING: {BROCHURES_URL} returned {index.status_code}; Evolve products will "
+            f"keep the website's weights, which repeat the base range's"
+        )
+        return {}
+    index_html = index.file_path.read_text(encoding="utf-8", errors="replace")
+
+    weights: dict[tuple[str, str], dict[str, int]] = {}
+    for vehicle_type in sorted(needed):
+        url = find_brochure_url(index_html, vehicle_type)
+        if url is None:
+            on_progress(
+                f"WARNING: no 'Elddis Brochure <year> - {vehicle_type.title()}' link found "
+                f"on {BROCHURES_URL}; those Evolve products keep the website's weights"
+            )
+            continue
+        on_progress(f"fetching the {vehicle_type} brochure (large file) — {url}")
+        try:
+            pdf = http.fetch(url)
+            if pdf.status_code != 200:
+                on_progress(f"WARNING: {url} returned {pdf.status_code}")
+                continue
+            document = extract_text(pdf.file_path)
+        except Exception as error:  # noqa: BLE001 — a bad PDF must not end the run
+            on_progress(f"WARNING: could not read {url}: {error}")
+            continue
+        found = 0
+        for page in document.pages:
+            for key, value in parse_brochure_weights(page.text).items():
+                weights.setdefault(key, value)
+                found += 1
+        on_progress(f"  {found} Evolve weight row(s) read from the {vehicle_type} brochure")
+
+    return weights
 
 
 def _ranges_by_vehicle_type(ranges: tuple[tuple[str, str], ...]) -> dict[str, int]:

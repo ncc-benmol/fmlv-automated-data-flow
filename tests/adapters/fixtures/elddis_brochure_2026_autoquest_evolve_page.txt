@@ -1,0 +1,9 @@
+9 
+AUTOQUEST EVOLVE CV 20 CV 40 CV 60 CV 80
+WEIGHTS & INFFORMATION
+Max technical permissible laden mass 3500KG 3500KG 3500KG 3500KG
+Mass in running order 2884KG 2954KG 2895KG 3059KG
+Max user payload 573KG 502KG 562KG 441KG
+Fresh water tank 90L 90L 90L 90L
+Waste water tank 45L 45L 45L 45L
+Leisure Battery 95Ah 95Ah 95Ah 95Ah

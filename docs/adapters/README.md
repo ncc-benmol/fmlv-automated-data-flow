@@ -212,6 +212,18 @@ Two practical consequences, from the NCC side on 19 August 2026:
 
 ### The website overrules the PDF, and a document's year is what the page says
 
+> **One documented exception, Elddis, 25 August 2026.** The rule below rests on a reason —
+> a PDF is usually the last thing updated, so it is usually the stale one. Where that
+> reason demonstrably does not hold, the rule does not either. Elddis's website publishes
+> the *base* range's weights on every Evolve page, byte for byte, while its current 2026
+> brochure gives the real figures, internally consistent and matching the equipment
+> difference. There the PDF wins, and `elddis.py` says why in `apply_brochure_weights`.
+>
+> The test to apply is not "which source is newer" but **"can I show one of them is
+> wrong?"** — here, that the Evolve figures are a different vehicle's, and that every
+> non-Evolve range agrees between the two sources exactly. Diverge from a rule only with
+> that kind of evidence, and write it down where the next person will see it.
+
 Where a site and its downloadable documents disagree, **the site wins**. A PDF is usually the
 last thing on a website to be updated, so a price list can be a model year behind the pages
 around it. Rule from the NCC side, 19 August 2026.
@@ -400,6 +412,20 @@ Two follow-on questions the later surveys added:
   directory called `kataloge_preislisten`, Swift's opaque media key, Sunlight's three
   superseded model years *and* a differently-named glossy catalogue. Match precisely,
   prefer the newest, and rediscover per run rather than hardcoding.
+- **Ask the PDF question against the `sitemap.xml`, not against the pages you have
+  fetched.** Elddis's survey concluded "there is no PDF anywhere on the site" on the
+  strength of finding no `.pdf` link on any page it had fetched. That was wrong: the
+  downloads page holds 30+ PDFs, and it is an **orphan** — in no menu, linked from nothing,
+  reachable only from the sitemap or a search engine. A link-following search cannot find
+  an unlinked page by construction, so absence of a link is not absence of a document.
+  Grep the sitemap for `brochure`, `download`, `specification` and `price` before concluding
+  a manufacturer publishes nothing. It cost a wrong conclusion in the write-up and, worse,
+  nearly cost 17 products their correct weights.
+
+  Elddis has three such orphans — `/help-support/brochures` and two `*-specification`
+  comparison pages listing every layout with its price. Orphan pages are *useful*: they are
+  often exactly the roster or comparison view an adapter wants, and nobody links to them
+  because they are not part of the sales funnel.
 
 ### If the document is behind a name/email form
 

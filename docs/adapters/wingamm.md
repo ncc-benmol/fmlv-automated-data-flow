@@ -277,7 +277,7 @@ baseline rows and proposed both products as new. `wingamm.baseline_in_scope` sco
 `model` instead, which also survives the renames — matching on the range column would have
 missed City Pro's row, still filed under `Campervan`, and proposed a duplicate.
 
-## Body type: five Oasi rows are wrong, and City Pro is a real question
+## Body type: five Oasi rows are wrong, and City Pro is the campervan
 
 Wingamm state their position on the index page: *"we immediately chose the semi-integrated
 camper formula, excluding the solutions with attic, which by sailing, reduce the vehicle's
@@ -289,12 +289,36 @@ FMLV holds `type_coach_built_over_cab_bed` on 610GL, 610M, 610ST, 690 TWINS and 
 `type_coach_built_low_profile` on the 540 and Brownie. The five are wrong and the adapter
 should propose the correction.
 
-**City Pro is genuinely ambiguous.** FMLV holds `type_campervan_high_top`, and at 2770 mm
-it clears the shared `HIGH_TOP_ABOVE_MM = 2300`. But it is not a van conversion: its own
-catalogue calls it *"the only camper with a fibreglass monocoque bodyshell, heated floor,
-and large garage with the compact dimensions of van"* — a coachbuilt body that happens to be
-2050 mm wide. The requester describes Wingamm as selling campervans as well as motorhomes,
-which fits FMLV's classification. Left as-is pending that decision; see Open items.
+### City Pro is a campervan, and its monocoque body does not change that
+
+Settled by the requester on 26 August 2026, and worth writing down because the evidence
+points both ways depending on which part of the page you read. Wingamm's own copy:
+
+> City Pro of the Fiat Ducato van has only the engine and the external measures; the
+> bodywork is not the sheet metal of the van, but a fiberglass monocoque with all the
+> thermal and acoustic comfort guaranteed by Wingamm standards.
+
+Read literally, that is a coachbuilt — the box is moulded, exactly like every Oasi. But the
+heading above it is **"A CAMPER LIVE IN, A VAN TO DRIVE"**, the copy says "the van"
+throughout, and the photograph is unmistakably a van with a raised roof. It is 2050 mm wide
+against the coachbuilts' 2240, on van external measures. The requester's call, from the
+photograph: **`campervan_high_top`** — which is what FMLV already held.
+
+The general rule this produced now sits in `README.md`: **construction is not the test.**
+`WingammProduct.body_type` splits accordingly —
+
+- **campervan or coachbuilt** is *declared* per document (`is_campervan`), because shape and
+  proportions are a judgement no parser makes;
+- **high top** is *derived* from the published height against the shared
+  `HIGH_TOP_ABOVE_MM = 2300`; City Pro's 2770 mm clears it comfortably;
+- **elevating roof**: none. `README.md`'s rule is that an unmentioned pop-top is an absent
+  one, and every Wingamm roof is a fixed load-bearing moulding
+  (`W - Load bearing walkable roof | 100% hailproof`);
+- **no height, no body type** — the missing-data rule, rather than a guessed classification.
+
+So the adapter proposes no change here, but it now *confirms* the value instead of leaving
+it to depend on nobody having touched it: run #37 verifies `body_type` as unchanged rather
+than never attempted.
 
 ## The roster: eight products, and the index is not to be read for names
 
@@ -400,9 +424,13 @@ survey that the catalogues are where FMLV's own data came from.
 
 ## What is unverified
 
-- **No GBP source found.** FMLV's prices came from somewhere off-site. Worth asking Wingamm
-  UK (01292 262233, an Ayrshire number) for the UK price list; if one exists as a document,
-  price becomes collectable and this survey's price decision should be revisited.
+- **No GBP source found.** FMLV's prices came from somewhere off-site. **The requester was
+  contacting Wingamm UK (01292 262233, an Ayrshire number) for the UK price list as of
+  26 August 2026.** If one arrives as a document, price becomes collectable and this
+  survey's price decision is the first thing to revisit.
+- **Brownie's range still needs a manual edit on the FMLV site** — the rename the pipeline
+  cannot deliver. Once `manufacturer_range` reads `Brownie` on `product_id` 5855, drop
+  `intended_range` from that document in `_DOCUMENTS` and the narration goes with it.
 - **Brownie and City Pro catalogues are from November 2023** and are the only English
   documents for those two vehicles. Their figures still match FMLV exactly, so nothing is
   known to be stale — but a 2026 revision would not show up as a new document, only as a

@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from src.adapters import wingamm
-from src.adapters.wingamm import WingammPage, WingammProduct, WingammSpec
+from src.adapters.wingamm import HIGH_TOP_ABOVE_MM, WingammPage, WingammProduct, WingammSpec
 from src.product_model.enums import BodyType
 from src.product_model.model import Motorhome
 
@@ -92,12 +92,49 @@ def test_model_strings_are_the_ones_fmlv_holds() -> None:
     assert models == {"540", "610GL", "610M", "610ST", "690G", "690 TWINS", "Brownie", "City Pro"}
 
 
-def test_city_pro_proposes_no_body_type() -> None:
-    """FMLV's `campervan_high_top` is left alone; every other layout is low profile."""
+def test_city_pro_is_the_only_campervan() -> None:
+    """And its fibreglass monocoque body does not make it a coachbuilt.
+
+    Settled by the requester on 26 August 2026 from the photograph and Wingamm's own
+    copy — "a camper live in, a van to drive" — against a page that also says the
+    bodywork "is not the sheet metal of the van, but a fiberglass monocoque". The
+    classification follows the shape a buyer sees, not the bill of materials.
+    """
     by_label = {document.label: document for document in wingamm._DOCUMENTS}
-    assert by_label["City Pro"].body_type is None
-    assert by_label["Oasi 610"].body_type is BodyType.COACH_BUILT_LOW_PROFILE
-    assert by_label["Brownie"].body_type is BodyType.COACH_BUILT_LOW_PROFILE
+    assert by_label["City Pro"].is_campervan is True
+    assert [d.label for d in wingamm._DOCUMENTS if d.is_campervan] == ["City Pro"]
+
+
+@pytest.mark.parametrize(
+    ("is_campervan", "height", "expected"),
+    [
+        # City Pro's real figure: 2770mm, comfortably over the threshold.
+        (True, 2770, BodyType.CAMPERVAN_HIGH_TOP),
+        (True, HIGH_TOP_ABOVE_MM + 1, BodyType.CAMPERVAN_HIGH_TOP),
+        (True, HIGH_TOP_ABOVE_MM, BodyType.CAMPERVAN),
+        # Per the missing-data rule: an obvious gap beats a guessed body type.
+        (True, None, None),
+        (False, 3030, BodyType.COACH_BUILT_LOW_PROFILE),
+        (False, None, BodyType.COACH_BUILT_LOW_PROFILE),
+    ],
+)
+def test_body_type_is_half_declared_and_half_measured(
+    is_campervan: bool, height: int | None, expected: BodyType | None
+) -> None:
+    product = _product(
+        spec=replace(_product().spec, mh_height_mm=height), is_campervan=is_campervan
+    )
+    assert product.body_type is expected
+
+
+def test_no_elevating_roof_is_claimed_anywhere() -> None:
+    """An unmentioned pop-top is an absent one, and Wingamm's roofs are walkable mouldings.
+
+    So City Pro is `campervan_high_top`, never the elevating variant — which is also what
+    FMLV already holds, so nothing is proposed.
+    """
+    product = _product(spec=replace(_product().spec, mh_height_mm=2770), is_campervan=True)
+    assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
 
 
 # --------------------------------------------------------------------------- #
@@ -493,7 +530,7 @@ def _product(
     *,
     spec: WingammSpec | None = None,
     page: WingammPage | None = None,
-    body_type: BodyType | None = BodyType.COACH_BUILT_LOW_PROFILE,
+    is_campervan: bool = False,
     intended_range: str | None = None,
 ) -> WingammProduct:
     return WingammProduct(
@@ -521,7 +558,7 @@ def _product(
             mtplm_kilograms=3500,
             base_vehicle_manufacturer="Fiat",
         ),
-        body_type=body_type,
+        is_campervan=is_campervan,
         intended_range=intended_range,
     )
 
@@ -665,9 +702,22 @@ def test_berth_provenance_carries_the_published_wording() -> None:
     assert "optional dinette bed" in extracted.provenance["berths"].snippet
 
 
-def test_no_body_type_provenance_where_none_is_proposed() -> None:
+def test_no_body_type_provenance_where_the_height_is_unknown() -> None:
+    """A campervan with no readable height gets no body type and no provenance."""
+    product = _product(spec=replace(_product().spec, mh_height_mm=None), is_campervan=True)
     extracted = wingamm._build_extracted_motorhome(
-        _product(body_type=None), "https://example.com/pdf", "https://example.com/page"
+        product, "https://example.com/pdf", "https://example.com/page"
     )
     assert extracted.motorhome.body_type is None
     assert "body_type" not in extracted.provenance
+
+
+def test_campervan_body_type_provenance_gives_the_reasoning() -> None:
+    """A reviewer seeing a campervan classification on a monocoque needs the why."""
+    product = _product(spec=replace(_product().spec, mh_height_mm=2770), is_campervan=True)
+    snippet = wingamm._build_extracted_motorhome(
+        product, "https://example.com/pdf", "https://example.com/page"
+    ).provenance["body_type"].snippet
+    assert "van to drive" in snippet
+    assert "2770mm clears the 2300mm high-top threshold" in snippet
+    assert "no elevating roof" in snippet

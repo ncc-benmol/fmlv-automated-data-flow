@@ -102,6 +102,22 @@ also settled the classification: 2610 mm on a Peugeot Boxer **is** a high top, s
 **Where the body height cannot be established, leave `body_type` unset** rather than
 assuming a high top. The missing-data rule applies here as it does to any other field.
 
+**And how the body is *built* is not the test — how it looks and what it measures are.**
+Rule from the NCC side, 26 August 2026, on Wingamm's City Pro. That vehicle's own catalogue
+says the bodywork "is not the sheet metal of the van, but a fiberglass monocoque", which by
+construction makes it a coachbuilt exactly like the Oasi it sits beside; the requester
+classified it `campervan_high_top` from the photograph and the copy, which calls it "a
+camper live in, a van to drive" and says "the van" throughout. It is van-shaped, on van
+external measures, and 2050 mm wide against the coachbuilts' 2240 mm.
+
+So a moulded or composite body does not promote a van-shaped vehicle to a coachbuilt, and
+the practical division of labour is: **whether it is a campervan is a judgement about shape
+and proportions that an adapter should take as declared, while high top and elevating roof
+stay derived** from the published height and the standard-fit wording. `wingamm.py`'s
+`WingammProduct.body_type` is the worked example. Read the manufacturer's photograph before
+reasoning from its construction paragraph — they can point opposite ways, and the picture
+wins.
+
 ### Price is a guide price, so a consistent basis is preferred but not required
 
 `rrp_pounds` is the **on-the-road price** where a manufacturer publishes one — the figure a

@@ -105,12 +105,18 @@ class _Document:
     fmlv_range: str
     #: `(model page slug, FMLV model string)` per layout in this document.
     layouts: tuple[tuple[str, str], ...]
-    #: `body_type`, or `None` to leave FMLV's value alone. See `_BODY_TYPE_NOTE`.
-    body_type: BodyType | None
+    #: Whether this is a campervan rather than a coachbuilt. The only half of the body
+    #: type that cannot be derived — see `body_type_for`.
+    is_campervan: bool
     #: Set only where `fmlv_range` is a value known to be wrong that is emitted anyway,
     #: because correcting it would cost the product its history. See `_UNDELIVERABLE`.
     intended_range: str | None = None
 
+
+#: A campervan taller than this is a high top — the roof line materially above the side
+#: windows. The same threshold as `auto_trail.HIGH_TOP_ABOVE_MM`, set by the NCC side on
+#: 16 August 2026.
+HIGH_TOP_ABOVE_MM = 2300
 
 #: Wingamm's own statement of what they build, from the models index: *"we immediately
 #: chose the semi-integrated camper formula, excluding the solutions with attic, which by
@@ -119,16 +125,26 @@ class _Document:
 #: 350 Kg Patented`), not an over-cab bed. There is no over-cab bed in the range, so
 #: FMLV's `type_coach_built_over_cab_bed` on the five larger Oasi layouts is wrong and
 #: the correction is proposed.
+_COACHBUILT_NOTE = (
+    "semi-integrated monocoque with a drop-down bed; Wingamm build no over-cab beds "
+    "('excluding the solutions with attic')"
+)
+
+#: **City Pro is the campervan, and construction is not the test.** Settled by the
+#: requester on 26 August 2026 from the vehicle's own photograph and Wingamm's copy, which
+#: calls it *"a camper live in, a van to drive"* and refers throughout to "the van".
 #:
-#: **City Pro is left alone deliberately**, which is why `body_type` is nullable. FMLV
-#: holds `type_campervan_high_top`, and at 2770 mm it clears the shared 2300 mm high-top
-#: threshold — but it is not a van conversion: its catalogue calls it *"the only camper
-#: with a fibreglass monocoque bodyshell, heated floor, and large garage with the compact
-#: dimensions of van"*, a coachbuilt body that happens to be 2050 mm wide. The requester
-#: describes Wingamm as selling campervans as well as motorhomes, which fits FMLV's
-#: classification, so the adapter proposes nothing rather than force a defensible value
-#: to a differently defensible one. Revisit with the NCC side, not in code.
-_BODY_TYPE_NOTE = "semi-integrated monocoque with a drop-down bed; Wingamm build no over-cab beds"
+#: Worth stating because the same page argues the other way if read literally: *"City Pro
+#: of the Fiat Ducato van has only the engine and the external measures; the bodywork is
+#: not the sheet metal of the van, but a fiberglass monocoque"*. So by construction it is a
+#: coachbuilt — the box is moulded, not the van's own panels. It is still a campervan,
+#: because what the classification describes is the vehicle a buyer sees: van-shaped,
+#: van-sized (2050 mm wide, narrower than every Oasi by 190 mm), and sold as a van to
+#: drive. **Read the photograph and the proportions, not the bill of materials.**
+_CAMPERVAN_NOTE = (
+    "van-shaped and van-sized at 2050mm wide, and sold as 'a camper live in, a van to "
+    "drive' — a fibreglass monocoque box does not make it a coachbuilt"
+)
 
 _DOCUMENTS: tuple[_Document, ...] = (
     _Document(
@@ -136,7 +152,7 @@ _DOCUMENTS: tuple[_Document, ...] = (
         label="Oasi 540.1",
         fmlv_range="Oasi",
         layouts=(("oasi-540", "540"),),
-        body_type=BodyType.COACH_BUILT_LOW_PROFILE,
+        is_campervan=False,
     ),
     _Document(
         title_key="OASI610",
@@ -147,7 +163,7 @@ _DOCUMENTS: tuple[_Document, ...] = (
             ("oasi-610m", "610M"),
             ("oasi-610-st", "610ST"),
         ),
-        body_type=BodyType.COACH_BUILT_LOW_PROFILE,
+        is_campervan=False,
     ),
     _Document(
         title_key="OASI690",
@@ -157,7 +173,7 @@ _DOCUMENTS: tuple[_Document, ...] = (
             ("oasi-690-garage", "690G"),
             ("oasi-690-twins", "690 TWINS"),
         ),
-        body_type=BodyType.COACH_BUILT_LOW_PROFILE,
+        is_campervan=False,
     ),
     _Document(
         title_key="BROWNIE",
@@ -166,7 +182,7 @@ _DOCUMENTS: tuple[_Document, ...] = (
         fmlv_range="Coach Built low profile",
         intended_range="Brownie",
         layouts=(("brownie", "Brownie"),),
-        body_type=BodyType.COACH_BUILT_LOW_PROFILE,
+        is_campervan=False,
     ),
     _Document(
         title_key="CITYPRO",
@@ -177,7 +193,7 @@ _DOCUMENTS: tuple[_Document, ...] = (
         label="City Pro",
         fmlv_range="City Pro",
         layouts=(("city-pro", "City Pro"),),
-        body_type=None,
+        is_campervan=True,
     ),
 )
 
@@ -654,7 +670,7 @@ class WingammProduct:
     document_label: str
     spec: WingammSpec
     page: WingammPage
-    body_type: BodyType | None
+    is_campervan: bool
     #: The range this vehicle should be filed under, where that differs from
     #: `fmlv_range` and cannot be proposed. See `_UNDELIVERABLE`.
     intended_range: str | None = None
@@ -662,6 +678,38 @@ class WingammProduct:
     @property
     def label(self) -> str:
         return f"{self.fmlv_range} {self.model}"
+
+    @property
+    def body_type(self) -> BodyType | None:
+        """Half declared, half measured — and `None` where the height is unknown.
+
+        **Is it a campervan?** Not derivable, and not a question about construction: City
+        Pro's body is a moulded fibreglass monocoque like every other Wingamm, and it is
+        still the campervan. See `_CAMPERVAN_NOTE`. So `is_campervan` is declared per
+        document, from the vehicle's shape and proportions.
+
+        **Is it a high top?** Measured, against the same `HIGH_TOP_ABOVE_MM` every other
+        adapter uses. City Pro's 2770 mm clears it comfortably, which agrees with FMLV's
+        existing `type_campervan_high_top` — so this proposes no change, it just stops the
+        value depending on nobody having touched it.
+
+        **Does it have an elevating roof?** No, and `docs/adapters/README.md` settles what
+        silence means: an unmentioned pop-top is an absent one. Every Wingamm roof is a
+        load-bearing walkable moulding (`W - Load bearing walkable roof | 100% hailproof`),
+        and nothing on the site or in the catalogues offers one that rises.
+
+        `None` when the height could not be read, per the missing-data rule — better an
+        obvious gap than a guessed body type.
+        """
+        if not self.is_campervan:
+            return BodyType.COACH_BUILT_LOW_PROFILE
+        if self.spec.mh_height_mm is None:
+            return None
+        return (
+            BodyType.CAMPERVAN_HIGH_TOP
+            if self.spec.mh_height_mm > HIGH_TOP_ABOVE_MM
+            else BodyType.CAMPERVAN
+        )
 
     @property
     def berths(self) -> int | None:
@@ -866,8 +914,19 @@ def _build_extracted_motorhome(
             else f"{catalogue}, mass in running order: {spec.mro_kilograms}kg",
         )
 
-    if product.body_type is not None:
-        record("body_type", MODELS_INDEX_URL, f"{product.body_type.value} — {_BODY_TYPE_NOTE}")
+    if (body_type := product.body_type) is not None:
+        record(
+            "body_type",
+            MODELS_INDEX_URL,
+            f"{body_type.value} — "
+            + (
+                f"{_CAMPERVAN_NOTE}. {spec.mh_height_mm}mm clears the "
+                f"{HIGH_TOP_ABOVE_MM}mm high-top threshold, and no elevating roof is "
+                f"offered anywhere on the site or in the catalogue"
+                if product.is_campervan
+                else _COACHBUILT_NOTE
+            ),
+        )
 
     return ExtractedMotorhome(motorhome=motorhome, provenance=provenance)
 
@@ -1000,7 +1059,7 @@ def collect(
                 document_label=label,
                 spec=spec,
                 page=page,
-                body_type=document.body_type,
+                is_campervan=document.is_campervan,
                 intended_range=document.intended_range,
             )
             if document.intended_range is not None:

@@ -291,6 +291,27 @@ example: FMLV holds the XL layouts as range `Adamo XL` + model `I`, the site as 
 baseline's `I` in place and wrote back **`Adamo I`** — the XL gone from the vehicle's name
 altogether.
 
+**And some renames cannot be delivered at all.** A rename that removes most of the
+identity's words takes the product below the matching threshold, so the run proposes it as
+*new* and reports the original as *disappeared* — an upload would then create a duplicate
+of a product the NCC already holds. Wingamm 26 August 2026: FMLV files its Brownie under
+range `Coach Built low profile`, a body type in the range column, and correcting it to
+`Brownie` scores `{brownie}` against `{coach, built, low, profile, brownie}` — **0.200**.
+Run #30 orphaned `product_id` 5855 exactly as arithmetic predicts.
+
+**So check the score before proposing an identity change, and where it fails, emit the
+baseline's own wrong value with no provenance on either half.** Nothing is then proposed,
+the product matches at 1.000, and its weights and dimensions update normally; the rename
+becomes a one-line manual edit on the FMLV site, narrated every run until someone makes it.
+Wingamm's City Pro is the same class of error and *is* proposed, because `Campervan` +
+`City Pro` to `City Pro` + `City Pro` scores 0.667 — the asymmetry is the matcher's, not the
+manufacturer's.
+
+Note this closes the other door too: Etrusco shows `DEFAULT_THRESHOLD` cannot be *raised*
+to reject its bad matches, and 0.200 is far below anything that could be *lowered* to admit
+this one while still separating real vehicles. A rename is a different operation from a
+match, and the token bag cannot express it.
+
 **And `model` will not warn you.** `compare_fields` walks only fields that *have
 provenance*, while the in-scope missing-field check fires only where the adapter found
 **nothing at all** — so a `model` that was read but never given a provenance entry is
@@ -595,6 +616,14 @@ as a generic capability, not something specific to Adria.
   pattern anchored on `mm` returns nothing for those three, and their dimensions are
   genuinely only good to the nearest 10mm. A brand-new range is where a template
   convention breaks.
+- **If a `--range` selector is not an FMLV range, declare `baseline_in_scope`.**
+  `cli.baseline_scope` matches the selector against `manufacturer_range` by default, which
+  is right whenever the two coincide. Wingamm's don't: three of its five documents are one
+  range (`Oasi`) and `cli.resolve_ranges` keys on a *unique* label, so the labels must name
+  documents (`Oasi 690`) instead. The default then scoped a two-product run to **zero**
+  baseline rows and proposed both as new. Scope on `model` where the range column is the
+  thing you are proposing to change — scoping on a column mid-rename misses the row you are
+  renaming and duplicates it.
 - **Run `--range` before calling an adapter done.** A completeness check that compares a
   run against the manufacturer's full published roster will cry wolf on every legitimate
   single-range run unless it is gated on what was actually *requested*. Elddis's did, and a

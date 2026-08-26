@@ -27,6 +27,7 @@ from . import (
     rimor,
     sunlight,
     swift,
+    wingamm,
 )
 from .base import Adapter, ExtractedMotorhome, Provenance
 
@@ -43,6 +44,7 @@ ADAPTERS: dict[str, Adapter] = {
     rimor.MANUFACTURER: rimor,
     sunlight.MANUFACTURER: sunlight,
     swift.MANUFACTURER: swift,
+    wingamm.MANUFACTURER: wingamm,
 }
 
 __all__ = [
@@ -63,6 +65,7 @@ __all__ = [
     "rimor",
     "sunlight",
     "swift",
+    "wingamm",
 ]
 
 

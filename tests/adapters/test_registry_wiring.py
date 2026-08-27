@@ -188,6 +188,39 @@ def test_the_makes_fmlv_holds_survive_every_spelling_a_source_uses() -> None:
     assert fmlv_base_vehicle("man") == "MAN"
 
 
+def test_a_company_that_is_both_supplier_and_manufacturer_keeps_two_names() -> None:
+    """The naming protocol, from the requester on 27 August 2026.
+
+    Where one company supplies base vehicles *and* builds complete leisure vehicles, FMLV
+    names the two roles differently on purpose: the **abbreviated** form is the base
+    vehicle, the **full** form is the manufacturer. Volkswagen and Mercedes-Benz are the
+    two cases, and both build campervans of their own, so both roles are real.
+
+    It exists for the customer-facing filters — a buyer must not have to guess between
+    "VW" and "Volkswagen". One name per company per role.
+    """
+    assert fmlv_base_vehicle("VW") == "VW"
+    assert fmlv_base_vehicle("vw") == "VW"
+    assert fmlv_base_vehicle("Mercedes-Benz") == "Mercedes"
+
+
+def test_vw_is_not_normalised_to_volkswagen() -> None:
+    """Guards a "correction" that looks right and is wrong.
+
+    The base-vehicle column of every export this project holds shows eight spellings and
+    `VW` is not among them, because none of the manufacturers surveyed so far builds on a
+    Crafter until Sunlight's VW IBEX. That is a gap in the sample, not a fact about FMLV,
+    which holds over a hundred VW base vehicles. Reasoning from the exports alone nearly
+    produced exactly this wrong change.
+    """
+    assert fmlv_base_vehicle("VW") != "Volkswagen"
+    assert fmlv_base_vehicle("Volkswagen") != "VW", (
+        "'Volkswagen' is the manufacturer's name, so it is deliberately not mapped onto "
+        "the base vehicle's; if a source ever spells the chassis in full, add it to the "
+        "map rather than letting it pass through as the manufacturer string"
+    )
+
+
 def test_an_unknown_make_is_passed_through_rather_than_blanked() -> None:
     """A chassis nobody has met yet is far likelier than a parse error, and this is a
     `schema.REQUIRED` field — blanking it would lose more than it protects."""

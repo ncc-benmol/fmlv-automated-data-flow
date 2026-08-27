@@ -154,8 +154,13 @@ IGNORED_SLUGS: dict[str, str] = {
 #: published price since January 2024. Re-check when a newer list appears in the media
 #: library (`/wp-json/wp/v2/media?mime_type=application/pdf`), which is where these hide.
 #:
-#: Note FMLV's own held price disagrees for the Tornado — £64,995 against the £69,995 here,
-#: from some source older than anything on the site.
+#: **All three now agree with FMLV**, which is the narration having done its job: the
+#: requester corrected the Tornado in Nova on 27 August 2026 from £64,995 — a figure older
+#: than anything on the site — to the £69,995 below, and the out-of-scope Three Peaks Ford
+#: Camper from £63,995 to its own £75,995. So these entries are no longer flagging a
+#: discrepancy; they exist for the Euro-Treka IB, which has no FMLV price at all until it is
+#: uploaded, and to keep a figure in front of a reviewer if the site's `POA` ever outlives
+#: what FMLV holds.
 LAST_PUBLISHED_PRICES: dict[str, tuple[int, str]] = {
     "euro-treka-ib": (152_995, "January 2024"),
     "x-cite-eb-elite": (97_995, "January 2024"),

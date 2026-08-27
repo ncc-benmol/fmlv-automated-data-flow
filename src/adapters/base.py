@@ -29,13 +29,34 @@ from ..product_model.model import Motorhome
 #: `.title()`-ed CSS class, an all-caps PDF heading and a full legal name all land on the
 #: same value.
 #:
-#: Two rules from the requester, 27 August 2026:
+#: **The naming protocol, from the requester, 27 August 2026.** Where one company is both a
+#: base-vehicle supplier *and* a manufacturer of complete leisure vehicles, FMLV gives the
+#: two roles **deliberately different names**: the abbreviated form is the base vehicle, the
+#: full form is the manufacturer.
 #:
-#: * **`Mercedes`, never `Mercedes-Benz`.** `Mercedes-Benz` *is* a manufacturer in FMLV
-#:   (it has its own row in the manufacturer list), but as a **base vehicle** the value is
-#:   always the short form. The two are different fields and the distinction is
-#:   deliberate: "there is a manufacturer called Mercedes Benz and its base vehicle name
-#:   that we use is Mercedes".
+#: | Company | Base vehicle | Manufacturer |
+#: |---|---|---|
+#: | Volkswagen | **`VW`** | `Volkswagen` |
+#: | Mercedes-Benz | **`Mercedes`** | `Mercedes-Benz` |
+#:
+#: The reason is the customer-facing filters: "what we don't want is customers to be
+#: confused whether to choose in the filters VW or Volkswagen. It should only be one base
+#: vehicle name for that company who makes base vehicles, and only one name for the
+#: manufacturer who actually makes entire vehicles." Volkswagen build campervans themselves,
+#: so both roles are real and both are populated.
+#:
+#: **So `VW` here is correct and must not be "corrected" to `Volkswagen`.** The trap is that
+#: the base-vehicle column of every export this project holds shows only eight spellings and
+#: **`VW` is not among them** — Fiat 740, Mercedes 187, Ford 171, Peugeot 157, IVECO 142,
+#: MAN 21, Citroën 19, Renault 5. That is a gap in our sample, not a fact about FMLV: none of
+#: the fourteen manufacturers surveyed so far builds on a Crafter until Sunlight's VW IBEX.
+#: FMLV holds **over a hundred** VW base vehicles. Reasoning from the exports alone very
+#: nearly produced a wrong "correction" here, which is the roster lesson in
+#: `docs/adapters/README.md` turned on FMLV's own data — an absence you cannot explain is a
+#: gap in the search.
+#:
+#: One further rule:
+#:
 #: * **`Citroën` with the diaeresis, always** — for Chausson and every other brand.
 #:   Chausson reads its make from a CSS class (`porteur picto citroen`), which cannot
 #:   carry the accent, so without this the accent could never be recovered.

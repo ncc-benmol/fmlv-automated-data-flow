@@ -475,10 +475,27 @@ Three things make this worth doing rather than just leaving a gap:
   classification was byte-identical to run #38's. Asserting a withdrawn figure as collected
   is a different act from a reviewer choosing it knowingly, and only the second is honest.
 
-**FMLV's Tornado price matches neither list** — £64,995 against £69,995, from a source older
-than anything on the site. The run cannot propose a correction (the site says `POA`), so it is
-a manual fix if anyone wants it. The out-of-scope Three Peaks Ford Camper is £12,000 adrift the
-same way: FMLV holds £63,995 against a £75,995 list price.
+**Both discrepancies this surfaced have since been fixed, in Nova, by hand.** The requester
+corrected them on 27 August 2026 and the re-fetched exports confirm it:
+
+| | Was | Now | Matches |
+|---|---|---|---|
+| Tornado | £64,995 | **£69,995** | the January 2024 list |
+| Three Peaks Ford Camper (out of scope) | £63,995 | **£75,995** | the January 2024 list |
+
+`rrp_pounds` and `price_min_range_pounds` moved together on both, so the two columns stay in
+step as `output.build._mirror_guide_price` expects.
+
+Worth noting what actually happened here, because it is the narration paying for itself: the
+run could not *propose* either correction — the site says `POA` for the Tornado, and the Ford
+Camper is a different supplier this adapter never touches — so neither would ever have shown
+up as a proposed change. They were found only because the adapter printed the manufacturer's
+last published figure next to a price it was declining to touch. **A narrated number a
+reviewer can act on is worth more than a silent gap**, even when the pipeline itself has no
+route to fix it.
+
+So all three `LAST_PUBLISHED_PRICES` entries now agree with FMLV. The table's remaining job is
+the Euro-Treka IB, which has no FMLV price until it is uploaded.
 
 **And it will not stay blank, which is the reviewer's job rather than the adapter's.**
 Francis expects to enter a guide price by hand when he uploads it — **£152,995**, now that the run surfaces it, because *FMLV needs

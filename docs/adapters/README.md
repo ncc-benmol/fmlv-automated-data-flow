@@ -193,7 +193,37 @@ Fixing it means separating two cases the model currently conflates: **"never att
 values — this is why the present design exists) versus **"attempted and not found"** (the
 weight was searched for and is absent). Only the second should propose a blank. New
 products already behave correctly, since there is no baseline to inherit from, and
-`validation.py` flags the blank as `missing_required`.
+`validation.py` flags the blank as `missing_required` — but only for a field the adapter
+attempted at all; see the next section for the third case, which is silent.
+
+### A field is only real if it has provenance
+
+`ExtractedMotorhome` carries the value and the provenance separately, and **the provenance
+dict is the pipeline's only record of what the adapter looked at.** Both consumers key off
+it, not off the model:
+
+- `diff/compare.py` compares only the fields the dict names. A value set on the model but
+  not registered is never compared against the baseline and never proposed — so on an
+  existing product it is also never *confirmed*, and the baseline's own value carries
+  through untouched however wrong it has become.
+- `store/changes.py` proposes only those fields for a `NEW_PRODUCT`, and `output/build.py`
+  seeds a new product's row with nothing but `manufacturer`, `manufacturer_display_name`,
+  `manufacturer_range` and `model`. Anything else that is not proposed lands **blank**.
+
+So an unregistered field fails in the way that is hardest to notice: correct-looking on
+every product FMLV already holds, blank on every genuinely new one. Bürstner 27 August
+2026 — `base_vehicle_manufacturer` was set for all 20 layouts from the first run and
+registered for none, so run #11 proposed it 0 times; the 13 with a baseline row looked
+right and all 7 new layouts arrived with a REQUIRED field empty. The same omission was
+sitting in `morelo.py` and `sunlight.py`.
+
+**Register every field you set, including the ones that come from a per-range constant
+rather than a parsed cell.** A constant is still a claim about the vehicle, and a reviewer
+needs to see what it rests on — and where the document does state it somewhere, read it
+from there and keep the constant as a cross-check, so a chassis change is caught rather
+than asserted over. Note the qualification this puts on the section above: new products
+behave correctly only for a field the adapter *attempted*. Set-but-unregistered is a third
+case, and it is silent in both directions.
 
 ### Model year rolls over gradually, July to early September
 

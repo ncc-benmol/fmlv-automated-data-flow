@@ -34,7 +34,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_positioned_text, extract_text
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.sunlight.de"
 INFO_MATERIAL_URL = f"{BASE_URL}/en/info-material/"
@@ -286,7 +286,7 @@ def parse_technical_page(runs: list[str], page_number: int) -> list[SunlightProd
                 model=name,
                 page_number=page_number,
                 # "Fiat Ducato" / "Ford Transit" — the make is the first word.
-                base_vehicle_manufacturer=chassis.split()[0] if chassis else None,
+                base_vehicle_manufacturer=fmlv_base_vehicle(chassis.split()[0]) if chassis else None,
                 base_vehicle_text=chassis,
                 rrp_pounds=_to_int(price.group(1)) if price else None,
                 berths=int(berths.group(1)) if berths else None,

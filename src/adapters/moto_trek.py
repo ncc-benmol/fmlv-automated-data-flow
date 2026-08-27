@@ -83,7 +83,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://moto-trek.co.uk"
 MANUFACTURER = "MOTO-TREK LIMITED"
@@ -423,7 +423,7 @@ def _base_vehicle(html: str) -> str | None:
         return None
     for word in _text(match.group(1)).split():
         if word in _BASE_VEHICLE_MAKES:
-            return word
+            return fmlv_base_vehicle(word)
     return None
 
 

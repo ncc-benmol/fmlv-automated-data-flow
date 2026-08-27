@@ -205,20 +205,29 @@ requester confirmed it 27 August 2026: "we say Mercedes not Mercedes Benz in FML
 the same thing but shorter"). The full legal name proposes a pointless rename on every
 existing product and leaves every new one inconsistent with the rest of the database.
 
-Match the document's spelling, then **record FMLV's**. Where they differ, normalise at the
-point of extraction and say so in the snippet — `morelo.py`'s `_FMLV_MAKES` and
-`burstner.py`'s `_CHASSIS_MAKES` are both one-line maps that do exactly this. The makes in
-the baseline exports as of August 2026 are `Fiat`, `Peugeot`, `Ford`, `Mercedes`,
-`Citroën`, `Renault`, `MAN` and `IVECO`.
+The second rule, confirmed the same day: **`Citroën` with the diaeresis, for Chausson and
+every other brand.** Chausson reads its make from a CSS class (`porteur picto citroen`),
+which cannot carry the accent, so nothing but an explicit mapping can recover it.
 
-`tests/adapters/test_registry_wiring.py` sweeps every adapter's base-vehicle tables for
-spellings FMLV does not hold, so a new adapter picking the long form fails a test rather
-than reaching a reviewer.
+**Match the source's spelling, then record FMLV's — and do it in one place.**
+`base.fmlv_base_vehicle` holds the whole mapping and every adapter routes its make
+through it, so the decision is made once rather than thirteen times. That is precisely
+what went wrong: four adapters each picked a spelling locally, and every choice was
+reasonable in isolation. An unrecognised make passes through **unchanged rather than
+blanked** — a chassis nobody has met yet is likelier than a parse error, and this is a
+`schema.REQUIRED` field.
 
-**Two spellings still unreconciled**, both worth a decision before the brands next run:
-`chausson.py` proposes `Citroen` where Bürstner's own FMLV rows hold `Citroën` with the
-diaeresis, and `bailey.py` once proposed `AL-KO` — a chassis maker, not a base vehicle —
-which was correctly rejected and is recorded in [`bailey.md`](bailey.md).
+The makes in the baseline exports as of August 2026 are `Fiat`, `Peugeot`, `Ford`,
+`Mercedes`, `Citroën`, `Renault`, `MAN` and `IVECO`. Add a new spelling to the map, not to
+an adapter.
+
+`tests/adapters/test_registry_wiring.py` asserts the mapping and, separately, that **no
+adapter setting `base_vehicle_manufacturer` bypasses the helper** — so a new adapter
+picking its own spelling fails a test rather than reaching a reviewer.
+
+**Still unreconciled:** `bailey.py` once proposed `AL-KO` — a chassis maker, not a base
+vehicle — which was correctly rejected and is recorded in [`bailey.md`](bailey.md). It is
+deliberately *not* in the map: mapping it would legitimise it.
 
 ### A field is only real if it has provenance
 

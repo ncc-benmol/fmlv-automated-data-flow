@@ -53,7 +53,7 @@ from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.auto-trail.co.uk"
 MANUFACTURER = "Auto-Trail"
@@ -700,7 +700,7 @@ def parse_models(text: str, range_label: str) -> list[AutoTrailProduct]:
                 mgtw_kilograms=_leading_kilograms(mgtw) if mgtw else None,
                 towing_kilograms=_leading_kilograms(towing) if towing else None,
                 body_type=_body_type(block),
-                base_vehicle_manufacturer=chassis.group(1) if chassis else None,
+                base_vehicle_manufacturer=fmlv_base_vehicle(chassis.group(1)) if chassis else None,
                 stated_max_berths=_count(block, r"Max\. No\. of berths", take=_trailing_int),
                 parse_warnings=warnings,
             )

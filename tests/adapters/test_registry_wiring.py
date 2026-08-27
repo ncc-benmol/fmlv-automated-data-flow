@@ -17,12 +17,14 @@ is exactly when it is needed.
 from __future__ import annotations
 
 import inspect
+import pathlib
 import pkgutil
 from types import ModuleType
 
 import pytest
 
 from src import adapters, paths, registry
+from src.adapters.base import fmlv_base_vehicle
 
 #: Modules in `src/adapters/` that are infrastructure rather than a manufacturer.
 _NOT_ADAPTERS = {"base"}
@@ -156,73 +158,73 @@ def test_default_ranges_is_well_formed(name: str) -> None:
 # --------------------------------------------------------------------------- #
 # Base-vehicle spelling
 #
-# `base_vehicle_manufacturer` is matched against FMLV's own value, so the spelling is
-# not cosmetic: FMLV holds `Mercedes` in all 35 of its Mercedes rows across four
-# manufacturers (Adria, Bürstner, Coachman, Moto-Trek baseline exports, August 2026)
-# and `Mercedes-Benz` in none. An adapter emitting the full legal name proposes a
-# pointless rename on every existing product and leaves every new one inconsistent
-# with the rest of the database. Bürstner, Coachman and Morelo all did, and Coachman's
-# four proposals sat undecided in the queue rather than being spotted as wrong.
+# `base_vehicle_manufacturer` is compared against FMLV's own stored string, so the
+# spelling decides whether a run *confirms* the field or proposes a rename. Two rules
+# the requester confirmed on 27 August 2026:
 #
-# Requester confirmed 27 August 2026: "we say Mercedes not Mercedes Benz in FMLV,
-# meaning the same thing but shorter".
+# * `Mercedes`, never `Mercedes-Benz`. `Mercedes-Benz` is a real manufacturer in FMLV,
+#   with its own row in the manufacturer list — but as a base *vehicle* the value is
+#   always the short form. "There is a manufacturer called Mercedes Benz and its base
+#   vehicle name that we use is Mercedes."
+# * `Citroën` with the diaeresis, for Chausson and every other brand.
+#
+# Bürstner, Coachman and Morelo all emitted `Mercedes-Benz`, and Chausson `Citroen`,
+# because each adapter decided the spelling for itself. They now all route through
+# `base.fmlv_base_vehicle`, and these tests keep it that way.
 # --------------------------------------------------------------------------- #
 
-#: Attribute names that hold base-vehicle makes the adapter *emits*.
-_MAKE_TABLE_HINTS = ("BASE_VEHICLE", "CHASSIS_MAKE", "FMLV_MAKE")
 
-#: Spellings no adapter may emit, and what to use instead. Keys are what a *source
-#: document* may legitimately say — matching that text is fine, recording it is not.
-_WRONG_MAKES = {"Mercedes-Benz": "Mercedes"}
+def test_the_makes_fmlv_holds_survive_every_spelling_a_source_uses() -> None:
+    assert fmlv_base_vehicle("Mercedes-Benz") == "Mercedes"
+    assert fmlv_base_vehicle("Mercedes Benz") == "Mercedes"
+    assert fmlv_base_vehicle("mercedes") == "Mercedes"
+    # Chausson's CSS class is `porteur picto citroen` and cannot carry the accent.
+    assert fmlv_base_vehicle("citroen") == "Citroën"
+    assert fmlv_base_vehicle("Citroen") == "Citroën"
+    assert fmlv_base_vehicle("Citroën") == "Citroën"
+    # An all-caps PDF heading and a title-cased class land on the same string.
+    assert fmlv_base_vehicle("FIAT") == "Fiat"
+    assert fmlv_base_vehicle("Iveco") == "IVECO"
+    assert fmlv_base_vehicle("man") == "MAN"
 
 
-def _emitted_makes(module: ModuleType) -> set[str]:
-    """Every string a module's base-vehicle tables would hand to `Motorhome`.
-
-    Dict **keys** are skipped: a mapping from the document's spelling to FMLV's has the
-    source-side spelling on the left by design (`morelo._FMLV_MAKES`), and flagging it
-    would make the normalisation itself impossible to write.
-    """
-    found: set[str] = set()
-    for attr in dir(module):
-        if not any(hint in attr for hint in _MAKE_TABLE_HINTS):
-            continue
-        value = getattr(module, attr)
-        if isinstance(value, dict):
-            candidates = value.values()
-        elif isinstance(value, (tuple, list, set, frozenset)):
-            candidates = value
-        else:
-            continue  # a compiled regex matching the document, or a scalar
-        for item in candidates:
-            if isinstance(item, str):
-                found.add(item)
-            elif isinstance(item, (tuple, list)):
-                found.update(part for part in item if isinstance(part, str))
-    return found
+def test_an_unknown_make_is_passed_through_rather_than_blanked() -> None:
+    """A chassis nobody has met yet is far likelier than a parse error, and this is a
+    `schema.REQUIRED` field — blanking it would lose more than it protects."""
+    assert fmlv_base_vehicle("Opel") == "Opel"
+    assert fmlv_base_vehicle("  Ford  ") == "Ford"
+    assert fmlv_base_vehicle(None) is None
+    assert fmlv_base_vehicle("") is None
+    assert fmlv_base_vehicle("   ") is None
 
 
 @pytest.mark.parametrize("name", sorted(_adapter_module_names()))
-def test_no_adapter_emits_a_make_fmlv_does_not_hold(name: str) -> None:
-    module = getattr(adapters, name)
+def test_no_adapter_decides_the_base_vehicle_spelling_for_itself(name: str) -> None:
+    """An adapter that sets the field must route it through the shared helper.
 
-    for make in _emitted_makes(module):
-        assert make not in _WRONG_MAKES, (
-            f"{name} emits base_vehicle_manufacturer {make!r}, which FMLV does not hold; "
-            f"use {_WRONG_MAKES.get(make)!r}"
-        )
+    This is the check that would have caught all four: each had picked a spelling
+    locally, and every one of them was reasonable in isolation.
+    """
+    source = pathlib.Path(inspect.getfile(getattr(adapters, name))).read_text(
+        encoding="utf-8"
+    )
+    if "base_vehicle_manufacturer=" not in source:
+        pytest.skip(f"{name} does not set base_vehicle_manufacturer")
+
+    assert "fmlv_base_vehicle" in source, (
+        f"{name} sets base_vehicle_manufacturer without routing it through "
+        f"base.fmlv_base_vehicle, so it decides FMLV's spelling for itself"
+    )
 
 
 def test_the_per_range_base_vehicle_tables_are_spelled_fmlvs_way() -> None:
-    """The two adapters that hold a make as a constant rather than parsing one.
-
-    Covered explicitly as well as by the sweep above, because these are the ones a
-    reviewer edits by hand at a model-year changeover.
-    """
+    """The two adapters holding a make as a constant a human edits at a changeover."""
     from src.adapters import burstner, coachman
 
-    assert {config.base_vehicle_manufacturer for config in burstner.DOCUMENTS} == {
-        "Fiat",
-        "Mercedes",
-    }
-    assert set(coachman._BASE_VEHICLE_BY_RANGE.values()) == {"Fiat", "Mercedes"}
+    assert {
+        fmlv_base_vehicle(config.base_vehicle_manufacturer)
+        for config in burstner.DOCUMENTS
+    } == {"Fiat", "Mercedes"}
+    assert {
+        fmlv_base_vehicle(make) for make in coachman._BASE_VEHICLE_BY_RANGE.values()
+    } == {"Fiat", "Mercedes"}

@@ -90,7 +90,7 @@ from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://elddis.co.uk"
 MANUFACTURER = "Elddis (EHG UK)"
@@ -548,7 +548,7 @@ class ElddisProduct:
         if not self.base_vehicle_published:
             return None
         first = self.base_vehicle_published.split()
-        return first[0] if first else None
+        return fmlv_base_vehicle(first[0]) if first else None
 
     @property
     def body_type(self) -> BodyType | None:

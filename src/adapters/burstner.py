@@ -59,7 +59,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.buerstner.com"
 MANUFACTURER = "Bürstner"
@@ -186,16 +186,12 @@ _CHASSIS_LINE = re.compile(
     r"^(?:Fiat\s+Ducato|Mercedes[\s-]+Benz\s+(?:4wd\s+)?Sprinter)[^\n]*", re.MULTILINE
 )
 
-#: The chassis line's own opening make -> the make as FMLV spells it, which is the
-#: string that has to be recorded: FMLV holds `Mercedes` in all 35 of its Mercedes rows
-#: across four manufacturers and `Mercedes-Benz` in none, so emitting the longer legal
-#: name would propose a rename on every existing product and leave every new one
-#: inconsistent with the rest of the database. Requester confirmed 27 August 2026:
-#: "we say Mercedes not Mercedes Benz in FMLV, meaning the same thing but shorter".
-#: `adria.py` records the same finding independently.
+#: The chassis line's own opening word -> the make as the document itself names it.
+#: `fmlv_base_vehicle` then maps that onto FMLV's spelling, so `Mercedes Benz` becomes
+#: `Mercedes` in one place shared with every other adapter rather than here.
 _CHASSIS_MAKES: tuple[tuple[str, str], ...] = (
     ("fiat", "Fiat"),
-    ("mercedes", "Mercedes"),
+    ("mercedes", "Mercedes Benz"),
 )
 
 
@@ -312,7 +308,7 @@ def published_chassis(text: str) -> tuple[str, str] | None:
     lowered = line.lower()
     for prefix, make in _CHASSIS_MAKES:
         if lowered.startswith(prefix):
-            return make, line
+            return fmlv_base_vehicle(make), line
     return None
 
 

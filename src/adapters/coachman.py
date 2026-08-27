@@ -43,7 +43,7 @@ from pathlib import Path
 
 from ..fetch.http import Fetcher
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.coachman.co.uk"
 MANUFACTURER = "Coachman"
@@ -105,6 +105,7 @@ _PREVIEW_SOURCE = "Coachman 2027 preview floorplan and spec sheet (v2.3), suppli
 _PREVIEW_READ_ON = "17 August 2026"
 _BASE_VEHICLE_BY_RANGE: dict[str, str] = {
     "Avventura": "Fiat",
+    # `Mercedes`, not the spec sheet's `Mercedes-Benz` - see `base.fmlv_base_vehicle`.
     "Sportivo": "Mercedes",
     "Travel Master": "Mercedes",
     "Travel Master Imperial": "Mercedes",
@@ -119,7 +120,7 @@ def base_vehicle_for(range_label: str) -> str | None:
     preview was read, and inventing a chassis for it would be exactly the kind of
     plausible-but-unverified value the missing-data rule exists to prevent.
     """
-    return _BASE_VEHICLE_BY_RANGE.get(range_label)
+    return fmlv_base_vehicle(_BASE_VEHICLE_BY_RANGE.get(range_label))
 
 
 def _squash(value: str) -> str:

@@ -43,7 +43,7 @@ from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
 from ..product_model.enums import BedType, BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.rimor.it"
 MANUFACTURER = "Rimor"
@@ -399,7 +399,11 @@ def parse_catalogue(catalogue_text: str, ranges: tuple[tuple[str, str], ...]) ->
             mtplm_kilograms=weights.pop() if len(weights) == 1 else None,
             # "Fiat Ducato" / "Ford Transit" — the make is the first word, as in
             # `sunlight.py`.
-            base_vehicle_manufacturer=engines.pop().split()[0] if len(engines) == 1 else None,
+            base_vehicle_manufacturer=(
+                fmlv_base_vehicle(engines.pop().split()[0])
+                if len(engines) == 1
+                else None
+            ),
         )
     return facts
 

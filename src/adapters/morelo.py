@@ -42,7 +42,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_positioned_text, extract_text
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.morelo-reisemobile.de"
 CATALOGUE_PAGE_URL = f"{BASE_URL}/en/buy-and-rent/catalogues-and-price-lists"
@@ -101,14 +101,6 @@ _PRICE = re.compile(r"(\d{1,3}(?:\.\d{3})+),(\d{2})")
 
 #: Chassis makes the price list names, for `base_vehicle_manufacturer`.
 _BASE_VEHICLE = re.compile(r"\b(IVECO|Mercedes-Benz)\b")
-
-#: The make as the price list prints it -> as FMLV holds it. FMLV records `Mercedes`
-#: in all 35 of its Mercedes rows across four manufacturers and `Mercedes-Benz` in
-#: none, so Morelo's full legal spelling is normalised here rather than proposed as a
-#: rename. Requester confirmed 27 August 2026: "we say Mercedes not Mercedes Benz in
-#: FMLV, meaning the same thing but shorter". `IVECO` needs no mapping — the price
-#: list and FMLV agree on it already.
-_FMLV_MAKES: dict[str, str] = {"Mercedes-Benz": "Mercedes"}
 
 
 def _to_int(text: str) -> int:
@@ -343,10 +335,9 @@ def parse_spec_page(
                 range_label=range_label,
                 model=name,
                 page_number=page_number,
+                # The price list prints `Mercedes-Benz`; FMLV holds `Mercedes`.
                 base_vehicle_manufacturer=(
-                    _FMLV_MAKES.get(base_vehicle.group(1), base_vehicle.group(1))
-                    if base_vehicle
-                    else None
+                    fmlv_base_vehicle(base_vehicle.group(1)) if base_vehicle else None
                 ),
                 price_eur=prices[index] if len(prices) == len(names) else None,
                 mtplm_kilograms=value("mtplm_kilograms", index),

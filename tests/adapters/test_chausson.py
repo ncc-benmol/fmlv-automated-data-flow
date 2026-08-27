@@ -96,7 +96,10 @@ def test_length_and_base_vehicle_come_from_the_same_picto(cards: dict[str, Chaus
     """
     assert cards["s614"].mh_length_mm == 6590
     assert cards["s614"].base_vehicle_manufacturer == "Ford"
-    assert cards["c656"].base_vehicle_manufacturer == "Citroen"
+    # The class is `porteur picto citroen` - ASCII, because a CSS class cannot carry the
+    # accent - and FMLV holds `Citroën` with the diaeresis, so `fmlv_base_vehicle` puts it
+    # back. Requester confirmed 27 August 2026 that every brand uses `Citroën`.
+    assert cards["c656"].base_vehicle_manufacturer == "Citroën"
     assert cards["v594"].base_vehicle_manufacturer == "Fiat"
     assert cards["v594"].mh_length_mm == 5990
 

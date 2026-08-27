@@ -24,6 +24,64 @@ from ..fetch.http import Fetcher
 from ..product_model.model import Motorhome
 
 
+#: Every spelling a manufacturer's own site or document has been seen to use for a base
+#: vehicle, mapped to the one string FMLV holds. Keyed on the lower-cased make so a
+#: `.title()`-ed CSS class, an all-caps PDF heading and a full legal name all land on the
+#: same value.
+#:
+#: Two rules from the requester, 27 August 2026:
+#:
+#: * **`Mercedes`, never `Mercedes-Benz`.** `Mercedes-Benz` *is* a manufacturer in FMLV
+#:   (it has its own row in the manufacturer list), but as a **base vehicle** the value is
+#:   always the short form. The two are different fields and the distinction is
+#:   deliberate: "there is a manufacturer called Mercedes Benz and its base vehicle name
+#:   that we use is Mercedes".
+#: * **`Citroën` with the diaeresis, always** — for Chausson and every other brand.
+#:   Chausson reads its make from a CSS class (`porteur picto citroen`), which cannot
+#:   carry the accent, so without this the accent could never be recovered.
+_FMLV_BASE_VEHICLE_MAKES: dict[str, str] = {
+    "citroen": "Citroën",
+    "citroën": "Citroën",
+    "fiat": "Fiat",
+    "ford": "Ford",
+    "iveco": "IVECO",
+    "man": "MAN",
+    "mercedes": "Mercedes",
+    "mercedes benz": "Mercedes",
+    "mercedes-benz": "Mercedes",
+    "peugeot": "Peugeot",
+    "renault": "Renault",
+    "vw": "VW",
+}
+
+
+def fmlv_base_vehicle(make: str | None) -> str | None:
+    """One base-vehicle make as FMLV spells it, whatever spelling the source used.
+
+    `base_vehicle_manufacturer` is compared against FMLV's own stored string, so the
+    spelling decides whether a run *confirms* the field or proposes a rename. Every
+    adapter routes its make through here so that decision is made in one place instead of
+    thirteen — see `docs/adapters/README.md`.
+
+    An unrecognised make is returned **unchanged rather than blanked**: it is far more
+    likely to be a real chassis nobody has met yet than a parse error, and dropping it
+    would lose a REQUIRED field. `tests/adapters/test_registry_wiring.py` is what stops a
+    known-wrong spelling reaching a reviewer.
+
+    Normalising here, on the adapter side only, is deliberate. Doing it on `Motorhome`
+    itself would also rewrite the value read *out of* the FMLV baseline, so a row FMLV
+    holds as `Citroen` would silently match `Citroën` and the correction would never be
+    proposed. This way the adapter emits FMLV's spelling and a baseline that disagrees
+    gets a proposed change, which is the point.
+    """
+    if make is None:
+        return None
+    cleaned = " ".join(make.split())
+    if not cleaned:
+        return None
+    return _FMLV_BASE_VEHICLE_MAKES.get(cleaned.lower(), cleaned)
+
+
 @dataclass(frozen=True)
 class Provenance:
     """Where one extracted field's value came from, shown next to it for the reviewer."""

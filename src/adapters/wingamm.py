@@ -59,7 +59,7 @@ from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.wingamm.com"
 MANUFACTURER = "Wingamm"
@@ -112,6 +112,12 @@ class _Document:
     #: because correcting it would cost the product its history. See `_UNDELIVERABLE`.
     intended_range: str | None = None
 
+
+#: Every Wingamm sits on a Ducato, so the make is named once here rather than repeated
+#: at the two places that check the document actually says so. Routed through
+#: `fmlv_base_vehicle` like every other adapter's make, so FMLV's spelling is decided in
+#: one place for all brands even where the value is a constant.
+_BASE_VEHICLE = fmlv_base_vehicle("Fiat")
 
 #: A campervan taller than this is a high top — the roof line materially above the side
 #: windows. The same threshold as `auto_trail.HIGH_TOP_ABOVE_MM`, set by the NCC side on
@@ -546,7 +552,9 @@ def parse_spec(text: str) -> WingammSpec:
         mh_payload_kilograms=payload_kg,
         seats=_leading_int(seats) if (seats := _published(text, _SEAT_LABELS)) else None,
         berths_published=_published(text, _BERTH_LABELS),
-        base_vehicle_manufacturer="Fiat" if re.search(r"FIAT\s*DUCATO", text, re.I) else None,
+        base_vehicle_manufacturer=(
+            _BASE_VEHICLE if re.search(r"FIAT\s*DUCATO", text, re.I) else None
+        ),
     )
 
 
@@ -651,7 +659,9 @@ def parse_model_page(html: str) -> WingammPage:
         else None,
         mtplm_kilograms=mass if mass_label == "Total mass" else None,
         mro_kilograms=mass if mass_label == "Mass in running order" else None,
-        base_vehicle_manufacturer="Fiat" if drive and "DUCATO" in drive.upper() else None,
+        base_vehicle_manufacturer=(
+            _BASE_VEHICLE if drive and "DUCATO" in drive.upper() else None
+        ),
     )
 
 

@@ -68,7 +68,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.baileyofbristol.co.uk"
 MANUFACTURER = "Bailey"
@@ -290,7 +290,9 @@ def parse_model_page(html: str, *, is_campervan: bool) -> BaileyProduct | None:
         range_label=range_label,
         model=model,
         is_campervan=is_campervan,
-        base_vehicle_manufacturer=base_vehicle.split()[0] if base_vehicle else None,
+        base_vehicle_manufacturer=(
+            fmlv_base_vehicle(base_vehicle.split()[0]) if base_vehicle else None
+        ),
         roof_profile_published=_field(html, "Roof Profile"),
         mh_length_mm=_metres_to_mm(_field(html, "Overall Body Length")),
         mh_width_mm=_metres_to_mm(_field(html, "Max Width Vehicle with Mirrors Folded")),

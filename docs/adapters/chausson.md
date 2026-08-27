@@ -221,6 +221,13 @@ So between the card and the model page, the record is essentially complete:
 **The base vehicle varies by model and is worth having**: Ford for most, **Citroën** for the
 big overcabs (C656, C727), **Fiat** for the V594 van and the whole X line.
 
+The make is read from the picto's own CSS class — `porteur picto citroen` — which is ASCII
+and **cannot carry the diaeresis FMLV holds**. `.title()` alone therefore produced
+`Citroen`, which matches nothing in FMLV and proposed a rename on both overcabs every run.
+The make now goes through `base.fmlv_base_vehicle`, which restores `Citroën`; the requester
+confirmed on 27 August 2026 that every brand uses the accented spelling and corrected the
+FMLV rows to match. See [`README.md`](README.md).
+
 ### The price is a per-model "From", which is usable
 
 Ruling from the NCC side, 19 August 2026: **a "From" price shown against one specific model

@@ -105,9 +105,9 @@ _PREVIEW_SOURCE = "Coachman 2027 preview floorplan and spec sheet (v2.3), suppli
 _PREVIEW_READ_ON = "17 August 2026"
 _BASE_VEHICLE_BY_RANGE: dict[str, str] = {
     "Avventura": "Fiat",
-    "Sportivo": "Mercedes-Benz",
-    "Travel Master": "Mercedes-Benz",
-    "Travel Master Imperial": "Mercedes-Benz",
+    "Sportivo": "Mercedes",
+    "Travel Master": "Mercedes",
+    "Travel Master Imperial": "Mercedes",
     "Veloce": "Fiat",
 }
 

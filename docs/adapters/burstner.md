@@ -298,7 +298,13 @@ Two things that shape matters for:
   a reviewer is told the adapter expected otherwise — because the competing reading of a
   disagreement is that the document changed shape and the line was misread. All five
   agreed as surveyed, so nothing changed value when this was introduced. Bürstner writes
-  `Mercedes Benz` unhyphenated; FMLV holds `Mercedes-Benz`, which is what is recorded.
+  `Mercedes Benz` unhyphenated, and **FMLV holds neither that nor `Mercedes-Benz` — it
+  holds `Mercedes`**, in all 35 of its Mercedes rows across four manufacturers. That is
+  what is recorded. The requester confirmed it 27 August 2026: "we say Mercedes not
+  Mercedes Benz in FMLV, meaning the same thing but shorter". The adapter shipped the
+  long form initially and nobody saw it, because the field was not registered as
+  provenance and so was never proposed; the same slip was in `coachman.py` (four
+  undecided proposals in the queue) and `morelo.py`.
 
 **Why this needed fixing at all.** The value was set on the model from the first run but
 never registered in the provenance dict, and that dict is the pipeline's only record of
@@ -336,11 +342,11 @@ themselves.
 | Range | Layouts | Prices | Chassis |
 |---|---|---|---|
 | Signature SFT | 4 (7.0, 7.1, 7.4, 7.5) | £94,895 – £99,395 | Fiat |
-| Signature SMT | 4 (7.0, 7.1, 7.4, 7.5) | £109,995 – £114,495 | Mercedes-Benz |
+| Signature SMT | 4 (7.0, 7.1, 7.4, 7.5) | £109,995 – £114,495 | Mercedes |
 | B66 (TD) | 5 (594, 644, 684, 690, 744) | £79,995 – £88,795 | Fiat |
 | B66 (C) | 3 (600, 640, 644) | £64,995 – £69,995 | Fiat |
-| Habiton (HM) | 2 (6.0, 6.1) | £88,995 / £92,395 | Mercedes-Benz |
-| Habiton X (HMX) | 2 (6.0, 6.1) | £96,795 / £102,995 | Mercedes-Benz |
+| Habiton (HM) | 2 (6.0, 6.1) | £88,995 / £92,395 | Mercedes |
+| Habiton X (HMX) | 2 (6.0, 6.1) | £96,795 / £102,995 | Mercedes |
 
 **Diff against the real FMLV baseline (run #11): 13 scraped matched 13 baseline products
 byte-identically on range and model — no fuzzy-match ambiguity anywhere, unlike Etrusco's

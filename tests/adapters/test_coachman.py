@@ -367,9 +367,10 @@ def test_base_vehicle_comes_from_the_range_not_the_model() -> None:
     """
     assert coachman.base_vehicle_for("Avventura") == "Fiat"
     assert coachman.base_vehicle_for("Veloce") == "Fiat"
-    assert coachman.base_vehicle_for("Sportivo") == "Mercedes-Benz"
-    assert coachman.base_vehicle_for("Travel Master") == "Mercedes-Benz"
-    assert coachman.base_vehicle_for("Travel Master Imperial") == "Mercedes-Benz"
+    # FMLV holds `Mercedes`, never `Mercedes-Benz` - see docs/adapters/README.md.
+    assert coachman.base_vehicle_for("Sportivo") == "Mercedes"
+    assert coachman.base_vehicle_for("Travel Master") == "Mercedes"
+    assert coachman.base_vehicle_for("Travel Master Imperial") == "Mercedes"
 
 
 def test_an_unknown_range_gets_no_base_vehicle() -> None:
@@ -385,7 +386,7 @@ def test_the_base_vehicle_reaches_the_product_and_is_flagged_as_manual(
     extracted = coachman._build_extracted_motorhome(
         motorhomes["Sportivo 565"], "https://www.coachman.co.uk/", "https://example.invalid/api"
     )
-    assert extracted.motorhome.base_vehicle_manufacturer == "Mercedes-Benz"
+    assert extracted.motorhome.base_vehicle_manufacturer == "Mercedes"
 
     snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
     assert "MANUALLY SOURCED" in snippet

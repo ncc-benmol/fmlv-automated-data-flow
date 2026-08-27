@@ -196,6 +196,30 @@ products already behave correctly, since there is no baseline to inherit from, a
 `validation.py` flags the blank as `missing_required` — but only for a field the adapter
 attempted at all; see the next section for the third case, which is silent.
 
+### Spell the base vehicle FMLV's way, not the manufacturer's
+
+`base_vehicle_manufacturer` is compared against FMLV's own stored string, so the spelling
+decides whether a run confirms the field or proposes a rename. **FMLV holds `Mercedes` —
+never `Mercedes-Benz`** (35 rows across Adria, Bürstner, Coachman and Moto-Trek; the
+requester confirmed it 27 August 2026: "we say Mercedes not Mercedes Benz in FMLV, meaning
+the same thing but shorter"). The full legal name proposes a pointless rename on every
+existing product and leaves every new one inconsistent with the rest of the database.
+
+Match the document's spelling, then **record FMLV's**. Where they differ, normalise at the
+point of extraction and say so in the snippet — `morelo.py`'s `_FMLV_MAKES` and
+`burstner.py`'s `_CHASSIS_MAKES` are both one-line maps that do exactly this. The makes in
+the baseline exports as of August 2026 are `Fiat`, `Peugeot`, `Ford`, `Mercedes`,
+`Citroën`, `Renault`, `MAN` and `IVECO`.
+
+`tests/adapters/test_registry_wiring.py` sweeps every adapter's base-vehicle tables for
+spellings FMLV does not hold, so a new adapter picking the long form fails a test rather
+than reaching a reviewer.
+
+**Two spellings still unreconciled**, both worth a decision before the brands next run:
+`chausson.py` proposes `Citroen` where Bürstner's own FMLV rows hold `Citroën` with the
+diaeresis, and `bailey.py` once proposed `AL-KO` — a chassis maker, not a base vehicle —
+which was correctly rejected and is recorded in [`bailey.md`](bailey.md).
+
 ### A field is only real if it has provenance
 
 `ExtractedMotorhome` carries the value and the provenance separately, and **the provenance

@@ -216,7 +216,7 @@ def test_signature_smt_parses_all_four_layouts_on_the_mercedes_chassis() -> None
         "SMT 7.4",
         "SMT 7.5",
     ]
-    assert products[0].base_vehicle_manufacturer == "Mercedes-Benz"
+    assert products[0].base_vehicle_manufacturer == "Mercedes"
     assert products[0].mtplm_kilograms == 4500
 
 
@@ -308,14 +308,15 @@ def test_every_document_names_its_own_chassis() -> None:
     assert published_chassis(_fixture("b66_td"))[0] == "Fiat"
     assert published_chassis(_fixture("b66_c"))[0] == "Fiat"
     assert published_chassis(_fixture("signature_sft"))[0] == "Fiat"
-    assert published_chassis(_fixture("signature_smt"))[0] == "Mercedes-Benz"
-    assert published_chassis(_fixture("habiton"))[0] == "Mercedes-Benz"
+    assert published_chassis(_fixture("signature_smt"))[0] == "Mercedes"
+    assert published_chassis(_fixture("habiton"))[0] == "Mercedes"
 
 
 def test_the_chassis_line_is_quoted_as_the_document_prints_it() -> None:
     make, line = published_chassis(_fixture("signature_smt"))
 
-    assert make == "Mercedes-Benz"  # FMLV's spelling, not the document's "Mercedes Benz"
+    # FMLV's spelling, which is shorter than the document's own "Mercedes Benz".
+    assert make == "Mercedes"
     assert line == "Mercedes Benz Sprinter 4,5 t - 417 CDI"
 
 
@@ -344,7 +345,7 @@ def test_the_provenance_snippet_quotes_the_document_rather_than_asserting_a_make
     extracted = _build_extracted_motorhome(_one_product("habiton"), "https://example/doc.pdf")
     snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
 
-    assert "Mercedes-Benz" in snippet
+    assert extracted.motorhome.base_vehicle_manufacturer == "Mercedes"
     assert "Sprinter 317 CDI" in snippet  # the document's own words, not the adapter's
 
 
@@ -365,7 +366,7 @@ Headroom (approx. cm) 200
 
 
 def test_a_document_that_changes_chassis_overrules_the_configured_make_and_says_so() -> None:
-    # DOCUMENTS records Signature SMT as Mercedes-Benz. If Bürstner moves the range onto
+    # DOCUMENTS records Signature SMT as Mercedes. If Bürstner moves the range onto
     # a Ducato, the document is the live source and wins — but a reviewer must be told
     # the adapter expected otherwise, because the competing reading is that the document
     # changed shape and the line was misread.
@@ -375,10 +376,10 @@ def test_a_document_that_changes_chassis_overrules_the_configured_make_and_says_
     )
 
     assert products[0].base_vehicle_manufacturer == "Fiat"
-    assert products[0].base_vehicle_expected == "Mercedes-Benz"
+    assert products[0].base_vehicle_expected == "Mercedes"
     extracted = _build_extracted_motorhome(products[0], "https://example/doc.pdf")
     snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
-    assert "expected Mercedes-Benz" in snippet
+    assert "expected Mercedes" in snippet
     assert "do not accept this blind" in snippet
 
 
@@ -387,7 +388,7 @@ def test_a_document_naming_no_chassis_falls_back_to_the_configured_make() -> Non
     # said something it does not say.
     products, _count = parse_document(_synthetic(""), DOCUMENTS_BY_KEY["signature-smt"])
 
-    assert products[0].base_vehicle_manufacturer == "Mercedes-Benz"
+    assert products[0].base_vehicle_manufacturer == "Mercedes"
     assert products[0].base_vehicle_published is None
     assert products[0].base_vehicle_expected is None
     extracted = _build_extracted_motorhome(products[0], "https://example/doc.pdf")

@@ -121,7 +121,8 @@ def test_parse_spec_page_assigns_each_column_to_the_right_floorplan() -> None:
     assert (shorter.mh_length_mm, longer.mh_length_mm) == (10850, 11280)
     assert (shorter.mro_kilograms, longer.mro_kilograms) == (8910, 8995)
     assert (shorter.price_eur, longer.price_eur) == (484950, 495050)
-    assert shorter.base_vehicle_manufacturer == "Mercedes-Benz"
+    # Normalised to FMLV's spelling; the price list itself prints "Mercedes-Benz".
+    assert shorter.base_vehicle_manufacturer == "Mercedes"
 
 
 def test_parse_spec_page_reads_weights_past_a_non_digit_footnote_marker() -> None:
@@ -276,11 +277,11 @@ def test_the_base_vehicle_snippet_points_at_the_page_it_was_read_from() -> None:
     # Morelo states the chassis per spec page, not per column, so the snippet must send
     # a reviewer to that page rather than implying a per-floorplan row.
     extracted = _build_extracted_motorhome(
-        _product(base_vehicle_manufacturer="Mercedes-Benz", page_number=54),
+        _product(base_vehicle_manufacturer="Mercedes", page_number=54),
         "https://example/price-list.pdf",
     )
     entry = extracted.provenance["base_vehicle_manufacturer"]
 
     assert entry.source_url.endswith("#page=54")
-    assert "Mercedes-Benz" in entry.snippet
+    assert "Mercedes" in entry.snippet
     assert "spec page" in entry.snippet

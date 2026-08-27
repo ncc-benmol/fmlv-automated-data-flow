@@ -111,8 +111,8 @@ DOCUMENTS: tuple[_DocumentConfig, ...] = (
     _DocumentConfig("b66-td", "B66", "number_first", "Fiat"),
     _DocumentConfig("b66-c", "B66", "number_first", "Fiat"),
     _DocumentConfig("signature-sft", "Signature", "letter_first", "Fiat"),
-    _DocumentConfig("signature-smt", "Signature", "letter_first", "Mercedes-Benz"),
-    _DocumentConfig("habiton", "Habiton", "letter_first", "Mercedes-Benz"),
+    _DocumentConfig("signature-smt", "Signature", "letter_first", "Mercedes"),
+    _DocumentConfig("habiton", "Habiton", "letter_first", "Mercedes"),
 )
 
 #: A layout code as each document order prints it. Letters are 2-4 chars (`C`, `TD`,
@@ -186,11 +186,16 @@ _CHASSIS_LINE = re.compile(
     r"^(?:Fiat\s+Ducato|Mercedes[\s-]+Benz\s+(?:4wd\s+)?Sprinter)[^\n]*", re.MULTILINE
 )
 
-#: The chassis line's own opening make -> the make as FMLV spells it. Bürstner writes
-#: `Mercedes Benz` unhyphenated; FMLV holds `Mercedes-Benz`.
+#: The chassis line's own opening make -> the make as FMLV spells it, which is the
+#: string that has to be recorded: FMLV holds `Mercedes` in all 35 of its Mercedes rows
+#: across four manufacturers and `Mercedes-Benz` in none, so emitting the longer legal
+#: name would propose a rename on every existing product and leave every new one
+#: inconsistent with the rest of the database. Requester confirmed 27 August 2026:
+#: "we say Mercedes not Mercedes Benz in FMLV, meaning the same thing but shorter".
+#: `adria.py` records the same finding independently.
 _CHASSIS_MAKES: tuple[tuple[str, str], ...] = (
     ("fiat", "Fiat"),
-    ("mercedes", "Mercedes-Benz"),
+    ("mercedes", "Mercedes"),
 )
 
 

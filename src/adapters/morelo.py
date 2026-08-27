@@ -373,6 +373,17 @@ def _build_extracted_motorhome(product: MoreloProduct, pdf_url: str) -> Extracte
     label = f"{product.range_label} {product.model}"
     provenance: dict[str, Provenance] = {}
 
+    if product.base_vehicle_manufacturer is not None:
+        # A page-level fact, not a per-column one: one spec page's floorplans all sit
+        # on the chassis its own heading names, so every column on the page shares it.
+        provenance["base_vehicle_manufacturer"] = Provenance(
+            source_url=source,
+            snippet=(
+                f"{label} — {product.base_vehicle_manufacturer}, the chassis make named "
+                f"on this floorplan's own spec page in the price list"
+            ),
+        )
+
     if product.price_eur is not None:
         provenance["rrp_pounds"] = Provenance(
             source_url=source,

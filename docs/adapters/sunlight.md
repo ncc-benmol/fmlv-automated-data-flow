@@ -54,7 +54,17 @@ visible where it is relied on rather than hidden in a shared utility.
 
 Price, permitted seats, berths, length/width/height, mass in running order, and
 technically permissible maximum laden mass — for every layout. Plus the base chassis
-(`Fiat Ducato`, `Ford Transit`, `VW`), which fills `base_vehicle_manufacturer`.
+(`Fiat Ducato`, `Ford Transit`, `VW`), which fills `base_vehicle_manufacturer` — the make
+is the cell's first word, and the whole cell is carried into the provenance snippet, since
+`Fiat` alone does not say which of Fiat's vans a layout sits on.
+
+> `base_vehicle_manufacturer` was set on the model but **not registered as provenance**
+> until it was fixed alongside the same omission in `burstner.py` and `morelo.py`. The
+> provenance dict is the pipeline's only record of what an adapter looked at —
+> `diff/compare.py` compares only the fields it names, and `store/changes.py` proposes
+> only those fields for a `NEW_PRODUCT` — so the value was silently dropped: correct-
+> looking on every product FMLV already held, blank on every genuinely new one, despite
+> being a REQUIRED field. See [`burstner.md`](burstner.md) for the full write-up.
 
 Three conversions worth knowing about:
 

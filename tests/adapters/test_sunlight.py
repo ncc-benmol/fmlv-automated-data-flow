@@ -20,6 +20,7 @@ from pathlib import Path
 
 from src.adapters.sunlight import (
     SunlightProduct,
+    _build_extracted_motorhome,
     _reconciles,
     find_price_list_urls,
     parse_technical_page,
@@ -279,3 +280,39 @@ def test_the_glossy_catalogue_is_not_mistaken_for_a_price_list() -> None:
     catalogue_only = '<a href="https://www.dropbox.com/s/eee/Sunlight-Kat-RM-2024-UK-IRL.pdf?dl=1">x</a>'
 
     assert find_price_list_urls(catalogue_only, "reisemobile") is None
+
+
+# --------------------------------------------------------------------------- #
+# The base vehicle
+#
+# A value set on the model but never registered as provenance cannot reach FMLV:
+# `diff/compare.py` compares only the fields the provenance dict names, and
+# `store/changes.py` proposes only those fields for a NEW product. So an unregistered
+# base vehicle looks correct on every product FMLV already holds — the baseline value
+# carries through untouched — and lands blank on every genuinely new one, even though
+# it is a REQUIRED field.
+# --------------------------------------------------------------------------- #
+
+
+def test_the_chassis_cell_is_kept_verbatim_beside_the_make() -> None:
+    # "Fiat" alone does not tell a reviewer which of Fiat's vans this is, so the cell
+    # is carried through the way berths_text and seats_text already are.
+    fiats = parse_technical_page(VAN_ADVENTURE, 4)
+    fords = parse_technical_page(LOW_PROFILE_UNLTD, 24)
+
+    assert fiats[0].base_vehicle_manufacturer == "Fiat"
+    assert fiats[0].base_vehicle_text == "Fiat Ducato"
+    # Two makes across two real pages, so neither is a constant the parser invented.
+    assert fords[0].base_vehicle_manufacturer == "Ford"
+    assert fords[0].base_vehicle_text == "Ford Transit"
+
+
+def test_base_vehicle_is_registered_as_provenance_so_a_new_product_keeps_it() -> None:
+    product = parse_technical_page(LOW_PROFILE_UNLTD, 24)[0]
+
+    extracted = _build_extracted_motorhome(product, "https://example/price-list.pdf")
+
+    assert extracted.motorhome.base_vehicle_manufacturer == "Ford"
+    assert "base_vehicle_manufacturer" in extracted.provenance
+    snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
+    assert "Standard chassis: Ford Transit" in snippet  # the row's own label and value

@@ -277,6 +277,40 @@ touched, and a new layout (`C 640`, `HM 6.1`, `HMX 6.1`, all four `SMT`) surface
 honest gap for a reviewer to classify by eye rather than a guess. `mh_height_mm` is still
 collected for every layout, which is what that classification needs.
 
+## `base_vehicle_manufacturer`: read from the document, cross-checked against the range
+
+Each of the five documents names its base vehicle **once**, in the engine/`Chassis
+Equipment` list rather than in the layout table — `Fiat Ducato Multijet 3 - 2.2l - 140 hp
+- Euro 6E` on the B66 and Signature SFT documents, `Mercedes Benz Sprinter 4,5 t - 417
+CDI` on Signature SMT, `Mercedes Benz Sprinter 317 CDI` on Habiton. So this is a
+document-level fact shared by every layout in it, unlike everything the layout tables
+carry, and it is read once per document by `published_chassis`.
+
+Two things that shape matters for:
+
+- **The make is anchored to the base vehicle's own model name, not just the make.** The
+  Habiton document carries `Mercedes Comfort Seats` and `Mercedes emergency call system`
+  in its equipment lists, the first of them only 34 lines from the real chassis line, so
+  a pattern matching `Mercedes` alone reads a seat trim option as the base vehicle.
+- **`DOCUMENTS` still records a per-range make, but as a cross-check rather than the
+  value.** The document is the live source and wins where the two disagree, per
+  [`README.md`](README.md); the displaced make is written into the provenance snippet so
+  a reviewer is told the adapter expected otherwise — because the competing reading of a
+  disagreement is that the document changed shape and the line was misread. All five
+  agreed as surveyed, so nothing changed value when this was introduced. Bürstner writes
+  `Mercedes Benz` unhyphenated; FMLV holds `Mercedes-Benz`, which is what is recorded.
+
+**Why this needed fixing at all.** The value was set on the model from the first run but
+never registered in the provenance dict, and that dict is the pipeline's only record of
+what an adapter looked at: `diff/compare.py` compares only the fields it names, and
+`store/changes.py` proposes only those fields for a `NEW_PRODUCT`. An unregistered value
+is therefore silently dropped — which is why the 13 layouts FMLV already held looked
+correct (their baseline value carried through untouched, never actually confirmed) while
+all seven new ones (`B66 C 640`, `Habiton HM 6.1`, `HMX 6.1`, all four `SMT`) reached the
+upload CSV with `base_vehicle_manufacturer` blank, a REQUIRED field. Setting a field is
+not enough; it has to be registered. The same omission was found and fixed in
+`morelo.py` and `sunlight.py` at the same time.
+
 ## What is still unconfirmed
 
 - Whether the Signature and B66 PDFs (June 2026 edition) have since been superseded by an

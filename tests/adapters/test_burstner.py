@@ -12,12 +12,14 @@ from pathlib import Path
 from src.adapters.burstner import (
     DOCUMENTS,
     _band_reconciles,
+    _build_extracted_motorhome,
     _canonical_model,
     _extract,
     _find_blocks,
     build_document_urls,
     find_document_href,
     parse_document,
+    published_chassis,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -280,3 +282,114 @@ def test_build_document_urls_reconstructs_the_three_unlinked_documents() -> None
         "https://www.buerstner.com/buerstner/01-relaunch-2025/technische-daten"
         "/26-08-17-uk/buerstner-technical-data-2027-habiton-gb.pdf"
     )
+
+
+# --------------------------------------------------------------------------- #
+# The base vehicle
+#
+# It reaches FMLV only if it is *registered as provenance*, not merely set on the
+# model: `diff/compare.py` compares only the fields the provenance dict names, and
+# `store/changes.py` proposes only those fields for a NEW product. An unregistered
+# value is silently dropped — which is how all seven of the first run's new layouts
+# (B66 C 640, Habiton HM/HMX 6.1, all four Signature SMT) reached the upload CSV with
+# `base_vehicle_manufacturer` blank, a REQUIRED field, while the 13 that already
+# existed in FMLV looked correct, their value carried through from the baseline.
+# --------------------------------------------------------------------------- #
+
+
+def _one_product(key: str):
+    products, _count = parse_document(_fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key])
+    return products[0]
+
+
+def test_every_document_names_its_own_chassis() -> None:
+    # Not a per-column figure: the chassis is stated once per document, in its own
+    # engine list, so all five are checked at document level.
+    assert published_chassis(_fixture("b66_td"))[0] == "Fiat"
+    assert published_chassis(_fixture("b66_c"))[0] == "Fiat"
+    assert published_chassis(_fixture("signature_sft"))[0] == "Fiat"
+    assert published_chassis(_fixture("signature_smt"))[0] == "Mercedes-Benz"
+    assert published_chassis(_fixture("habiton"))[0] == "Mercedes-Benz"
+
+
+def test_the_chassis_line_is_quoted_as_the_document_prints_it() -> None:
+    make, line = published_chassis(_fixture("signature_smt"))
+
+    assert make == "Mercedes-Benz"  # FMLV's spelling, not the document's "Mercedes Benz"
+    assert line == "Mercedes Benz Sprinter 4,5 t - 417 CDI"
+
+
+def test_mercedes_branded_equipment_is_not_mistaken_for_a_chassis() -> None:
+    # The Habiton document lists "Mercedes Comfort Seats" 34 lines from its real chassis
+    # line, and "Mercedes emergency call system" nearer still. Matching the make alone
+    # would read a seat trim option as the base vehicle.
+    equipment_only = """Chassis Equipment
+Mercedes Comfort Seats upholstered to match the living
+Mercedes emergency call system
+"""
+
+    assert published_chassis(equipment_only) is None
+
+
+def test_base_vehicle_is_registered_as_provenance_so_a_new_product_keeps_it() -> None:
+    # The regression this section exists for. Setting the field is not enough.
+    for key in ("b66-td", "b66-c", "signature-sft", "signature-smt", "habiton"):
+        extracted = _build_extracted_motorhome(_one_product(key), "https://example/doc.pdf")
+
+        assert extracted.motorhome.base_vehicle_manufacturer is not None, key
+        assert "base_vehicle_manufacturer" in extracted.provenance, key
+
+
+def test_the_provenance_snippet_quotes_the_document_rather_than_asserting_a_make() -> None:
+    extracted = _build_extracted_motorhome(_one_product("habiton"), "https://example/doc.pdf")
+    snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
+
+    assert "Mercedes-Benz" in snippet
+    assert "Sprinter 317 CDI" in snippet  # the document's own words, not the adapter's
+
+
+def _synthetic(chassis_line: str) -> str:
+    """A minimal document in Signature's letter-first shape.
+
+    One layout code on its own line, one readable label so the block is not discarded
+    as an equipment chart, and whatever chassis line the caller wants to plant.
+    """
+    return (
+        """SMT 7.0
+Price 100,000.-
+Overall length (approx. cm) 700
+Headroom (approx. cm) 200
+"""
+        + chassis_line
+    )
+
+
+def test_a_document_that_changes_chassis_overrules_the_configured_make_and_says_so() -> None:
+    # DOCUMENTS records Signature SMT as Mercedes-Benz. If Bürstner moves the range onto
+    # a Ducato, the document is the live source and wins — but a reviewer must be told
+    # the adapter expected otherwise, because the competing reading is that the document
+    # changed shape and the line was misread.
+    products, _count = parse_document(
+        _synthetic("Fiat Ducato Multijet 3 - 2.2l - 140 hp"),
+        DOCUMENTS_BY_KEY["signature-smt"],
+    )
+
+    assert products[0].base_vehicle_manufacturer == "Fiat"
+    assert products[0].base_vehicle_expected == "Mercedes-Benz"
+    extracted = _build_extracted_motorhome(products[0], "https://example/doc.pdf")
+    snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
+    assert "expected Mercedes-Benz" in snippet
+    assert "do not accept this blind" in snippet
+
+
+def test_a_document_naming_no_chassis_falls_back_to_the_configured_make() -> None:
+    # Still recorded and still registered — but the snippet must not claim the document
+    # said something it does not say.
+    products, _count = parse_document(_synthetic(""), DOCUMENTS_BY_KEY["signature-smt"])
+
+    assert products[0].base_vehicle_manufacturer == "Mercedes-Benz"
+    assert products[0].base_vehicle_published is None
+    assert products[0].base_vehicle_expected is None
+    extracted = _build_extracted_motorhome(products[0], "https://example/doc.pdf")
+    snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
+    assert "names no chassis line of its own" in snippet

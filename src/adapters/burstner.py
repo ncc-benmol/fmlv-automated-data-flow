@@ -175,6 +175,24 @@ _LABELS: tuple[tuple[str, str | None, str], ...] = (
 #: — the same allowance `etrusco.py` uses for the identical device.
 _MRO_BAND_SLACK_KG = 3
 
+#: The base vehicle as each document's own engine list names it, e.g.
+#: `Fiat Ducato Multijet 3 - 2.2l - 140 hp - Euro 6E` or
+#: `Mercedes Benz Sprinter 4,5 t - 417 CDI`. Anchored to the base vehicle's own model
+#: name rather than just the make, because the make alone appears all over these
+#: documents on things that are not chassis — the Habiton document carries `Mercedes
+#: Comfort Seats` and `Mercedes emergency call system` in its equipment lists, and the
+#: first of those sits only 34 lines from the real chassis line.
+_CHASSIS_LINE = re.compile(
+    r"^(?:Fiat\s+Ducato|Mercedes[\s-]+Benz\s+(?:4wd\s+)?Sprinter)[^\n]*", re.MULTILINE
+)
+
+#: The chassis line's own opening make -> the make as FMLV spells it. Bürstner writes
+#: `Mercedes Benz` unhyphenated; FMLV holds `Mercedes-Benz`.
+_CHASSIS_MAKES: tuple[tuple[str, str], ...] = (
+    ("fiat", "Fiat"),
+    ("mercedes", "Mercedes-Benz"),
+)
+
 
 def _label_pattern(label: str) -> re.Pattern[str]:
     """A label as printed, tolerant of the mid-label line wrap these PDFs use.
@@ -271,6 +289,28 @@ def _extract(kind: str, value_run: str, count: int) -> list[object | None]:
     return empty
 
 
+def published_chassis(text: str) -> tuple[str, str] | None:
+    """`(make, the line as printed)` for the base vehicle one document names, or `None`.
+
+    Every one of the five documents names its chassis in an engine/`Chassis Equipment`
+    list rather than in the layout table, so this is a **document-level** fact, not a
+    per-column one — which is why it is read once per document and shared by every
+    layout in it, unlike everything `_extract` handles.
+
+    `None` when no line matches, which is not a failure: the per-range make in
+    `DOCUMENTS` then stands on its own, as it did before this was read at all.
+    """
+    match = _CHASSIS_LINE.search(text)
+    if match is None:
+        return None
+    line = re.sub(r"\s+", " ", match.group(0)).strip(" -–")
+    lowered = line.lower()
+    for prefix, make in _CHASSIS_MAKES:
+        if lowered.startswith(prefix):
+            return make, line
+    return None
+
+
 def _band_reconciles(band: tuple[int, int, int] | None) -> bool:
     """Whether a mass-in-running-order figure agrees with its own printed ±5% band.
 
@@ -308,6 +348,14 @@ class BurstnerProduct:
     berths_published: str | None = None
     mh_passenger_seats_inc_driver: int | None = None
     seats_published: str | None = None
+    #: The base vehicle line as this layout's document prints it, e.g. `Fiat Ducato
+    #: Multijet 3 - 2.2l - 140 hp - Euro 6E`. `None` when the document names none, in
+    #: which case `base_vehicle_manufacturer` is the per-range make from `DOCUMENTS`
+    #: alone and the provenance snippet says so.
+    base_vehicle_published: str | None = None
+    #: Set only when the document's own chassis line contradicts the per-range make in
+    #: `DOCUMENTS` — carries the make that was expected, for the snippet to flag.
+    base_vehicle_expected: str | None = None
 
     @property
     def label(self) -> str:
@@ -328,6 +376,21 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
     separately from a document with no tables at all.
     """
     blocks = _find_blocks(text, config.token_order)
+
+    # The chassis is named once per document, not per column, so it is read here and
+    # shared by every layout below. The document over-rules the per-range make in
+    # `DOCUMENTS` when the two disagree — `docs/adapters/README.md`'s rule that the
+    # manufacturer's own current publication wins — and the make it displaced is kept
+    # so the snippet can tell a reviewer the two did not agree.
+    chassis = published_chassis(text)
+    base_vehicle = chassis[0] if chassis else config.base_vehicle_manufacturer
+    published_line = chassis[1] if chassis else None
+    expected = (
+        config.base_vehicle_manufacturer
+        if chassis and chassis[0] != config.base_vehicle_manufacturer
+        else None
+    )
+
     products: list[BurstnerProduct] = []
     for codes, block in blocks:
         count = len(codes)
@@ -362,7 +425,7 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
                     BurstnerProduct(
                         range_label=config.range_label,
                         model=model,
-                        base_vehicle_manufacturer=config.base_vehicle_manufacturer,
+                        base_vehicle_manufacturer=base_vehicle,
                         mro_kilograms=-1,
                     )
                 )
@@ -373,7 +436,9 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
                 BurstnerProduct(
                     range_label=config.range_label,
                     model=model,
-                    base_vehicle_manufacturer=config.base_vehicle_manufacturer,
+                    base_vehicle_manufacturer=base_vehicle,
+                    base_vehicle_published=published_line,
+                    base_vehicle_expected=expected,
                     rrp_pounds=values.get("rrp_pounds", [None] * count)[column],
                     mh_length_mm=values.get("mh_length_mm", [None] * count)[column],
                     mh_width_mm=values.get("mh_width_mm", [None] * count)[column],
@@ -414,6 +479,30 @@ def _build_extracted_motorhome(product: BurstnerProduct, source_url: str) -> Ext
             source_url=source_url,
             snippet=f"{product.label} — Price: £{product.rrp_pounds:,}. Read from {_PRICE_SOURCE_NOTE}.",
         )
+    if product.base_vehicle_manufacturer is not None:
+        if product.base_vehicle_published is None:
+            basis = (
+                f"the base vehicle every layout in the {product.range_label} range is "
+                f"built on — this document names no chassis line of its own"
+            )
+        elif product.base_vehicle_expected is not None:
+            basis = (
+                f"read from this document's own chassis list, '"
+                f"{product.base_vehicle_published}'. NOTE: the adapter expected "
+                f"{product.base_vehicle_expected} for this range, so the range has "
+                f"changed chassis or the document has changed shape — do not accept "
+                f"this blind"
+            )
+        else:
+            basis = (
+                f"read from this document's own chassis list, '"
+                f"{product.base_vehicle_published}'"
+            )
+        provenance["base_vehicle_manufacturer"] = Provenance(
+            source_url=source_url,
+            snippet=f"{product.label} — {product.base_vehicle_manufacturer}: {basis}",
+        )
+
     numeric_snippets = {
         "mh_length_mm": ("Overall length (approx. cm)", product.mh_length_mm, 10),
         "mh_width_mm": ("Overall width (approx. cm)", product.mh_width_mm, 10),

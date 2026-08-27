@@ -133,6 +133,10 @@ class SunlightProduct:
     model: str
     page_number: int
     base_vehicle_manufacturer: str | None = None
+    #: The `Standard chassis` cell as printed, e.g. `Fiat Ducato` — kept for the
+    #: provenance snippet, since the make alone does not tell a reviewer which of a
+    #: make's vans the layout sits on.
+    base_vehicle_text: str | None = None
     rrp_pounds: int | None = None
     berths: int | None = None
     berths_text: str | None = None
@@ -283,6 +287,7 @@ def parse_technical_page(runs: list[str], page_number: int) -> list[SunlightProd
                 page_number=page_number,
                 # "Fiat Ducato" / "Ford Transit" — the make is the first word.
                 base_vehicle_manufacturer=chassis.split()[0] if chassis else None,
+                base_vehicle_text=chassis,
                 rrp_pounds=_to_int(price.group(1)) if price else None,
                 berths=int(berths.group(1)) if berths else None,
                 berths_text=cell("berths", index),
@@ -330,6 +335,12 @@ def _build_extracted_motorhome(product: SunlightProduct, pdf_url: str) -> Extrac
     def record(field: str, snippet: str) -> None:
         provenance[field] = Provenance(source_url=source, snippet=f"{label} — {snippet}")
 
+    if product.base_vehicle_manufacturer is not None:
+        record(
+            "base_vehicle_manufacturer",
+            f"Standard chassis: {product.base_vehicle_text} "
+            f"(make taken as {product.base_vehicle_manufacturer})",
+        )
     if product.rrp_pounds is not None:
         record("rrp_pounds", f"Price £{product.rrp_pounds:,} (UK & Ireland price list)")
     if product.berths is not None:

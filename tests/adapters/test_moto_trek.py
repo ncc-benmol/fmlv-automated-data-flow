@@ -495,12 +495,28 @@ def test_the_terrain_and_tornado_repeat_the_range_in_the_model() -> None:
     assert VEHICLE_IDENTITIES["tornado-transporter"][:2] == ("Tornado", "Tornado")
 
 
-def test_only_the_eld_is_a_coachbuilt_among_the_leisure_trekas() -> None:
-    # 2.26m wide against its siblings' 2.05m, 2.64m tall against their 2.76m, and 660kg
-    # heavier. FMLV holds it as campervan_high_top, which is wrong but out of scope.
-    assert VEHICLE_IDENTITIES["leisure-treka-rl"][2] is True
-    assert VEHICLE_IDENTITIES["leisure-treka-eb"][2] is True
-    assert VEHICLE_IDENTITIES["leisure-treka-eld"][2] is False
+def test_every_leisure_treka_is_a_van_conversion_including_the_eld() -> None:
+    """The ELD's odd figures are measurement conventions, not a different vehicle.
+
+    An earlier version of this table had the ELD as a coachbuilt, on the strength of it
+    being 2.26m wide against its siblings' 2.05m, 2.64m tall against their 2.76m and
+    3160kg against their 2500kg. Its own handbook dissolves all three: the width is
+    quoted "with the mirrors folded" (210mm over the body, ~105mm per mirror), the height
+    "with the TV aerial stowed", and its mass is an `M.I.R.O` — habitation equipment, gas,
+    a full water tank and the hook-up cable included — against the siblings' dry
+    `Unladen Weight`. All four are 6.36m on the same Boxer.
+
+    So FMLV's `campervan_high_top` was right and the proposed correction was not.
+    """
+    for slug in ("leisure-treka-rl", "leisure-treka-eb", "leisure-treka-eld"):
+        assert VEHICLE_IDENTITIES[slug][2] is True, slug
+
+
+def test_the_eld_is_a_high_top_like_its_siblings() -> None:
+    product, _ = parse_vehicle_page(_page("leisure_treka_eld"), "leisure-treka-eld")
+    assert product is not None
+    assert product.mh_height_mm == 2640
+    assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
 
 
 # --------------------------------------------------------------------------- #

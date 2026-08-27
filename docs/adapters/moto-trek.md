@@ -308,21 +308,32 @@ Applying it in the right order to Moto-Trek:
 | Xplora FDB / ELD | coachbuilt | n/a | `coach_built_low_profile` ✓ |
 | Pioneer IB | coachbuilt, over-cab bed | n/a | `coach_built_over_cab_bed` ✓ |
 
-So the only wrong one is the **Leisure-Treka ELD**, and it is wrong on the shape question rather
-than the height one. Three things put it on the coachbuilt side of its own siblings:
+### The ELD looked wrong and is not — a retracted correction
 
-- **2.26m wide against their 2.05m.** A Peugeot Boxer body is 2050mm, so the RL and EB are the
-  van and the ELD is not.
-- **2.64m tall against their 2.76m** — *lower* despite being wider, which is the characteristic
-  low-profile-coachbuilt profile against a high-top van conversion's.
-- **MRO 3160kg against their 2500kg**, confirmed by the ELD's own handbook. A 660kg difference
-  is a different vehicle, not a different way of measuring one.
+An earlier version of this survey called the **Leisure-Treka ELD** the one wrong entry, a
+coachbuilt filed as `campervan_high_top`. **That was wrong. FMLV is right, and nothing should
+be changed.** Recording it because the mistake is instructive: the argument rested on three
+figures against its siblings, and every one of them is a measurement convention rather than a
+difference in the vehicle.
 
-The site's `/campervans/` page lists all three Leisure-Trekas, which is presumably what the
-current classification rests on — but that page also lists the Ford Custom, so it is a
-navigation grouping, not a declaration.
+| | RL / EB | ELD | What the difference actually is |
+|---|---|---|---|
+| Overall Width\* | 2.05m | 2.26m | the handbook says the ELD's is **"with the mirrors folded"** — 2260 − 2050 = 210mm, about 105mm per mirror |
+| Overall Height\* | 2.76m | 2.64m | the handbook says **"with the TV aerial stowed"**; the 120mm is an aerial |
+| Mass | 2500kg | 3160kg | **different labels**: `Unladen Weight` against `M.I.R.O`, and the handbook defines its MIRO as *including* habitation equipment, a 90% gas tank, a full 70L of water and the hook-up cable |
 
-Out of scope, so **not for this adapter to change**. Flagged for a human.
+All four Leisure-Treka-shell vehicles are **6.36m long on the same Peugeot Boxer**. A
+coachbuilt matching a van conversion's length to the centimetre would be some coincidence.
+
+**The lesson is about the tiebreaker, not the width.** The "mirrors folded" wording was already
+in this document, and the correction was pushed anyway because the 660kg gap looked decisive.
+It was not: comparing an `Unladen Weight` against an `M.I.R.O` is comparing a dry vehicle
+against a wet one, and that gap is most of the 660kg. **When two figures come from differently
+labelled rows, the difference between them is not evidence about the vehicle** until the labels
+have been reconciled — which is the same discipline the `_FIELDS` type check applies within a
+page, applied across two of them.
+
+The requester queried it rather than acting on it, which is what caught it.
 
 ### The width and height labels mean different things on the van and the coachbuilt
 
@@ -554,11 +565,11 @@ wide and 2.76m high, the ELD is 2.26m wide and 2.64m high. Those are two differe
 This is the Elddis pattern in reverse — there, one range's figures had been copied onto its
 siblings on the *website*; here it has happened in *FMLV*. Three things say the site is right:
 
-- **The 660kg gap in MRO settles it.** 3160kg against 2500kg cannot be a measurement
-  convention, so the ELD is genuinely a different, heavier vehicle from the RL and EB — which
-  is what rules out the alternative reading that FMLV has deliberately normalised the range
-  onto one set of mirrors-folded figures. See the label note in the body-type section: the
-  width and height *could* be read either way, and only the weights break the tie.
+- **The site publishes these figures directly for these vehicles**, which is the whole basis:
+  the EB's own page says 2.05m, 2.76m and 2500kg, and FMLV holds the ELD's 2.26m, 2.64m and
+  3160kg against them. Note this is a narrower claim than an earlier draft made — the 660kg
+  gap is *not* evidence of a different vehicle (see the retraction above), only evidence that
+  FMLV is holding the ELD's row on the EB and RL.
 - The site's figures are internally consistent — 3500 − 2500 = 1000 — as are the ELD's.
 - The Tornado and The Terrain, which are the same 2.05m Boxer shell, are held by FMLV at
   exactly the site's 2500 / 3500 / 1000 and 6360 × 2050 × 2760. So FMLV holds the correct

@@ -104,13 +104,29 @@ MANUFACTURER_DISPLAY_NAME = "MOTO-TREK"
 #:   product slug `moto-trek-the-terrain-the-terrain-peugeot` confirms is deliberate.
 #:
 #: `is_campervan` is the shape judgement, taken as declared per `docs/adapters/README.md`.
-#: The Leisure-Treka RL and EB, the Terrain and the Tornado are 2.05m-wide Peugeot Boxer van
-#: conversions; the ELD is 2.26m wide, 2.64m tall and 660kg heavier, so it is a coachbuilt
-#: despite the site filing all three Leisure-Trekas under `/campervans/`.
+#: Every Leisure-Treka, the Terrain and the Tornado are Peugeot Boxer van conversions; the
+#: Xploras, X-Cites, Euro-Treka and Pioneer are coachbuilts, and return no body type because
+#: the site never says whether they are low-profile or over-cab.
+#:
+#: **The ELD is a van conversion too, and an earlier version of this table had it wrong.**
+#: It looks like a coachbuilt sitting between its siblings — 2.26m wide against their 2.05m,
+#: 2.64m tall against their 2.76m, and a 3160kg mass against their 2500kg. All three are
+#: measurement conventions, not a different vehicle:
+#:
+#: * its own handbook says "2.26m wide **with the mirrors folded**", and 2260 − 2050 = 210mm
+#:   is about 105mm per mirror, exactly what a folded van mirror adds;
+#: * the same handbook says "2.64m tall **with the TV aerial stowed**", so the 120mm is an
+#:   aerial;
+#: * and the masses are different measurements — the siblings publish `Unladen Weight`,
+#:   the ELD `M.I.R.O`, which its handbook defines as *including* habitation equipment, a
+#:   90% gas tank, a full 70L of water and the hook-up cable.
+#:
+#: All four are 6.36m long on the same Boxer. FMLV holds it as `campervan_high_top` and that
+#: is right — the requester queried the proposed correction and it did not survive.
 VEHICLE_IDENTITIES: dict[str, tuple[str, str, bool]] = {
     "leisure-treka-rl": ("Leisure-Treka", "RL", True),
     "leisure-treka-eb": ("Leisure-Treka", "EB", True),
-    "leisure-treka-eld": ("Leisure-Treka", "ELD", False),
+    "leisure-treka-eld": ("Leisure-Treka", "ELD", True),
     "the-terrain": ("The Terrain", "The Terrain", True),
     "xplora-fdb": ("Xplora", "FDB", False),
     "xplora-eld": ("Xplora", "ELD", False),

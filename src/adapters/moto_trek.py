@@ -62,6 +62,12 @@ sitemap) restate identical net prices as an on-the-road `GRAND TOTAL`, +£400 fl
 is to record the headline a buyer sees, so that FMLV and moto-trek.co.uk agree — requester,
 27 August 2026. `POA` is not a price and never becomes zero.
 
+Four vehicles are `POA`, and for those the run **narrates** the last figure Moto-Trek did
+publish, with its date, from `LAST_PUBLISHED_PRICES` — so a reviewer entering a guide price
+by hand has the manufacturer's own number rather than an estimate. It is never written to
+`rrp_pounds`; asserting a withdrawn figure as collected is a different thing from a reviewer
+choosing it knowingly.
+
 **Seats are unpublished everywhere on this manufacturer** — the vehicle pages, the index
 cards and the ELD handbook all decline to give a number — so `mh_passenger_seats_inc_driver`
 is always left unset and narrated once per run.
@@ -127,6 +133,34 @@ IGNORED_SLUGS: dict[str, str] = {
         "manufacturer_id 210) with its own baseline export; its page also carries no spec "
         "block at all, so none of FMLV's figures for it are recoverable from this site"
     ),
+}
+
+#: The last price Moto-Trek published for each vehicle the site now marks `POA`, with the
+#: date of the document it came from. `(pounds, document date)`.
+#:
+#: **Narrated only — never written to `rrp_pounds`.** A run must not assert a withdrawn
+#: figure as though it had collected one, and the price rule is to record the manufacturer's
+#: *headline website* price, which for these four does not exist. What this does is put the
+#: number in front of the reviewer on the run page, so entering a guide price by hand is a
+#: sourced decision rather than an estimate (requester, 27 August 2026).
+#:
+#: The figures are the `2024 Retail Price` column of `January-2024-Retail-Price-List.pdf` —
+#: net plus VAT, which is the basis FMLV already holds. The October 2024 guide restates the
+#: identical net prices on an on-the-road basis (+£400 flat: £153,215, £98,395 and £70,395),
+#: and is deliberately not used, per the headline-price rule.
+#:
+#: **Two model years old, but not obviously stale:** all seven prices the site *still*
+#: publishes are identical to this same list, to the pound — Moto-Trek have not moved a
+#: published price since January 2024. Re-check when a newer list appears in the media
+#: library (`/wp-json/wp/v2/media?mime_type=application/pdf`), which is where these hide.
+#:
+#: Note FMLV's own held price disagrees for the Tornado — £64,995 against the £69,995 here,
+#: from some source older than anything on the site.
+LAST_PUBLISHED_PRICES: dict[str, tuple[int, str]] = {
+    "euro-treka-ib": (152_995, "January 2024"),
+    "x-cite-eb-elite": (97_995, "January 2024"),
+    "x-cite-g-elite": (97_995, "January 2024"),
+    "tornado-transporter": (69_995, "January 2024"),
 }
 
 #: `(informational slug, label)`. The label is the FMLV `manufacturer_range`, so
@@ -857,10 +891,20 @@ def collect(
             )
 
         if product.is_poa:
-            on_progress(
+            message = (
                 f"[{product.label}] WARNING: price is POA, so none is proposed. FMLV's held "
                 f"figure, if any, stays as it is"
             )
+            last = LAST_PUBLISHED_PRICES.get(slug)
+            if last is not None:
+                amount, published = last
+                message += (
+                    f". Moto-Trek's last published price for it was £{amount:,}, from their "
+                    f"{published} retail price list — ex works plus VAT, the same basis FMLV "
+                    f"holds. Every price they still publish is unchanged from that list, so "
+                    f"it is the best guide figure available; enter it by hand if you want one"
+                )
+            on_progress(message)
         elif product.rrp_pounds is None:
             on_progress(f"[{product.label}] WARNING: no headline price found, left blank")
 

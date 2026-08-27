@@ -444,8 +444,44 @@ it blank** — confirmed by the requester, 27 August 2026 — because a two-year
 product being created fresh is worse than a gap a reviewer can fill, and unlike the X-Cite
 there is no held value to preserve by inaction.
 
-**But it will not stay blank, and that is the reviewer's job rather than the adapter's.**
-Francis expects to enter roughly **£150,000** by hand when he uploads it, because *FMLV needs
+### The run hands you the figure, dated, rather than leaving you to estimate
+
+Requested 27 August 2026, and it changes nothing about what is *collected*. All four `POA`
+vehicles do have a last published price, in the hidden January 2024 list, and the run now
+narrates it with its date:
+
+```
+[Euro-Treka IB] WARNING: price is POA, so none is proposed. FMLV's held figure, if any,
+stays as it is. Moto-Trek's last published price for it was £152,995, from their
+January 2024 retail price list — ex works plus VAT, the same basis FMLV holds. Every price
+they still publish is unchanged from that list, so it is the best guide figure available;
+enter it by hand if you want one
+```
+
+| Vehicle | Last published (Jan 2024, net + VAT) | Oct 2024 on-the-road | FMLV holds |
+|---|---|---|---|
+| Euro-Treka IB (G-Sport) | **£152,995** | £153,215 | — (new) |
+| X-Cite EB / G Elite | £97,995 | £98,395 | £97,995 ✓ |
+| Tornado | £69,995 | £70,395 | **£64,995** ✗ |
+
+Three things make this worth doing rather than just leaving a gap:
+
+- **The figures are Moto-Trek's own**, on the basis FMLV already holds, so a hand-entered
+  guide price becomes a sourced decision rather than an estimate.
+- **Two model years old, but not obviously stale.** All seven prices the site *still*
+  publishes are identical to that same January 2024 list, to the pound — they have not moved
+  a published price in over two years. See `LAST_PUBLISHED_PRICES`.
+- **It is narration, never a value.** Run #40 proposed **zero** `rrp_pounds` changes and the
+  classification was byte-identical to run #38's. Asserting a withdrawn figure as collected
+  is a different act from a reviewer choosing it knowingly, and only the second is honest.
+
+**FMLV's Tornado price matches neither list** — £64,995 against £69,995, from a source older
+than anything on the site. The run cannot propose a correction (the site says `POA`), so it is
+a manual fix if anyone wants it. The out-of-scope Three Peaks Ford Camper is £12,000 adrift the
+same way: FMLV holds £63,995 against a £75,995 list price.
+
+**And it will not stay blank, which is the reviewer's job rather than the adapter's.**
+Francis expects to enter a guide price by hand when he uploads it — **£152,995**, now that the run surfaces it, because *FMLV needs
 some price indication to classify a vehicle when people sort and filter* — a blank price does
 not merely read poorly, it drops the product out of sorted results. His figure lands within
 2% of Moto-Trek's own withdrawn numbers, which is the useful part: a well-judged round guide

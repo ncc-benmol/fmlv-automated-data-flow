@@ -33,6 +33,7 @@ from src.adapters.moto_trek import (
     _ALWAYS_EMPTY_LABELS,
     HIGH_TOP_ABOVE_MM,
     IGNORED_SLUGS,
+    LAST_PUBLISHED_PRICES,
     VEHICLE_IDENTITIES,
     DEFAULT_RANGES,
     IndexCard,
@@ -603,3 +604,46 @@ def test_the_manufacturer_string_matches_the_registry_row() -> None:
 
     assert moto_trek.MANUFACTURER == "MOTO-TREK LIMITED"
     assert adapter_for("MOTO-TREK LIMITED") is moto_trek
+
+# --------------------------------------------------------------------------- #
+# The last published price: narrated, never asserted
+# --------------------------------------------------------------------------- #
+
+
+def test_last_published_prices_covers_exactly_the_poa_vehicles() -> None:
+    # The four the site marks POA. If Moto-Trek start quoting one again, the run will
+    # read the headline instead and this entry simply stops being reached.
+    assert set(LAST_PUBLISHED_PRICES) == {
+        "euro-treka-ib",
+        "x-cite-eb-elite",
+        "x-cite-g-elite",
+        "tornado-transporter",
+    }
+
+
+def test_last_published_prices_carry_a_date() -> None:
+    # The date is the point: a bare figure invites being read as current.
+    for amount, published in LAST_PUBLISHED_PRICES.values():
+        assert amount > 0
+        assert published == "January 2024"
+
+
+def test_the_euro_treka_figure_is_the_one_from_their_own_price_list() -> None:
+    # £152,995 is the January 2024 list's "2024 Retail Price" column — net plus VAT, the
+    # basis FMLV holds. Not the October guide's £153,215, which is on-the-road.
+    assert LAST_PUBLISHED_PRICES["euro-treka-ib"] == (152_995, "January 2024")
+
+
+def test_a_last_published_price_is_never_written_to_the_product() -> None:
+    # The whole point of the table is that it informs a reviewer without the run
+    # asserting a withdrawn figure as collected.
+    product, block = parse_vehicle_page(_page("x_cite_eb_elite"), "x-cite-eb-elite")
+    assert product is not None
+    assert block is not None
+    assert "x-cite-eb-elite" in LAST_PUBLISHED_PRICES
+    assert product.rrp_pounds is None
+    assert product.is_poa is True
+
+    extracted = _build_extracted_motorhome(product, "https://moto-trek.co.uk/x/", block)
+    assert extracted.motorhome.rrp_pounds is None
+    assert "rrp_pounds" not in extracted.provenance

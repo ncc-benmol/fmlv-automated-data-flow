@@ -152,3 +152,51 @@ better source every time. What Sunlight adds to [`README.md`](README.md)'s guida
 - **A downloads page usually lists more than the current document.** Both Morelo and
   Sunlight had a near-miss sitting next to the file actually wanted; Sunlight also had
   three superseded years of the right file. Match precisely, and prefer the newest.
+
+## MY27: Sunlight renamed the ranges, and matching couldn't follow
+
+The 27 August 2026 run proposed **17 of 26 layouts as new products**. Six were. The
+other eleven were vehicles FMLV already held, and the same run raised disappearance
+notices against the very rows it was proposing to duplicate — it asked for 6549 to be
+deactivated and for a second copy of it to be created, in one report.
+
+Sunlight changed two things at once for model year 2027:
+
+| MY26, as FMLV holds it | MY27 price list |
+|---|---|
+| `Van Adventure Edition` `V60` | `Van Adventure` `V 60` |
+| `Low Profiles Adventure` `T58` | `Low Profile Adventure` `T 58` |
+| `Coachbuilts` `A60` | `Coachbuilts Root` `A 60` |
+| `A Class Adventure Edition` `I67S` | `A Class Adventure` `I 67S` |
+
+Neither change on its own is fatal, but together they fall through
+`diff/matching.py`'s 0.5 threshold: `V 60` tokenises to `{v, 60}` and `V60` to `{v60}`,
+which share *nothing*, so the whole score rested on a range name that had also been
+edited. The scores landed at 0.20–0.43. The one layout in that family that did match —
+`T 66S` at 0.667 — matched only because FMLV's row 8268 happens to store the code with a
+space in it, which is the clearest possible demonstration that the spacing, not the
+vehicle, was deciding the outcome.
+
+`Coachbuilts Root` is not a parse artefact, incidentally: it is the literal heading run
+on page 43 of `reisemobile-mj27-uk.pdf`.
+
+The fix is in the matcher, not here — adjacent model-code fragments are now joined
+before scoring, and a layout code that disagrees on both sides blocks a match outright.
+Re-run against the same snapshots: **20 matched, 6 new.** See `src/diff/matching.py`.
+
+The six genuinely new: `Low Profile UNLTD` T 7003S / T 7033P / T 7433Q / T 7433S — a new
+Ford Transit range with no UNLTD counterpart in FMLV at all — plus `VW IBEX` 604D on the
+VW Crafter, and `CLIFF X` 602, the 602 layout extended into the X trim (FMLV held the X
+in 600 and 640 only).
+
+### The export is a history, not a line-up
+
+Chasing this turned up a second fault worth knowing about on every manufacturer.
+Sunlight's baseline export holds 105 rows for 38 live products: `Coachbuilts A60` is in
+there twice, as archived 2022 product 3524 and live 2026 product 6562, identical in
+range and model. Both score the same against a scraped `Coachbuilts Root A 60`, so the
+winner was whichever the export happened to list first — the archived one, in eight of
+the eleven recovered products. The model-year update would have landed on a dead row
+while the live one drifted out of date, which is a quieter failure than a duplicate and
+would not have shown up in a health check at all. `matching.py` now breaks ties toward
+the live row, newest year first.

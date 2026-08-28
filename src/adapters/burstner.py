@@ -35,16 +35,19 @@ Two things this shape needs that Auto-Trail's whole-page-per-model documents do 
   ones, differing only in the trailing slug, so the dated folder segment is read out of a
   linked B66 URL and reused to build the other three — see `_discover_document_urls`.
 
-Two things this adapter deliberately does **not** attempt, both from a real conflict
-found against the live FMLV baseline while surveying:
+**`body_type` is derived from the published width**, which is the one measurement here
+that separates a converted panel van (2040-2080mm) from a coachbuilt body (2300-2350mm);
+see `body_type_for`. It was deliberately left unset until 27 August 2026, because FMLV's
+baseline holds two Bürstner classifications that no rule derivable from the source
+reproduces, and proposing a "correction" to a record that was actually right is worse than
+an honest gap. The requester then confirmed both are FMLV's own errors — B66 TD 744 is a
+low profile, not an `a_class`, and B66 C 644 is a plain high top with no elevating roof as
+standard — so the field is now filled and those two are proposed rather than left for a
+manual edit. Against the real baseline the rule confirms 11 of 13 and proposes exactly
+those 2.
 
-* **`body_type`.** FMLV's own baseline classifies one B66 TD layout as `a_class` and the
-  rest of the range as `coach_built_low_profile`, and one B66 Campervan layout as having
-  an elevating roof as standard while its sibling does not — and neither split lines up
-  with anything this document publishes (dimensions, headings). Guessing a uniform rule
-  would risk silently "correcting" an existing product's classification to something
-  wrong. `mh_height_mm` is still collected, so a reviewer has what they need to classify
-  a new layout by eye.
+One thing this adapter deliberately does **not** attempt:
+
 * **The overview page's range-level "from" price.** It is not read at all — see the
   module-level `_PRICE_SOURCE_NOTE`.
 """
@@ -58,6 +61,7 @@ from pathlib import Path
 
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
+from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
 from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
@@ -174,6 +178,26 @@ _LABELS: tuple[tuple[str, str | None, str], ...] = (
 #: Slack allowed on the printed mass-in-running-order tolerance band, in kg, for rounding
 #: — the same allowance `etrusco.py` uses for the identical device.
 _MRO_BAND_SLACK_KG = 3
+
+#: A campervan taller than this is a high top. The same threshold as
+#: `auto_trail.HIGH_TOP_ABOVE_MM`, set by the NCC side on 16 August 2026.
+HIGH_TOP_ABOVE_MM = 2300
+
+#: A body no wider than this is a converted panel van; anything wider is a coachbuilt
+#: body. **Width, not height, is what separates the two here** — and it is the one
+#: measurement in these documents that does the job cleanly:
+#:
+#:     2040-2080mm   Habiton HM/HMX, B66 C     panel van
+#:     2300-2350mm   B66 TD, Signature SFT/SMT coachbuilt body
+#:
+#: Checked against the real FMLV baseline export 27 August 2026: this rule reproduces
+#: FMLV's own classification on **11 of the 13** products it holds, and the two it
+#: contradicts are both confirmed FMLV errors (see the `body_type` section of
+#: `docs/adapters/burstner.md`). Height cannot be used for this: FMLV's own stored
+#: heights are unusable (Habiton 1900mm, Signature 1980mm — headroom, not overall) and
+#: the documents' real heights overlap heavily between the two families (campervans
+#: 2650-2850mm against coachbuilts 2800-2990mm).
+_CAMPERVAN_WIDTH_AT_MOST_MM = 2100
 
 #: The base vehicle as each document's own engine list names it, e.g.
 #: `Fiat Ducato Multijet 3 - 2.2l - 140 hp - Euro 6E` or
@@ -312,6 +336,40 @@ def published_chassis(text: str) -> tuple[str, str] | None:
     return None
 
 
+def body_type_for(width_mm: int | None, height_mm: int | None) -> BodyType | None:
+    """FMLV's body type for one layout, from its own published width and height.
+
+    `None` when the width is missing — the family cannot be told apart without it, and a
+    guess here would propose a wrong classification onto an existing product, which is
+    what kept this field unset until 27 August 2026.
+
+    **Campervans are `campervan_high_top`, never the elevating-roof variant.** Bürstner's
+    own B66 van page prices the pop-up roof as an accessory — "Pop-up roof in Lanzarote
+    Grey £420" — and describes it as "optionally available", so it is not standard on any
+    layout. FMLV holding `campervan_high_top_elevating_roof` for `C 644` was confirmed by
+    the requester on 27 August 2026 to be an error; the roof is optional across the range.
+
+    **Coachbuilts are `coach_built_low_profile`, never A-class or over-cab.** Bürstner's
+    B66 range nav offers exactly two categories, `Semi-integrated` and `Camper Vans`, and
+    "A class" appears nowhere in either page's visible text; TD 744, which FMLV held as
+    `a_class`, is listed on the Semi-integrated page beside its four siblings and is the
+    same 2300mm width as all of them. Also confirmed an FMLV error by the requester. The
+    beds these documents publish are `Fold down bed` rows — a drop-down over the lounge,
+    not an over-cab bed, which is the other classification this could have been.
+    """
+    if width_mm is None:
+        return None
+    if width_mm <= _CAMPERVAN_WIDTH_AT_MOST_MM:
+        if height_mm is None:
+            return None  # a van whose roof height is unknown could be either
+        return (
+            BodyType.CAMPERVAN_HIGH_TOP
+            if height_mm > HIGH_TOP_ABOVE_MM
+            else BodyType.CAMPERVAN
+        )
+    return BodyType.COACH_BUILT_LOW_PROFILE
+
+
 def _band_reconciles(band: tuple[int, int, int] | None) -> bool:
     """Whether a mass-in-running-order figure agrees with its own printed ±5% band.
 
@@ -367,6 +425,10 @@ class BurstnerProduct:
         if self.mtplm_kilograms is None or self.mro_kilograms is None:
             return None
         return self.mtplm_kilograms - self.mro_kilograms
+
+    @property
+    def body_type(self) -> BodyType | None:
+        return body_type_for(self.mh_width_mm, self.mh_height_mm)
 
 
 def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerProduct], int]:
@@ -471,7 +533,7 @@ def _build_extracted_motorhome(product: BurstnerProduct, source_url: str) -> Ext
         mh_height_mm=product.mh_height_mm,
         mh_passenger_seats_inc_driver=product.mh_passenger_seats_inc_driver,
         berths=product.berths,
-        # body_type deliberately left unset — see the module docstring.
+        body_type=product.body_type,
     )
 
     provenance: dict[str, Provenance] = {}
@@ -480,6 +542,42 @@ def _build_extracted_motorhome(product: BurstnerProduct, source_url: str) -> Ext
             source_url=source_url,
             snippet=f"{product.label} — Price: £{product.rrp_pounds:,}. Read from {_PRICE_SOURCE_NOTE}.",
         )
+    if product.body_type is not None:
+        family = (
+            "a converted panel van"
+            if product.mh_width_mm and product.mh_width_mm <= _CAMPERVAN_WIDTH_AT_MOST_MM
+            else "a coachbuilt body"
+        )
+        if product.body_type in (BodyType.CAMPERVAN_HIGH_TOP, BodyType.CAMPERVAN):
+            detail = (
+                f"roof {product.mh_height_mm}mm, above the {HIGH_TOP_ABOVE_MM}mm "
+                f"high-top threshold. Bürstner price the pop-up roof as an optional "
+                f"accessory rather than fitting it as standard, so this is a plain high "
+                f"top"
+            )
+        elif product.range_label == "B66":
+            detail = (
+                "Bürstner's own B66 range nav offers exactly two categories, "
+                "'Semi-integrated' and 'Camper Vans', and 'A class' appears nowhere in "
+                "either page - so a B66 coachbuilt is a low profile"
+            )
+        else:
+            detail = (
+                f"this range's own page was not read, so the classification rests on the "
+                f"width plus the document publishing a 'Fold down bed' (a drop-down over "
+                f"the lounge) and no over-cab bed. The same rule reproduces FMLV's "
+                f"existing classification for every {product.range_label} layout it "
+                f"already holds"
+            )
+        provenance["body_type"] = Provenance(
+            source_url=source_url,
+            snippet=(
+                f"{product.label} — {product.body_type.value}: Overall width (approx. cm) "
+                f"{product.mh_width_mm // 10 if product.mh_width_mm else '?'} means "
+                f"{family}; {detail}"
+            ),
+        )
+
     if product.base_vehicle_manufacturer is not None:
         if product.base_vehicle_published is None:
             basis = (

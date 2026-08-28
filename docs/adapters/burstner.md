@@ -256,30 +256,52 @@ all — confirmed 19 August 2026 by running `fmlv fetch-export` successfully, wh
 26 products (13 of them the current 2026 model year, the rest a 2022-dated prior
 generation the diff run does not compare against).
 
-## Deliberately not attempted: `body_type`
+## `body_type`: derived from the published width
 
-FMLV's own baseline shows two splits that do not line up with anything this document
-publishes:
+**Width, not height, separates the two families**, and it is the one measurement in these
+documents that does the job cleanly:
 
-- **B66 TD 744 is `a_class`**; every other B66 TD and every Signature SFT layout is
-  `coach_built_low_profile`. TD 744 *is* the outlier of its range in the document — it sits
-  in its own single-column table on a heavier chassis (4400kg against its siblings' 3500 /
-  3650) and is 2990mm tall against their 2950mm — but none of that says "A-class", and the
-  one signal that would, **width, does not separate it at all**: every B66 TD is 2300mm,
-  where an A-class body is normally wider than the semi-integrated it shares a range with.
-  Checked 27 August 2026. (An earlier version of this note recorded TD 744 as 2910mm and
-  *shorter* than its siblings; that was wrong — it is the tallest.)
-- **B66 C 644 has an elevating roof as standard** (`campervan_high_top_elevating_roof`);
-  its sibling C 600 does not (`campervan_high_top`) — but the PDF's `Sleeping roof` row,
-  the only candidate signal, prints values for the *first two* columns (600 C, 640 C) and
-  is blank for the third (644 C), the opposite of what baseline says.
+| Width | Family | Ranges |
+|---|---|---|
+| 2040–2080mm | converted panel van | Habiton HM/HMX, B66 C |
+| 2300–2350mm | coachbuilt body | B66 TD, Signature SFT/SMT |
 
-Guessing a uniform rule from height or from the `Sleeping roof` row would risk proposing a
-wrong "correction" to an existing, correct classification. `body_type` is left unset for
-every Bürstner product — new and existing alike — so an existing classification is never
-touched, and a new layout (`C 640`, `HM 6.1`, `HMX 6.1`, all four `SMT`) surfaces as an
-honest gap for a reviewer to classify by eye rather than a guess. `mh_height_mm` is still
-collected for every layout, which is what that classification needs.
+Height cannot be used for it. FMLV's own stored heights are unusable — Habiton 1900mm,
+Signature 1980mm, which are headroom rather than overall — and the documents' real heights
+overlap heavily between the families (vans 2650–2850mm against coachbuilts 2800–2990mm).
+
+Campervans are `campervan_high_top`, never the elevating-roof variant: Bürstner's own B66
+van page prices the pop-up roof as an accessory ("Pop-up roof in Lanzarote Grey £420",
+"optionally available"), so it is standard on no layout. Coachbuilts are
+`coach_built_low_profile`, never A-class or over-cab: the B66 range nav offers exactly two
+categories, `Semi-integrated` and `Camper Vans`, "A class" appears nowhere in the visible
+text of either page, and the beds these documents publish are `Fold down bed` rows — a
+drop-down over the lounge, not an over-cab bed.
+
+**Checked against the real baseline export, 27 August 2026: the rule reproduces FMLV on 11
+of the 13 products it holds, proposes 2 changes and fills 7 new layouts.** Both proposals
+were confirmed by the requester to be FMLV errors, which is what unblocked this field:
+
+- **B66 TD 744, held as `a_class`** → `coach_built_low_profile`. *"The TD 744 is a low
+  profile not an A class, regardless of what FMLV currently says — it must be a mistake on
+  FMLV, even the photos on FMLV back that up."* TD 744 genuinely is its range's outlier in
+  the document — its own single-column table, a 4400kg chassis against its siblings' 3500 /
+  3650, 2990mm against their 2950mm — so the risk was reading "different" as "A-class".
+  Width settles it: an A-class body is wider than the semi-integrated it shares a range
+  with, and every B66 TD is 2300mm.
+- **B66 C 644, held as `campervan_high_top_elevating_roof`** → `campervan_high_top`.
+  *"This is a standard high top campervan, no elevating roof as standard."* C 644 sleeps 4
+  where its siblings sleep 2, which is the trap: the extra berths come from its own
+  floorplan, not from a roof.
+
+### Why this was left unset for the first eight days
+
+The original survey found both splits, could not reproduce either from the source, and
+concluded that guessing risked silently "correcting" a classification that was right. That
+was the correct call on the evidence then available — the missing piece was not a better
+rule but **a decision on which side was wrong**, and only the requester could give that.
+Worth remembering for the next brand whose baseline contradicts its own manufacturer: the
+blocker may be a question, not a parser.
 
 ## `base_vehicle_manufacturer`: read from the document, cross-checked against the range
 

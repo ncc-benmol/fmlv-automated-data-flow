@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.product_model.enums import BodyType
+
 from src.adapters.burstner import (
     DOCUMENTS,
     _band_reconciles,
@@ -16,6 +18,7 @@ from src.adapters.burstner import (
     _canonical_model,
     _extract,
     _find_blocks,
+    body_type_for,
     build_document_urls,
     find_document_href,
     parse_document,
@@ -394,3 +397,102 @@ def test_a_document_naming_no_chassis_falls_back_to_the_configured_make() -> Non
     extracted = _build_extracted_motorhome(products[0], "https://example/doc.pdf")
     snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
     assert "names no chassis line of its own" in snippet
+
+
+# --------------------------------------------------------------------------- #
+# body_type
+#
+# Left unset until 27 August 2026, because FMLV's baseline holds two Bürstner
+# classifications that no rule derivable from the source reproduces, and proposing a
+# "correction" to a record that was actually right is worse than an honest gap.
+#
+# The requester then confirmed both are FMLV errors: TD 744 is a low profile, not an
+# `a_class` ("even the photos on FMLV back that up"), and C 644 is a plain high-top
+# campervan with no elevating roof as standard. With that settled the field is filled,
+# and the two corrections are proposed rather than left for a manual edit.
+#
+# WIDTH is the discriminator, not height. Checked against the real baseline export:
+# the rule reproduces FMLV on 11 of the 13 products it holds, and the two misses are
+# exactly those confirmed errors. Height cannot do the job - FMLV's own stored heights
+# are headroom, not overall (Habiton 1900mm, Signature 1980mm), and the documents' real
+# heights overlap between the families (vans 2650-2850, coachbuilts 2800-2990).
+# --------------------------------------------------------------------------- #
+
+
+def test_a_panel_van_width_is_a_campervan_and_a_wider_body_is_a_coachbuilt() -> None:
+    assert body_type_for(2050, 2650) == BodyType.CAMPERVAN_HIGH_TOP  # B66 C
+    assert body_type_for(2040, 2730) == BodyType.CAMPERVAN_HIGH_TOP  # Habiton HM
+    assert body_type_for(2300, 2950) == BodyType.COACH_BUILT_LOW_PROFILE  # B66 TD
+    assert body_type_for(2350, 2840) == BodyType.COACH_BUILT_LOW_PROFILE  # Signature
+
+
+def test_a_van_below_the_high_top_threshold_is_a_plain_campervan() -> None:
+    # No Bürstner layout is currently this low, but the threshold is the shared one and
+    # the rule should not silently promote a low-roof van to a high top.
+    assert body_type_for(2050, 2200) == BodyType.CAMPERVAN
+
+
+def test_body_type_is_unset_rather_than_guessed_when_a_measurement_is_missing() -> None:
+    # A row dropped by the column self-check leaves these blank, and the family cannot be
+    # told apart without the width.
+    assert body_type_for(None, 2950) is None
+    assert body_type_for(2050, None) is None  # a van whose roof height is unknown
+
+
+def test_td_744_is_a_low_profile_despite_being_the_ranges_outlier() -> None:
+    """FMLV holds `a_class`; the requester confirmed 27 August 2026 that is wrong.
+
+    TD 744 genuinely is the odd one out of its range — its own single-column table, a
+    4400kg chassis against its siblings' 3500/3650, and 2990mm against their 2950mm — so
+    the risk was reading "different" as "A-class". Width is what settles it: an A-class
+    body is wider than the semi-integrated it shares a range with, and every B66 TD is
+    2300mm.
+    """
+    products, _count = parse_document(_fixture("b66_td"), DOCUMENTS_BY_KEY["b66-td"])
+    by_model = {product.model: product for product in products}
+
+    assert by_model["TD 744"].mh_width_mm == by_model["TD 594"].mh_width_mm == 2300
+    assert by_model["TD 744"].mh_height_mm == 2990  # the tallest, not the shortest
+    assert by_model["TD 744"].mtplm_kilograms == 4400  # and the heaviest by 750kg
+    assert by_model["TD 744"].body_type == BodyType.COACH_BUILT_LOW_PROFILE
+    assert by_model["TD 744"].body_type == by_model["TD 594"].body_type
+
+
+def test_c_644_has_no_elevating_roof_despite_sleeping_four() -> None:
+    """FMLV holds `campervan_high_top_elevating_roof`; also confirmed an error.
+
+    C 644 sleeps 4 where its siblings sleep 2, which is the trap — the extra berths come
+    from its own floorplan, not from a roof. Bürstner's van page prices the pop-up roof as
+    an accessory ("Pop-up roof in Lanzarote Grey £420", "optionally available"), so it is
+    standard on nothing.
+    """
+    products, _count = parse_document(_fixture("b66_c"), DOCUMENTS_BY_KEY["b66-c"])
+    by_model = {product.model: product for product in products}
+
+    assert by_model["C 644"].berths == 4
+    assert by_model["C 600"].berths == 2
+    assert by_model["C 644"].body_type == BodyType.CAMPERVAN_HIGH_TOP
+    assert by_model["C 644"].body_type == by_model["C 600"].body_type
+
+
+def test_every_layout_gets_a_body_type_and_it_is_registered_as_provenance() -> None:
+    for key in ("b66-td", "b66-c", "signature-sft", "signature-smt", "habiton"):
+        products, _count = parse_document(
+            _fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key]
+        )
+        for product in products:
+            extracted = _build_extracted_motorhome(product, "https://example/doc.pdf")
+
+            assert extracted.motorhome.body_type is not None, f"{key} {product.model}"
+            assert "body_type" in extracted.provenance, f"{key} {product.model}"
+
+
+def test_the_body_type_snippet_does_not_cite_b66_evidence_for_another_range() -> None:
+    """The B66 pages say nothing about Signature, and the snippet must not imply they do."""
+    products, _count = parse_document(
+        _fixture("signature_smt"), DOCUMENTS_BY_KEY["signature-smt"]
+    )
+    snippet = _build_extracted_motorhome(products[0], "u").provenance["body_type"].snippet
+
+    assert "B66" not in snippet
+    assert "was not read" in snippet  # says plainly what it could not check

@@ -287,6 +287,38 @@ which is worse than proposing a wrong one. An existing record keeps its value; a
 narrated on every run through `on_progress`, so the gap is visible rather than silent, and
 says where to get the real number.
 
+### What the documents can and cannot establish, checked against the live PDFs
+
+Re-checked 27 August 2026 by downloading all three PDFs fresh and running
+`extract_positioned_text` over the standard-equipment tables, to see whether the per-layout
+marks are recoverable. **They are not: there are zero text items in the column band on any
+of those pages** — the marks are vector graphics, not characters — so no text route,
+positioned or otherwise, can read them. Reading them would need the page rendered as an
+image.
+
+What each document does itemise, which is what survives extraction reliably:
+
+| Range | Belted-seat item named | Where | So standard belted seats are |
+|---|---|---|---|
+| B66 TD / C | none | — | `4`, and FMLV agrees on all seven |
+| Signature SFT | "Sofa convertible to L-shaped bench (**4 belted seats in total**)" | **standard** equipment | 4 on at least one layout — *which* is unreadable |
+| Signature SMT | none — **and it itemises no seating furniture at all** | — | **unknown**; absence proves nothing here |
+| Habiton | "Loungesitz einzeln mit Gurtgestell" (untranslated: single lounge seat with belt frame) | **standard** equipment | 3 on at least one layout |
+| Habiton | "Foldable seating area with Isofix (**4 seat belts total**)", part `721011_1` | **priced accessory** | so 4 is optional there |
+| Signature SFT / SMT | "Additional seat secured with a seatbelt and Isofix (Vario Seat)", part `793011` | **priced accessory** | so the 5th seat is optional |
+
+The trap in SMT is worth spelling out: it is tempting to conclude "no belted bench is listed,
+therefore 2". But SMT itemises **no** sofa, bench, dinette or seating at all — its Interior
+list is mattresses, beds and tables — so absence there is silence, not evidence. SFT is the
+opposite: it *does* itemise its sofa, so the bench appearing in its standard list is real
+information.
+
+**Conclusion: the figure cannot be derived, and a blanket value in either direction would be
+wrong.** FMLV's own per-layout values are the best available record — `2` on SFT 7.0/7.4/7.5
+and both Habiton 6.0, `4` on SFT 7.1 — and the SFT bench evidence is consistent with 7.1
+genuinely differing from its siblings. So a blanket `2` would be as wrong as the blanket `4`
+this adapter used to emit. Ask EHG for the six new layouts.
+
 ### How this was found, and the mistake worth not repeating
 
 Run #11 proposed **`2 → 4` on all five** affected products. The requester challenged the

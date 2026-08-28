@@ -162,26 +162,58 @@ against. There is no join now — one JSON object is one vehicle — so column m
 is structurally impossible, and the remaining risk is Swift mis-stating a figure. Losing
 a real vehicle over a gap in a marketing leaflet's coverage would be the worse error.
 
-## Height, and why nothing is emitted
+## The base vehicle comes free, and cross-checks perfectly
 
-No 2027 Swift document publishes an overall height. The guides mention "height" only in
-prose — "full height GRP rear panel", "height adjustable electric drop-down bed" — never
-as a spec row beside Length and Width.
+Every range page names its chassis once, in the "Exterior & Construction" feature list.
+It is a range-level fact — every layout in the range is built on it:
+
+| Range | Stated as | FMLV |
+|---|---|---|
+| Voyager | Ford Transit Skeletal chassis cab | `Ford` |
+| Trekker 500 | Ford Transit Skeletal chassis cab | `Ford` |
+| Escape | Fiat chassis cab | `Fiat` |
+| Kon-Tiki | Fiat chassis cab | `Fiat` |
+| Carrera | Fiat Ducato panel van | `Fiat` |
+| Trekker | Ford Transit panel van | `Ford` |
+| Merlin | Fiat Ducato panel van | `Fiat` |
+
+Reading it this way reproduces FMLV's own split **exactly** across all 31 baseline
+products — Ford 17 (Voyager 9, Trekker 500 3, Trekker 4, Monza 1) and Fiat 14 (Escape 4,
+Kon-Tiki 4, Carrera 6). That agreement is what makes it safe to emit, and it is why the
+field was added on 28 August 2026 rather than left to hand-filling.
+
+**The make and the body phrase must be matched together.** The Carrera page titles itself
+"Award-winning Swift Carrera panel van, refreshed for 2026", so anchoring on `panel van`
+alone finds a heading with no make in it. Up to two words are allowed between the two, so
+`Transit`, `Ducato` and `Transit Skeletal` all pass.
+
+## Height: nothing is published, and it is handled two different ways
+
+**No 2027 Swift document publishes an overall height.** Not the layout JSON, not the
+quick guides — their only "height" mentions are prose ("full height GRP rear panel",
+"height adjustable electric drop-down bed"), never a spec row beside Length and Width.
+`test_no_swift_document_publishes_a_height_for_2027` asserts that premise, and is the
+test to watch: if it ever fails, Swift have started publishing heights again and the
+constant below should be retired.
+
+The right answer differs by whether the product already exists in FMLV.
+
+### For the 30 products with a baseline — emit nothing
 
 The requester asked (28 August 2026) to carry the 2026 heights over where 2027 omits
-them. **That is implemented by emitting nothing**, rather than by a constant, because
-that is what the pipeline already does: an in-scope field the adapter cannot fill arrives
-at review as a flagged no-op change (`old == new`, snippet "not found on the site this
-run"). The reviewer sees it; the stored value is preserved. All 24 matched products
-behaved that way on the first run.
+them. **That is implemented by emitting nothing**, because it is what the pipeline
+already does: an in-scope field the adapter cannot fill arrives at review as a flagged
+no-op change (`old == new`, snippet *"not found on the manufacturer's site this run.
+Confirm the existing figure is still correct, or enter a replacement"*). The reviewer sees
+it; the stored value is preserved untouched. All 24 matched products behaved that way.
 
 Proposing the 2026 brochure's figure *instead* was considered and rejected. FMLV already
 holds heights that disagree with that brochure on the Kon-Tikis — FMLV 2890 against the
 brochure's 2880 — so proposing it would rewrite good data with older data on no 2027
 evidence at all.
 
-If it is ever wanted as an explicit constant, here is the coverage, measured by whether
-2027's length *and* width still match 2026 exactly:
+For reference, had a constant been used, this is how far it would have stretched —
+measured by whether 2027's length *and* width still match 2026 exactly:
 
 | | Count | |
 |---|---|---|
@@ -191,6 +223,56 @@ If it is ever wanted as an explicit constant, here is the coverage, measured by 
 
 Reassuringly, "the all new Carrera" turns out to be all-new in *equipment* only —
 induction hob, lithium, no gas — with every dimension identical to 2026.
+
+### For the Merlin — a hand-sourced constant, because there is no baseline
+
+The flagged-no-op route has nothing to preserve for a brand-new product, so all nine
+Merlins would have stayed blank on every run. `_MANUALLY_SOURCED_HEIGHT_MM` holds the
+figures from a **pre-launch specification sheet Swift sent the requester in late July
+2026**, passed on 28 August. That sheet carries range, base vehicle and height and *no
+prices or weights*, so it is useful for this one field and nothing else — everything else
+still comes from the site, which by now has both.
+
+| Height | Models |
+|---|---|
+| 2720 mm | 144, 164, 174 |
+| 2790 mm | 244, 264, 274 |
+
+**The 70mm is the elevating roof**, and two independent things say so. The Merlin page
+lists "Elevating roof in Black with Mini-Heki skylight" as standard equipment on
+`212, 244, 264 & 274` only — exactly the `2xx` models. And the Carrera corroborates it
+from a different range: same Fiat Ducato panel van, same 2260mm width, **2720mm on its
+five plain models and 2790mm on the 244**, which is the one model its own page gives an
+elevating roof ("244 only").
+
+**112, 122 and 212 are deliberately absent.** They were not on the extract supplied, and
+the pattern predicts 2720 / 2720 / 2790 — but a predicted height is not a published one,
+so they are left blank and narrated rather than guessed.
+
+Same pattern and the same caveat as `auto_trail._MANUALLY_SOURCED_MTPLM_KG`: it **cannot
+refresh itself**, it is narrated on every run, and it must be re-verified at each
+model-year changeover.
+
+## An FMLV body type that looks wrong: Carrera 244
+
+Not fixed here, because `body_type` is not emitted (below) — but recorded, because the
+evidence is unambiguous and it is the same shape of error the
+[README](README.md) documents for Autoquest CV60, inverted.
+
+The Carrera page lists an elevating roof as **standard** on the 244: it appears twice,
+once in the range highlights ("Elevating roof system with pop-top double bed (244)") and
+once in Exterior & Construction ("Elevating roof in Black with Mini-Heki skylight (244
+only)"). It appears in **no** `optionalExtras` list on any of the 39 products, so it is
+not a cost option. Its 2790mm against the other Carreras' 2720mm is the roof hardware.
+
+FMLV holds Carrera 244 as `campervan_high_top`, not
+`campervan_high_top_elevating_roof`. By the README's rule — the word after the feature
+decides it, and here it is standard fitment restricted to one model — that looks wrong.
+
+FMLV gets the equivalent Trekker case right, which is what makes the Carrera one stand
+out: `Trekker X` (roof stated on the page) is held as
+`campervan_high_top_elevating_roof`, and `Trekker XF` (not stated) as
+`campervan_high_top`.
 
 ## Counting: floorplans versus products
 
@@ -233,6 +315,12 @@ proposed    222 changes for review, of which 21 are year bumps
 verified    135 fields checked and unchanged
 ```
 
+Run #46, the same day, after adding the base vehicle and the Merlin heights: same
+classification, 243 proposed and 159 verified. The 21 extra proposals are the base vehicle
+on the 15 new products plus the 6 Merlin heights; the 24 extra verifications are
+`base_vehicle_manufacturer` **agreeing with FMLV on every single matched product**, which
+is the strongest corroboration in either run.
+
 **7 disappeared, all genuine roster changes and none a parse gap:** Escape 674, Monza S,
 Trekker S, Trekker XL, Voyager 475, 485, 494.
 
@@ -246,9 +334,14 @@ matching the guide block exactly), Voyager 505 (2 berths, £75,995), Escape 640 
 ## Not emitted, and why
 
 - **`body_type`** — as in the brochure version. With no published height the campervan
-  height-threshold rule has nothing to work on, and FMLV's existing values are better
-  than a guess. Merlin's 9 new products need it filled by hand, as Chausson's new
-  products did.
+  height-threshold rule has nothing to work on for the Carrera and Trekker, and FMLV's
+  existing values are better than a guess. Merlin's 9 new products need it filled by
+  hand, as Chausson's new products did — and the page gives whoever does it the one fact
+  that is easy to get wrong: **the elevating roof is standard on 212, 244, 264 and 274
+  only.** With heights of 2720/2790, comfortably above the ~2680mm the
+  [README](README.md) calls characteristic of an extended high top, that makes the four
+  `2xx` models `campervan_high_top_elevating_roof` and the five `1xx` models
+  `campervan_high_top`.
 - **`year`** — a carry-through field only a human bumps
   (`src/diff/year_rollover.py`). Today falls inside the June–September window, so the
   review app offered 21 bumps. The site does say 2027.

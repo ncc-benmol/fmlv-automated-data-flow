@@ -79,7 +79,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.swiftgroup.co.uk"
 MANUFACTURER = "Swift Group Ltd"
@@ -139,6 +139,59 @@ _LAYOUTS_JSON = re.compile(
 #: to match on, and matching it loosely is how a run would end up parsing the still-live
 #: `2026_swift_motorhome_brochure.pdf`.
 _QUICK_GUIDE_HREF = re.compile(r'href="(/media/[^"]+-quick-guide\.pdf)"', re.IGNORECASE)
+
+#: The base vehicle, stated once per range page in the "Exterior & Construction" list:
+#: `Ford Transit Skeletal chassis cab in Magnetic Grey`, `Fiat chassis cab in New
+#: Expedition Grey`, `Fiat Ducato panel van with body coloured grille`.
+#:
+#: **The make and the body phrase have to be matched together.** The Carrera page's
+#: `<title>` is "Award-winning Swift Carrera panel van, refreshed for 2026", so anchoring
+#: on `panel van` alone finds a heading with no make in it. Up to two words are allowed
+#: between the two so that `Transit`, `Ducato` and `Transit Skeletal` all pass.
+#:
+#: Confirmed against the real export: reading this on all seven live ranges reproduces
+#: FMLV's own split exactly — Ford 17 (Voyager 9, Trekker 500 3, Trekker 4, Monza 1) and
+#: Fiat 14 (Escape 4, Kon-Tiki 4, Carrera 6) across all 31 baseline products.
+_BASE_VEHICLE = re.compile(
+    r"\b(Fiat|Ford|Peugeot|Citro[eë]n|Mercedes-Benz|Mercedes|Renault|IVECO|MAN|VW|Volkswagen)"
+    r"\b(?:\s+[A-Z][A-Za-z]+){0,2}\s+(?:chassis cab|panel van)",
+    re.IGNORECASE,
+)
+
+#: Tags, scripts and styles, so the feature prose can be read as text.
+_MARKUP = re.compile(r"<script.*?</script>|<style.*?</style>|<[^>]+>", re.DOTALL | re.IGNORECASE)
+
+#: Overall height in mm for the Merlin, keyed on model. **Not scraped — nothing Swift
+#: publishes for 2027 carries a height** (see the module docstring), so these come from a
+#: pre-launch specification sheet Swift sent the requester in late July 2026, passed on
+#: 2026-08-28. That sheet carries range, base vehicle and height and *no prices or
+#: weights*, so it is useful for this one field and nothing else; everything else still
+#: comes from the site, which by now has both.
+#:
+#: Recorded here rather than left blank because these are all **new products with no
+#: baseline** — the flagged-no-op route that preserves a height for the other 30 has
+#: nothing to preserve for a Merlin, so without this they would stay empty on every run.
+#: Same pattern, and the same caveat, as `auto_trail._MANUALLY_SOURCED_MTPLM_KG`: it
+#: CANNOT refresh itself, it is narrated on every run, and it must be re-verified at each
+#: model-year changeover or as soon as Swift publish heights again.
+#:
+#: The five 2720s and four 2790s split exactly on the elevating roof, which the Merlin
+#: page lists as standard equipment on `212, 244, 264 & 274` only — 70mm of roof
+#: hardware. The Carrera corroborates it independently: same Fiat Ducato panel van, same
+#: 2260mm width, 2720mm on its five plain models and 2790mm on the 244, which is the one
+#: model its own page gives an elevating roof.
+#:
+#: **112, 122 and 212 are absent deliberately.** They were not on the extract supplied,
+#: and the pattern above predicts 2720/2720/2790 for them — but a predicted height is not
+#: a published one, so they are left blank and narrated instead of guessed.
+_MANUALLY_SOURCED_HEIGHT_MM: dict[tuple[str, str], int] = {
+    ("Merlin", "144"): 2720,
+    ("Merlin", "164"): 2720,
+    ("Merlin", "174"): 2720,
+    ("Merlin", "244"): 2790,
+    ("Merlin", "264"): 2790,
+    ("Merlin", "274"): 2790,
+}
 
 #: `From £114,395 OTR`. The site states the basis itself, which is the on-the-road
 #: figure FMLV records as its guide price.
@@ -222,9 +275,11 @@ class SwiftProduct:
     mh_passenger_seats_inc_driver: int | None = None
     mh_length_mm: int | None = None
     mh_width_mm: int | None = None
+    mh_height_mm: int | None = None
     mtplm_kilograms: int | None = None
     mro_kilograms: int | None = None
     rrp_pounds: int | None = None
+    base_vehicle_manufacturer: str | None = None
 
     @property
     def label(self) -> str:
@@ -386,6 +441,19 @@ def range_and_model(title: str, slug: str) -> tuple[str, str] | None:
     return range_label, model
 
 
+def find_base_vehicle(page_html: str) -> str | None:
+    """The base-vehicle make stated on one range page, as FMLV spells it.
+
+    Swift name the chassis once per range, in the "Exterior & Construction" feature list,
+    and every layout in that range is built on it — so this is a range-level fact, not a
+    per-layout one. Routed through `base.fmlv_base_vehicle` so the spelling decision lives
+    in one place, as it does for the other adapters.
+    """
+    text = _MARKUP.sub(" ", page_html)
+    match = _BASE_VEHICLE.search(text)
+    return fmlv_base_vehicle(match.group(1)) if match else None
+
+
 def parse_range_page(page_html: str, *, slug: str, index_path: str) -> list[SwiftProduct]:
     """Every layout on one range page.
 
@@ -393,6 +461,7 @@ def parse_range_page(page_html: str, *, slug: str, index_path: str) -> list[Swif
     guessed at — emitting it under the wrong range is the one failure mode this
     manufacturer punishes hardest.
     """
+    base_vehicle = find_base_vehicle(page_html)
     products: list[SwiftProduct] = []
     for layout in parse_layouts_json(page_html):
         title = (layout.get("title") or "").strip()
@@ -409,9 +478,11 @@ def parse_range_page(page_html: str, *, slug: str, index_path: str) -> list[Swif
                 mh_passenger_seats_inc_driver=_leading_int(layout.get("travellingSeats")),
                 mh_length_mm=_metres_to_mm(layout.get("length")),
                 mh_width_mm=_metres_to_mm(layout.get("width")),
+                mh_height_mm=_MANUALLY_SOURCED_HEIGHT_MM.get((range_label, model)),
                 mtplm_kilograms=_kilograms(layout.get("weightMtplm")),
                 mro_kilograms=_kilograms(layout.get("weightMro")),
                 rrp_pounds=_price(layout.get("priceLabel")),
+                base_vehicle_manufacturer=base_vehicle,
             )
         )
     return products
@@ -458,7 +529,9 @@ def _build_extracted_motorhome(
         mh_payload_kilograms=product.mh_payload_kilograms,
         mh_length_mm=product.mh_length_mm,
         mh_width_mm=product.mh_width_mm,
+        mh_height_mm=product.mh_height_mm,
         rrp_pounds=product.rrp_pounds,
+        base_vehicle_manufacturer=product.base_vehicle_manufacturer,
     )
 
     snippets = {
@@ -468,6 +541,16 @@ def _build_extracted_motorhome(
         ),
         "mh_length_mm": f"Length: {product.mh_length_mm}mm",
         "mh_width_mm": f"Width: {product.mh_width_mm}mm",
+        "mh_height_mm": (
+            f"Overall height: {product.mh_height_mm}mm. NOT FROM THE SITE — Swift publish "
+            f"no height for 2027. Taken from the pre-launch specification sheet Swift sent "
+            f"the requester in late July 2026. This value cannot refresh itself: re-verify "
+            f"it at the next model-year changeover, or as soon as Swift publish heights again"
+        ),
+        "base_vehicle_manufacturer": (
+            f"Base vehicle: {product.base_vehicle_manufacturer}, from the range page's own "
+            f"Exterior & Construction list, which names the chassis once for the whole range"
+        ),
         "mtplm_kilograms": f"MTPLM: {product.mtplm_kilograms}kg",
         "mro_kilograms": f"MRO: {product.mro_kilograms}kg",
         "rrp_pounds": (
@@ -486,9 +569,11 @@ def _build_extracted_motorhome(
         "mh_passenger_seats_inc_driver": product.mh_passenger_seats_inc_driver,
         "mh_length_mm": product.mh_length_mm,
         "mh_width_mm": product.mh_width_mm,
+        "mh_height_mm": product.mh_height_mm,
         "mtplm_kilograms": product.mtplm_kilograms,
         "mro_kilograms": product.mro_kilograms,
         "rrp_pounds": product.rrp_pounds,
+        "base_vehicle_manufacturer": product.base_vehicle_manufacturer,
         "mh_payload_kilograms": product.mh_payload_kilograms,
     }
     provenance = {
@@ -555,9 +640,12 @@ def collect(
                 # linked on 2026-08-28 and only one carried layouts.
                 on_progress(f"[{category}] SKIPPED {range_path}: no layout data on the page")
                 continue
+            base_vehicle = products[0].base_vehicle_manufacturer
             on_progress(
                 f"[{category}] {products[0].range_label}: {len(products)} layout(s)"
+                + (f", built on {base_vehicle}" if base_vehicle else ", BASE VEHICLE NOT FOUND")
             )
+            _narrate_heights(products, category=category, on_progress=on_progress)
 
             for product in products:
                 ok, basis = _reconciles(product, guide)
@@ -582,6 +670,34 @@ def collect(
 
     on_progress(f"{len(results)} product(s) collected")
     return results
+
+
+def _narrate_heights(
+    products: list[SwiftProduct],
+    *,
+    category: str,
+    on_progress: Callable[[str], None],
+) -> None:
+    """Say which heights came from the hand-sourced sheet, and which are absent.
+
+    Both halves have to be visible. A carried figure that nobody re-checks silently ages
+    into a wrong one, and a blank on a brand-new product is the only case where the
+    baseline cannot supply it — see `_MANUALLY_SOURCED_HEIGHT_MM`.
+    """
+    sourced = [p for p in products if p.mh_height_mm is not None]
+    if sourced:
+        on_progress(
+            f"[{category}] {len(sourced)} height(s) taken from Swift's July 2026 "
+            f"specification sheet, NOT from the site — re-verify at changeover: "
+            + ", ".join(f"{p.model} {p.mh_height_mm}mm" for p in sourced)
+        )
+    blank = [p for p in products if p.mh_height_mm is None]
+    if blank and sourced:
+        on_progress(
+            f"[{category}] {products[0].range_label} {', '.join(p.model for p in blank)} "
+            f"— NO HEIGHT: not on the sheet supplied and not published on the site, so "
+            f"left blank rather than inferred from the range's other layouts"
+        )
 
 
 def _load_guide(

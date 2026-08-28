@@ -16,6 +16,7 @@ from pathlib import Path
 from src.adapters.swift import (
     SwiftProduct,
     _reconciles,
+    find_base_vehicle,
     find_quick_guide_url,
     find_range_page_paths,
     parse_guide_payloads,
@@ -157,23 +158,35 @@ def test_kon_tiki_products_carry_every_field_the_site_publishes() -> None:
     assert product.rrp_pounds == 114395
 
 
-def test_height_is_never_emitted_because_swift_no_longer_publishes_one() -> None:
-    """Neither the JSON nor the quick guide carries a height for 2027.
+def test_no_swift_document_publishes_a_height_for_2027() -> None:
+    """The premise the whole height arrangement rests on.
 
-    `SwiftProduct` deliberately has no height field at all, so there is nothing to
-    accidentally fill from a stale source — the value arrives at review as a
-    `MissingField` against the baseline instead. See the module docstring.
+    Nothing is scraped into `mh_height_mm`; the only values that reach it come from
+    `_MANUALLY_SOURCED_HEIGHT_MM`. If this test ever fails, Swift have started publishing
+    heights again and that constant should be retired in favour of the real thing.
     """
-    assert not hasattr(SwiftProduct("Kon-Tiki", "774"), "mh_height_mm")
-
-    # The JSON has no height key either.
-    assert all("height" not in key.lower() for key in parse_layouts_json(KON_TIKI)[0])
+    # No height key in the layout JSON, on any range.
+    for page in (KON_TIKI, MERLIN, TREKKER_VAN):
+        for layout in parse_layouts_json(page):
+            assert all("height" not in key.lower() for key in layout)
 
     # The guides mention "height" only in prose ("full height GRP rear panel", "height
     # adjustable electric drop-down bed") — never as a spec row beside Length and Width.
     for guide in (MOTORHOME_GUIDE, CAMPERVAN_GUIDE):
         assert "Length" in guide and "Width" in guide
         assert "\nHeight" not in guide
+
+
+def test_a_range_with_no_sheet_figure_emits_no_height_at_all() -> None:
+    """For the 30 non-Merlin products the field must stay unset.
+
+    That is what routes it to review as a flagged no-op against the baseline, preserving
+    the stored figure — the carry-over the requester asked for on 2026-08-28.
+    """
+    products = parse_range_page(KON_TIKI, slug="swift-kon-tiki", index_path="motorhomes")
+
+    assert products  # guard against the assertion below passing on an empty list
+    assert all(product.mh_height_mm is None for product in products)
 
 
 # --------------------------------------------------------------------------- #
@@ -353,6 +366,53 @@ def test_footnote_marks_on_weights_are_tolerated() -> None:
 
     assert all(product.mtplm_kilograms is not None for product in products.values())
     assert all(product.mro_kilograms is not None for product in products.values())
+
+
+def test_base_vehicle_is_read_from_each_range_page() -> None:
+    """Swift name the chassis once per range, and every layout in it is built on that.
+
+    Reading it on all seven live ranges reproduces FMLV's own Ford 17 / Fiat 14 split
+    across all 31 baseline products, which is what makes it safe to emit.
+    """
+    assert find_base_vehicle(KON_TIKI) == "Fiat"  # "Fiat chassis cab in Black Metallic"
+    assert find_base_vehicle(MERLIN) == "Fiat"  # "Fiat Ducato panel van"
+    assert find_base_vehicle(TREKKER_VAN) == "Ford"  # "Ford Transit panel van"
+
+
+def test_base_vehicle_needs_the_make_and_the_body_phrase_together() -> None:
+    """The Carrera page titles itself "Swift Carrera panel van" — with no make in it.
+
+    Anchoring on `panel van` alone lands on that heading. Two words are allowed between
+    the make and the phrase so `Transit Skeletal` still passes.
+    """
+    assert find_base_vehicle("<h1>Award-winning Swift Carrera panel van, 2026</h1>") is None
+    assert find_base_vehicle("<li>Ford Transit Skeletal chassis cab in Grey</li>") == "Ford"
+    assert find_base_vehicle("<p>no chassis named here</p>") is None
+
+
+def test_merlin_heights_come_from_the_supplied_sheet_and_only_where_supplied() -> None:
+    """Swift publish no height for 2027; six Merlins have one from a spec sheet.
+
+    Merlin's products are all new, so the flagged-no-op route that preserves a height for
+    an existing product has nothing to preserve — without this they would stay blank on
+    every run. The three not on the sheet stay blank rather than being inferred.
+    """
+    products = {p.model: p for p in parse_range_page(MERLIN, slug="merlin", index_path="campervans")}
+
+    assert {m: p.mh_height_mm for m, p in products.items()} == {
+        "144": 2720, "164": 2720, "174": 2720,
+        "244": 2790, "264": 2790, "274": 2790,
+        "112": None, "122": None, "212": None,
+    }
+
+
+def test_no_other_range_gets_a_hand_sourced_height() -> None:
+    # The constant is keyed on (range, model), so a shared layout number must not leak.
+    for page, slug, index in (
+        (KON_TIKI, "swift-kon-tiki", "motorhomes"),
+        (TREKKER_VAN, "swift-trekker", "campervans"),
+    ):
+        assert all(p.mh_height_mm is None for p in parse_range_page(page, slug=slug, index_path=index))
 
 
 def test_price_is_the_on_the_road_figure_the_site_publishes() -> None:

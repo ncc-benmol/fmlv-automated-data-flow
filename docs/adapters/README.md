@@ -317,6 +317,50 @@ figures on the whole range while missing a tenth of it.
 When checking, read what a **customer** sees. The year sat in the card's title element; the
 text inside the `<a>` tag was only the word "Download".
 
+### A source can be retired outright, and a clean skip hides it
+
+Every rule above is about choosing between sources that exist. Swift, 28 August 2026, is
+the first case of a source simply **ceasing to exist mid-life**, and the failure mode is
+worth knowing before it happens to another adapter.
+
+Swift retired the annual brochure. For 2027 the motorhome, campervan and caravan
+catalogues were all replaced by a two-page *quick guide*, and the per-layout data moved
+onto the website. `swift.py` had been built on the brochure's "Specification at a glance"
+table, matched `_brochure.pdf`, and so collected **zero products**:
+
+```
+[Motorhomes] SKIPPED: no brochure link found on https://www.swiftgroup.co.uk/motorhomes/
+0 product(s) collected
+```
+
+Three things follow, none of them about parsing.
+
+**A zero-product run is a *successful* run.** Narrated skips, no exception, status
+`succeeded`. That default is right — on any given run a missing link is usually a
+transient site change, and raising would be worse — but it means a permanently dead
+source is indistinguishable from a quiet week. When adding a manufacturer, note its
+expected product count somewhere a human will compare against, which is what
+`config/manufacturers.csv`'s `notes` is for.
+
+**Presence in the review app's trigger dropdown is not health.** That list is filtered by
+`adapter_for()`, which only checks a module is registered under the manufacturer name.
+Swift stayed in the dropdown throughout, and looked entirely normal.
+
+**The superseded document usually stays live**, which makes the obvious fix the wrong
+one. Swift's 2026 brochure still resolves — 20MB — and is still linked from
+`/brochures/` beside 69 other archived PDFs. Loosening the pattern enough to match
+`2027-swift-motorhome-quick-guide.pdf` also matches
+`2026_swift_motorhome_brochure.pdf`, and would have proposed last season's whole range
+as current: plausible, internally consistent, entirely stale, and nothing downstream
+would flag it.
+
+So when a document pattern stops matching, **do not widen it**. Establish what the
+manufacturer publishes *now*, from the pages a customer sees, and anchor the new pattern
+on whatever distinguishes the current document from the archive — for Swift,
+`quick-guide` rather than `.pdf`. Then add a negative test that feeds the adapter the
+superseded URL and asserts it is not matched; `test_swift.py` has one, and it is the most
+valuable test in that file.
+
 ### No single menu is a complete roster
 
 **Take the list of ranges from the sitemap, then reconcile it against a second count.** Rule

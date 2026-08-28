@@ -496,3 +496,84 @@ def test_the_body_type_snippet_does_not_cite_b66_evidence_for_another_range() ->
 
     assert "B66" not in snippet
     assert "was not read" in snippet  # says plainly what it could not check
+
+
+# --------------------------------------------------------------------------- #
+# Seats: the row is a type-approval maximum, so a range needs care
+#
+# "Permitted number of seats (including driver)" is not a count of fitted seats.
+# Footnote 3 of every document: it is "determined by the manufacturer in what is
+# referred to as the type-approval procedure", and it drives the 75kg-per-passenger mass
+# calculation. So a `4 - 5` row could in principle mean five belted seats are fitted as
+# standard — which would make recording 4 wrong under FMLV's base-vehicle protocol.
+#
+# Checked 27 August 2026, at the requester's prompting. It does not: both Signature
+# documents sell an "Additional seat secured with a seatbelt and Isofix (Vario Seat)"
+# as a priced accessory (part 793011, in the `Accessories` table with a price and an
+# added weight), and warn that "increasing the number of seatbelt-secured seats" deducts
+# a further 85kg per seat from the special-equipment allowance. 4 is the base vehicle.
+# --------------------------------------------------------------------------- #
+
+
+def test_signature_publishes_a_seats_range_whose_upper_figure_is_a_priced_option() -> None:
+    products, _count = parse_document(
+        _fixture("signature_smt"), DOCUMENTS_BY_KEY["signature-smt"]
+    )
+
+    for product in products:
+        assert product.seats_published == "4 - 5"
+        assert product.mh_passenger_seats_inc_driver == 4  # the base vehicle, not the max
+        assert product.extra_belted_seat_optional is True
+
+
+def test_the_seats_snippet_names_the_option_that_buys_the_upper_figure() -> None:
+    products, _count = parse_document(
+        _fixture("signature_sft"), DOCUMENTS_BY_KEY["signature-sft"]
+    )
+    snippet = _build_extracted_motorhome(products[0], "u").provenance[
+        "mh_passenger_seats_inc_driver"
+    ].snippet
+
+    assert "type-approval maximum" in snippet
+    assert "Vario Seat" in snippet
+    assert "85kg" in snippet
+
+
+def test_b66_publishes_one_seats_figure_so_standard_equals_maximum() -> None:
+    products, _count = parse_document(_fixture("b66_td"), DOCUMENTS_BY_KEY["b66-td"])
+
+    for product in products:
+        assert product.seats_published == "4"
+        assert product.mh_passenger_seats_inc_driver == 4
+        assert product.extra_belted_seat_optional is False
+
+
+def test_habitons_seats_range_is_flagged_because_no_option_explains_it() -> None:
+    """Habiton 6.1 publishes `3 - 4` but prices no extra belted seat.
+
+    The lower figure is still what gets recorded — that is the protocol, and it is the
+    conservative direction — but the snippet must not borrow Signature's evidence to
+    justify it. Both 6.1 layouts are new products, so there is no baseline to check
+    against either.
+    """
+    products, _count = parse_document(_fixture("habiton"), DOCUMENTS_BY_KEY["habiton"])
+    by_model = {product.model: product for product in products}
+
+    assert by_model["HM 6.0"].seats_published == "4"
+    assert by_model["HM 6.1"].seats_published == "3 - 4"
+    assert by_model["HM 6.1"].mh_passenger_seats_inc_driver == 3
+    assert by_model["HM 6.1"].extra_belted_seat_optional is False
+
+    snippet = _build_extracted_motorhome(by_model["HM 6.1"], "u").provenance[
+        "mh_passenger_seats_inc_driver"
+    ].snippet
+    assert "Vario Seat" not in snippet  # that evidence belongs to Signature only
+    assert "worth confirming with the manufacturer" in snippet
+
+
+def test_the_extra_seat_pattern_survives_the_mid_label_line_wrap() -> None:
+    # `extract_text` wraps this accessory's name mid-phrase in the real documents.
+    from src.adapters.burstner import _EXTRA_BELTED_SEAT
+
+    wrapped = "Additional seat secured" + chr(10) + "with a seatbelt and Isofix"
+    assert _EXTRA_BELTED_SEAT.search(wrapped)

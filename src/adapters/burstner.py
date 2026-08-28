@@ -179,6 +179,23 @@ _LABELS: tuple[tuple[str, str | None, str], ...] = (
 #: — the same allowance `etrusco.py` uses for the identical device.
 _MRO_BAND_SLACK_KG = 3
 
+#: The priced accessory that buys the *upper* figure in a `4 - 5` seats row: an extra
+#: belted seat. Present in both Signature documents (part 793011, in the `Accessories`
+#: table beside a price and an added weight), absent from B66's and Habiton's.
+#:
+#: This is what settles a question the row's own label cannot: "Permitted number of
+#: seats (including driver)" is a **type-approval maximum** — footnote 3 says it is
+#: "determined by the manufacturer in what is referred to as the type-approval
+#: procedure" and is what the 75kg-per-passenger mass calculation uses — so `4 - 5`
+#: could in principle mean five seats are fitted as standard. It does not: the fifth is
+#: an option, and the document warns that "increasing the number of seatbelt-secured
+#: seats" deducts a further 85kg per seat from the special-equipment allowance.
+#: Recording the lower figure is therefore the base-vehicle figure, per
+#: `docs/adapters/README.md`, and this pattern is what lets the snippet say so.
+_EXTRA_BELTED_SEAT = re.compile(
+    r"Additional\s+seat\s+secured\s+with\s+a\s+seatbelt", re.IGNORECASE
+)
+
 #: A campervan taller than this is a high top. The same threshold as
 #: `auto_trail.HIGH_TOP_ABOVE_MM`, set by the NCC side on 16 August 2026.
 HIGH_TOP_ABOVE_MM = 2300
@@ -415,6 +432,10 @@ class BurstnerProduct:
     #: Set only when the document's own chassis line contradicts the per-range make in
     #: `DOCUMENTS` — carries the make that was expected, for the snippet to flag.
     base_vehicle_expected: str | None = None
+    #: Whether this layout's document sells an extra belted seat as a priced accessory,
+    #: which is what the upper figure of a `4 - 5` seats row costs. `False` does not mean
+    #: the upper figure is standard — only that this document does not price it.
+    extra_belted_seat_optional: bool = False
 
     @property
     def label(self) -> str:
@@ -445,6 +466,7 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
     # `DOCUMENTS` when the two disagree — `docs/adapters/README.md`'s rule that the
     # manufacturer's own current publication wins — and the make it displaced is kept
     # so the snippet can tell a reviewer the two did not agree.
+    extra_seat_optional = _EXTRA_BELTED_SEAT.search(text) is not None
     chassis = published_chassis(text)
     base_vehicle = chassis[0] if chassis else config.base_vehicle_manufacturer
     published_line = chassis[1] if chassis else None
@@ -502,6 +524,7 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
                     base_vehicle_manufacturer=base_vehicle,
                     base_vehicle_published=published_line,
                     base_vehicle_expected=expected,
+                    extra_belted_seat_optional=extra_seat_optional,
                     rrp_pounds=values.get("rrp_pounds", [None] * count)[column],
                     mh_length_mm=values.get("mh_length_mm", [None] * count)[column],
                     mh_width_mm=values.get("mh_width_mm", [None] * count)[column],
@@ -625,11 +648,31 @@ def _build_extracted_motorhome(product: BurstnerProduct, source_url: str) -> Ext
             ),
         )
     if product.seats_published is not None:
+        # The label is a type-approval *maximum*, so a range needs explaining: the lower
+        # figure is what the vehicle has without options, which is what FMLV records.
+        if "-" not in product.seats_published:
+            basis = "a single published figure, so standard and maximum are the same"
+        elif product.extra_belted_seat_optional:
+            basis = (
+                f"a range, and the upper figure is optional: this document sells an "
+                f"'Additional seat secured with a seatbelt and Isofix (Vario Seat)' as a "
+                f"priced accessory, and warns that each added belted seat deducts a "
+                f"further 85kg from the special-equipment allowance. "
+                f"{product.mh_passenger_seats_inc_driver} is the base-vehicle figure"
+            )
+        else:
+            basis = (
+                f"a range, and {product.mh_passenger_seats_inc_driver} is recorded as the "
+                f"standard figure per the lower-figure rule — but NOTE this document "
+                f"prices no extra belted seat, so what the upper figure costs is not "
+                f"stated here; worth confirming with the manufacturer"
+            )
         provenance["mh_passenger_seats_inc_driver"] = Provenance(
             source_url=source_url,
             snippet=(
                 f"{product.label} — Permitted number of seats (including driver): "
-                f"{product.seats_published}"
+                f"{product.seats_published}. That row is a type-approval maximum, not a "
+                f"count of fitted seats ({basis})"
             ),
         )
     if product.berths_published is not None:

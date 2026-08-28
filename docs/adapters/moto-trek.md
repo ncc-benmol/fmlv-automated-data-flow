@@ -1,6 +1,6 @@
 # Moto-Trek — site survey and adapter notes
 
-British, Rotherham. Launched 2012 by Equi-Trek, the UK's largest luxury horsebox maker, and
+British, Stocksbridge, Sheffield (Montgomery House, Sheephouse Wood, S36 4GS). Launched 2012 by Equi-Trek, the UK's largest luxury horsebox maker, and
 still part of Trek-Group — which is why a race-car transporter and a braked trailer sit in
 the same vehicle list as the motorhomes. Survey date **27 August 2026**; adapter written the
 same day, `src/adapters/moto_trek.py`.
@@ -272,6 +272,46 @@ Two ranges are close enough to matter for the matcher: `Euro-Treka IB` against t
 `Euro-Treka QB` scores `{euro,treka,ib}` vs `{euro,treka,qb}` = **0.500**, exactly at
 `DEFAULT_THRESHOLD`. It does not bite, because the QB is archived and out of the baseline — but
 if the QB is ever unarchived, the IB will match it and be reported as a revision of it.
+
+## Floorplans: Moto-Trek publish none, anywhere
+
+Asked 27 August 2026. The answer is a firm no, and it was checked four ways rather than by
+not finding one:
+
+| Where | Result |
+|---|---|
+| Every vehicle page's gallery | 19–127 images each, all `IMG_*`, `DSC*`, `DSCN*` or hashes — photographs |
+| The WordPress media library, 1293 items | `search=floorplan`, `floor-plan`, `layout`, `plan` → **0 each** |
+| Visible page text | no page labels a Floorplan or Layout section; the single "layout" hit is prose about the RL's sink |
+| `handbook-LT-ELD.pdf` | "layout" 5×, all generic ("your vehicle's specific layout"); its only diagrams are **wiring** diagrams |
+
+The media search is trustworthy because it was validated rather than assumed: `search=IMG`
+returns 633, `interior` 12, `Xplora` 3. The zeros are real.
+
+### A dealer holds a brochure Moto-Trek's own site does not
+
+Worth recording as a source, though it does not answer the floorplan question:
+**<https://www.barlowtrailers.co.uk/PDF/Moto-Trek-Brochure.pdf>** — 61 MB, 28 pages, fetches
+unauthenticated. It is **Issue 19.1**, i.e. 2019, and it is a photography-and-copy brochure:
+no floorplans, no line drawings. Page 21 says they "use the most up to date technology and CAD
+systems to design our motorhomes", so the drawings exist internally; they are simply not
+published.
+
+Two things in it are useful anyway:
+
+- **Page 20 is a specification comparison grid** across `RL ELS ELD EB` and `EB G`, Classic
+  against Elite — the only side-by-side spec table Moto-Trek have ever published. Six model
+  years stale, so not a source, but it is the clearest statement of what "Elite" adds.
+- **It names models FMLV still holds as archived**: `Comet 350` and `Comet 500`, `Euro-Treka
+  QB`/`G`/`IB`, and a `Leisure-Treka ELS` that no longer exists. Useful when reading old rows.
+
+Barlow also link `Moto-Trek-Sterling-Price Guide.pdf`, which **403s** to any fetch, with or
+without a referer. Not obtainable; the January 2024 list in Moto-Trek's own media library
+remains the price source of record.
+
+**If floorplans are ever needed, they have to be asked for.** Moto-Trek are on
+`info@moto-trek.co.uk` / 0114 288 4411, and by their own brochure they hold CAD for every
+layout.
 
 ## Model year: Moto-Trek publishes none
 

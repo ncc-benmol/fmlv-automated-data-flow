@@ -262,9 +262,13 @@ FMLV's own baseline shows two splits that do not line up with anything this docu
 publishes:
 
 - **B66 TD 744 is `a_class`**; every other B66 TD and every Signature SFT layout is
-  `coach_built_low_profile` — despite TD 744 being *shorter* in height (2910mm) than
-  several of the `coach_built_low_profile` layouts (2950mm). Nothing in the technical-data
-  PDF marks this distinction.
+  `coach_built_low_profile`. TD 744 *is* the outlier of its range in the document — it sits
+  in its own single-column table on a heavier chassis (4400kg against its siblings' 3500 /
+  3650) and is 2990mm tall against their 2950mm — but none of that says "A-class", and the
+  one signal that would, **width, does not separate it at all**: every B66 TD is 2300mm,
+  where an A-class body is normally wider than the semi-integrated it shares a range with.
+  Checked 27 August 2026. (An earlier version of this note recorded TD 744 as 2910mm and
+  *shorter* than its siblings; that was wrong — it is the tallest.)
 - **B66 C 644 has an elevating roof as standard** (`campervan_high_top_elevating_roof`);
   its sibling C 600 does not (`campervan_high_top`) — but the PDF's `Sleeping roof` row,
   the only candidate signal, prints values for the *first two* columns (600 C, 640 C) and

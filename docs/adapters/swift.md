@@ -331,6 +331,66 @@ Hand-checked against the source: Kon-Tiki 740 (6.99m / 1220kg payload / 4500kg M
 matching the guide block exactly), Voyager 505 (2 berths, £75,995), Escape 640 (2 berth)
 (MTPLM 3700 → 3500, payload 500 → 370, £91,490 → £89,495).
 
+## Are the 15 "new" products really new? — audit, 28 August 2026
+
+The requester asked, because this project has twice found a "new" product that was a
+renamed old one (Bailey's `74-4T` vs `75-4t`, Etrusco's `6.6 SF` vs `6.8 SF`) and once
+found a kept name behind a changed vehicle (Chausson's 777 vs 797).
+
+Method: fingerprint every product on **length + width + MTPLM + MRO** — the four figures
+a rename cannot change — and compare the 15 new against the 7 disappeared. MRO is the
+discriminating one, because Swift publish it to the kilogram.
+
+**No renames. Not one of the 15 matches any of the 7.** The three closest approaches, and
+why each is a different vehicle:
+
+| New | Closest departing | Verdict |
+|---|---|---|
+| Kon-Tiki 774 | Escape 674 — same 8.22m, same 4500kg | 148kg heavier, £17,845 dearer, different range. Shares the Fiat AL-KO platform, which is expected across ranges. The Escape's only 4500kg slot moved up into the Kon-Tiki range; the vehicle is not the same one. |
+| Trekker 500 505 | Trekker XL — MRO within 5kg | **2070mm wide van against a 2370mm coachbuilt.** Different vehicle class; the name is the only thing they share. |
+| Merlin 144 | Trekker XL — MRO within 10kg | 20mm apart in length but again a different body: Ford Transit van vs Fiat Ducato. |
+
+**Variant pairing is correct where Swift now sell two builds of one layout.** This was the
+subtler risk — the matcher picking the wrong twin:
+
+| Baseline | Matched to | |
+|---|---|---|
+| Escape 684 — 4 berth, 3700kg, MRO 3300, £93,150 | `684 (4 berth)` | **identical on all four** |
+| Escape 694 — 4 berth, 3700kg, MRO 3350, £93,990 | `694 (4 berth)` | **identical on all four** |
+| Kon-Tiki 894 — 4 berth, MRO 3935 | `894` (4 berth, MRO 3965) | right twin; the 6-berth drop-down-bed 894 is genuinely a second product |
+
+So the new Escape 2-berths and the drop-down-bed 894 are real additional products, not
+duplicates of rows FMLV already holds.
+
+**Merlin and Carrera are fingerprint twins, and that is expected.** Merlin 244 sits 5kg
+from Carrera 144, and Merlin 274 within 15kg of Carrera 184 and 194 — same Ducato shell,
+same lengths, different fit-out. Neither can be a rename of the other because **both are
+on the 2027 site simultaneously**, and the prices differ by £8,000 (Merlin is the
+entry-level range). Worth knowing that FMLV will now hold near-identical weights and
+dimensions for two ranges.
+
+### The one genuine anomaly: Voyager 505
+
+| | Berths | Seats | MTPLM | MRO | Price |
+|---|---|---|---|---|---|
+| 2026 brochure | 4 | 2 | 3500 | 2837 | — |
+| FMLV baseline | 4 | 2 | 3500 | 2837 | £73,490 |
+| 2027 site | **2** | 2 | 3500 | **2837** | £75,995 |
+
+Two berths have gone and the **MRO is identical to the kilogram**, with the price up
+£2,505. Those do not sit together: removing a bed should change the weight. Either Swift
+have restated the berth count without changing the vehicle, or the layout changed and the
+old MRO was carried forward without re-weighing.
+
+It matters beyond berths. FMLV holds the 505 as `coach_built_over_cab_bed`, and **every
+other over-cab Voyager was discontinued for 2027** (475, 485, 494 — all three among the 7
+disappeared). If the 505 has lost its over-cab bed, its body type is now wrong too — and
+since this adapter does not propose `body_type`, nothing would ever correct it.
+
+**This is the one to put to Swift.** By contrast the other berth changes hang together:
+Escape 640 went 4 berths to 2 *with* MTPLM 3700→3500, MRO 3200→3130 and £1,995 off, and
+Carrera 144 and 194 went 3 berths to 2 with 10kg off — small, self-consistent changes.
+
 ## Not emitted, and why
 
 - **`body_type`** — as in the brochure version. With no published height the campervan

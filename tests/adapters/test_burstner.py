@@ -202,10 +202,11 @@ def test_signature_sft_parses_all_four_layouts() -> None:
     by_model = {product.model: product for product in products}
     assert by_model["SFT 7.0"].rrp_pounds == 94895
     assert by_model["SFT 7.0"].base_vehicle_manufacturer == "Fiat"
-    # "Permitted number of seats (including driver)* 4 - 5 4 - 5 4 - 5 4 - 5" — every
-    # column is itself a range, and the standard (lower) figure is what FMLV records.
-    assert by_model["SFT 7.0"].mh_passenger_seats_inc_driver == 4
+    # "Permitted number of seats (including driver)* 4 - 5 4 - 5 4 - 5 4 - 5" — the row is
+    # read and kept for the run's narration, but NOT recorded: it is a type-approval
+    # ceiling, not the belted seats fitted as standard. See the seats section below.
     assert by_model["SFT 7.0"].seats_published == "4 - 5"
+    assert by_model["SFT 7.0"].mh_passenger_seats_inc_driver is None
 
 
 def test_signature_smt_parses_all_four_layouts_on_the_mercedes_chassis() -> None:
@@ -235,7 +236,8 @@ def test_habiton_parses_both_habiton_and_habiton_x_from_one_document() -> None:
     ]
     by_model = {product.model: product for product in products}
     assert by_model["HM 6.0"].rrp_pounds == 88995
-    assert by_model["HM 6.1"].mh_passenger_seats_inc_driver == 3  # "3 - 4" -> standard 3
+    assert by_model["HM 6.1"].seats_published == "3 - 4"
+    assert by_model["HM 6.1"].mh_passenger_seats_inc_driver is None  # a ceiling, not fitted
     # HMX's mass-in-running-order row prints one band for two columns — a genuine gap in
     # the source, not a misparse — so both HMX layouts are missing it and their payload.
     assert by_model["HMX 6.0"].mro_kilograms is None
@@ -499,80 +501,85 @@ def test_the_body_type_snippet_does_not_cite_b66_evidence_for_another_range() ->
 
 
 # --------------------------------------------------------------------------- #
-# Seats: the row is a type-approval maximum, so a range needs care
+# Seats: the published row is a type-approval CEILING, and is not recorded for the two
+# ranges where it demonstrably overstates the belted seats fitted as standard
 #
-# "Permitted number of seats (including driver)" is not a count of fitted seats.
-# Footnote 3 of every document: it is "determined by the manufacturer in what is
-# referred to as the type-approval procedure", and it drives the 75kg-per-passenger mass
-# calculation. So a `4 - 5` row could in principle mean five belted seats are fitted as
-# standard — which would make recording 4 wrong under FMLV's base-vehicle protocol.
+# Footnote 3 of every document: "permitted number of seats (including driver)" is
+# "determined by the manufacturer in what is referred to as the type-approval
+# procedure". So its lower bound is not necessarily standard fitment, and the FMLV
+# baseline is what proves the difference — B66 published 4 and FMLV holds 4 on all
+# seven, but Signature SFT publishes `4 - 5` where FMLV holds 2 on three of four
+# layouts, and Habiton publishes 4 where FMLV holds 2 on both 6.0s.
 #
-# Checked 27 August 2026, at the requester's prompting. It does not: both Signature
-# documents sell an "Additional seat secured with a seatbelt and Isofix (Vario Seat)"
-# as a priced accessory (part 793011, in the `Accessories` table with a price and an
-# added weight), and warn that "increasing the number of seatbelt-secured seats" deducts
-# a further 85kg per seat from the special-equipment allowance. 4 is the base vehicle.
+# The Signature lounge is face-to-face with no belted rear seats as standard; the belted
+# seats come from "Sofa convertible to L-shaped bench (4 belted seats in total)", an
+# equipment item whose per-layout availability is marked with glyphs `extract_text`
+# drops. The SMT document does not mention the bench at all and still publishes `4 - 5`.
+#
+# Run #11 proposed 2 -> 4 on all five affected products. It should not have.
 # --------------------------------------------------------------------------- #
 
 
-def test_signature_publishes_a_seats_range_whose_upper_figure_is_a_priced_option() -> None:
-    products, _count = parse_document(
-        _fixture("signature_smt"), DOCUMENTS_BY_KEY["signature-smt"]
-    )
+def test_b66_publishes_one_seats_figure_that_fmlv_agrees_with_so_it_is_recorded() -> None:
+    for key in ("b66-td", "b66-c"):
+        products, _count = parse_document(
+            _fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key]
+        )
+        for product in products:
+            assert product.seats_published == "4"
+            assert product.mh_passenger_seats_inc_driver == 4
+            assert product.seats_overstate_standard is False
+
+
+def test_signature_seats_are_read_but_not_recorded() -> None:
+    for key in ("signature-sft", "signature-smt"):
+        products, _count = parse_document(
+            _fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key]
+        )
+        for product in products:
+            # kept, so the run can narrate what the document said...
+            assert product.seats_published == "4 - 5"
+            # ...but not recorded, and above all not proposed
+            assert product.mh_passenger_seats_inc_driver is None
+            assert product.seats_overstate_standard is True
+
+
+def test_habiton_seats_are_read_but_not_recorded() -> None:
+    products, _count = parse_document(_fixture("habiton"), DOCUMENTS_BY_KEY["habiton"])
 
     for product in products:
-        assert product.seats_published == "4 - 5"
-        assert product.mh_passenger_seats_inc_driver == 4  # the base vehicle, not the max
-        assert product.extra_belted_seat_optional is True
+        assert product.seats_published in ("4", "3 - 4")
+        assert product.mh_passenger_seats_inc_driver is None
 
 
-def test_the_seats_snippet_names_the_option_that_buys_the_upper_figure() -> None:
-    products, _count = parse_document(
-        _fixture("signature_sft"), DOCUMENTS_BY_KEY["signature-sft"]
-    )
+def test_the_unrecorded_seats_figure_is_never_registered_as_provenance() -> None:
+    """The whole point: registering it with a `None` value would propose *clearing* the
+    figure FMLV already holds, which is worse than proposing the wrong one."""
+    for key in ("signature-sft", "signature-smt", "habiton"):
+        products, _count = parse_document(
+            _fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key]
+        )
+        for product in products:
+            extracted = _build_extracted_motorhome(product, "https://example/doc.pdf")
+
+            assert extracted.motorhome.mh_passenger_seats_inc_driver is None
+            assert "mh_passenger_seats_inc_driver" not in extracted.provenance
+
+
+def test_b66s_seats_provenance_says_what_the_row_actually_means() -> None:
+    products, _count = parse_document(_fixture("b66_td"), DOCUMENTS_BY_KEY["b66-td"])
     snippet = _build_extracted_motorhome(products[0], "u").provenance[
         "mh_passenger_seats_inc_driver"
     ].snippet
 
     assert "type-approval maximum" in snippet
-    assert "Vario Seat" in snippet
-    assert "85kg" in snippet
-
-
-def test_b66_publishes_one_seats_figure_so_standard_equals_maximum() -> None:
-    products, _count = parse_document(_fixture("b66_td"), DOCUMENTS_BY_KEY["b66-td"])
-
-    for product in products:
-        assert product.seats_published == "4"
-        assert product.mh_passenger_seats_inc_driver == 4
-        assert product.extra_belted_seat_optional is False
-
-
-def test_habitons_seats_range_is_flagged_because_no_option_explains_it() -> None:
-    """Habiton 6.1 publishes `3 - 4` but prices no extra belted seat.
-
-    The lower figure is still what gets recorded — that is the protocol, and it is the
-    conservative direction — but the snippet must not borrow Signature's evidence to
-    justify it. Both 6.1 layouts are new products, so there is no baseline to check
-    against either.
-    """
-    products, _count = parse_document(_fixture("habiton"), DOCUMENTS_BY_KEY["habiton"])
-    by_model = {product.model: product for product in products}
-
-    assert by_model["HM 6.0"].seats_published == "4"
-    assert by_model["HM 6.1"].seats_published == "3 - 4"
-    assert by_model["HM 6.1"].mh_passenger_seats_inc_driver == 3
-    assert by_model["HM 6.1"].extra_belted_seat_optional is False
-
-    snippet = _build_extracted_motorhome(by_model["HM 6.1"], "u").provenance[
-        "mh_passenger_seats_inc_driver"
-    ].snippet
-    assert "Vario Seat" not in snippet  # that evidence belongs to Signature only
-    assert "worth confirming with the manufacturer" in snippet
+    assert "standard and maximum are the same" in snippet
 
 
 def test_the_extra_seat_pattern_survives_the_mid_label_line_wrap() -> None:
-    # `extract_text` wraps this accessory's name mid-phrase in the real documents.
+    # `extract_text` wraps this accessory's name mid-phrase in the real documents. Kept
+    # because the accessory is still evidence about the Signature ranges even though the
+    # seats figure is no longer recorded from them.
     from src.adapters.burstner import _EXTRA_BELTED_SEAT
 
     wrapped = "Additional seat secured" + chr(10) + "with a seatbelt and Isofix"

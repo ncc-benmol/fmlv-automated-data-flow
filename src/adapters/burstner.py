@@ -109,14 +109,61 @@ class _DocumentConfig:
     range_label: str
     token_order: str  # "number_first" | "letter_first"
     base_vehicle_manufacturer: str
+    #: Whether this document's seats row is a type-approval ceiling that overstates the
+    #: belted seats actually fitted as standard. See `_SEATS_ARE_A_CEILING_NOTE`.
+    seats_overstate_standard: bool = False
 
 
 DOCUMENTS: tuple[_DocumentConfig, ...] = (
     _DocumentConfig("b66-td", "B66", "number_first", "Fiat"),
     _DocumentConfig("b66-c", "B66", "number_first", "Fiat"),
-    _DocumentConfig("signature-sft", "Signature", "letter_first", "Fiat"),
-    _DocumentConfig("signature-smt", "Signature", "letter_first", "Mercedes"),
-    _DocumentConfig("habiton", "Habiton", "letter_first", "Mercedes"),
+    _DocumentConfig(
+        "signature-sft", "Signature", "letter_first", "Fiat", seats_overstate_standard=True
+    ),
+    _DocumentConfig(
+        "signature-smt", "Signature", "letter_first", "Mercedes", seats_overstate_standard=True
+    ),
+    _DocumentConfig(
+        "habiton", "Habiton", "letter_first", "Mercedes", seats_overstate_standard=True
+    ),
+)
+
+#: Why `mh_passenger_seats_inc_driver` is **not** filled for Signature or Habiton.
+#:
+#: "Permitted number of seats (including driver)" is a **type-approval ceiling**, not a
+#: count of belted seats fitted as standard — footnote 3 of every document says it is
+#: "determined by the manufacturer in what is referred to as the type-approval
+#: procedure". Reading its lower bound as the standard figure works for B66 and fails
+#: for these two ranges, and the FMLV baseline is what shows it failing:
+#:
+#:     range              published   FMLV holds
+#:     B66 TD / C         4           4  (all seven)  <- agree
+#:     Signature SFT      4 - 5       2  (7.0, 7.4, 7.5), 4 (7.1)
+#:     Habiton HM / HMX   4           2  (both 6.0)
+#:
+#: The Signature ranges have a face-to-face lounge with no belted rear seats as
+#: standard; the belted seats come from an equipment item, "Sofa convertible to L-shaped
+#: bench (4 belted seats in total)". That item appears in the SFT document's own
+#: per-layout standard-equipment table — but the table marks availability with glyphs
+#: that `extract_text` drops, leaving only the legend ("Standard equipment / Not
+#: possible"), so **the document cannot say which layouts have it**. FMLV holding 4 for
+#: SFT 7.1 alone is consistent with it being standard on that layout only. The SMT
+#: document does not mention the bench at all, yet still publishes `4 - 5`.
+#:
+#: So the field is left unset for both ranges rather than proposed: an existing record
+#: keeps its own value, and a new layout surfaces as a `missing_required` gap for a
+#: reviewer to fill from the equipment list or from EHG. The published figure is still
+#: narrated on every run so the gap is visible and not silent.
+#:
+#: Found 27 August 2026 when the requester challenged the figure and a colleague's
+#: source independently said two belted seats as standard, "up to 4 or 5 by adding
+#: Bürstner's rotating/convertible bench" — which is the same equipment item, from an
+#: unrelated source. Run #11 had proposed 2 -> 4 on all five affected products.
+_SEATS_ARE_A_CEILING_NOTE = (
+    "Bürstner publish a type-approval ceiling ('permitted number of seats'), not the "
+    "belted seats fitted as standard, and this range's belted rear seats come from an "
+    "equipment item whose per-layout availability the document does not state in "
+    "extractable form"
 )
 
 #: A layout code as each document order prints it. Letters are 2-4 chars (`C`, `TD`,
@@ -432,6 +479,10 @@ class BurstnerProduct:
     #: Set only when the document's own chassis line contradicts the per-range make in
     #: `DOCUMENTS` — carries the make that was expected, for the snippet to flag.
     base_vehicle_expected: str | None = None
+    #: Whether this layout's seats row is a type-approval ceiling rather than the belted
+    #: seats fitted as standard. When set, `mh_passenger_seats_inc_driver` is deliberately
+    #: `None` even though `seats_published` has a figure — see `_SEATS_ARE_A_CEILING_NOTE`.
+    seats_overstate_standard: bool = False
     #: Whether this layout's document sells an extra belted seat as a priced accessory,
     #: which is what the upper figure of a `4 - 5` seats row costs. `False` does not mean
     #: the upper figure is standard — only that this document does not price it.
@@ -531,8 +582,13 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
                     mh_height_mm=values.get("mh_height_mm", [None] * count)[column],
                     mtplm_kilograms=values.get("mtplm_kilograms", [None] * count)[column],
                     mro_kilograms=band[0] if band is not None else None,
-                    mh_passenger_seats_inc_driver=seats_pair[0] if seats_pair else None,
+                    mh_passenger_seats_inc_driver=(
+                        seats_pair[0]
+                        if seats_pair and not config.seats_overstate_standard
+                        else None
+                    ),
                     seats_published=seats_pair[1] if seats_pair else None,
+                    seats_overstate_standard=config.seats_overstate_standard,
                     berths=berths_pair[0] if berths_pair else None,
                     berths_published=berths_pair[1] if berths_pair else None,
                 )
@@ -647,7 +703,12 @@ def _build_extracted_motorhome(product: BurstnerProduct, source_url: str) -> Ext
                 f"running order = {product.mh_payload_kilograms}kg (not published directly)"
             ),
         )
-    if product.seats_published is not None:
+    if product.seats_overstate_standard:
+        # Deliberately NOT registered: registering it with a None value would propose
+        # clearing the figure FMLV already holds, which is the opposite of the intent.
+        # The published figure reaches a reviewer through `collect`'s narration instead.
+        pass
+    elif product.seats_published is not None:
         # The label is a type-approval *maximum*, so a range needs explaining: the lower
         # figure is what the vehicle has without options, which is what FMLV records.
         if "-" not in product.seats_published:
@@ -798,6 +859,13 @@ def collect(
                     f"+/-5% band, so this table's columns may be misaligned"
                 )
                 continue
+            if product.seats_overstate_standard and product.seats_published is not None:
+                on_progress(
+                    f"[{config.key}] {product.label} — mh_passenger_seats_inc_driver "
+                    f"LEFT UNSET: the document publishes "
+                    f"'{product.seats_published}' but {_SEATS_ARE_A_CEILING_NOTE}. "
+                    f"Fill it from the range's equipment list or from EHG"
+                )
             results.append(_build_extracted_motorhome(product, url))
             kept += 1
         on_progress(f"[{config.key}] {kept} layout(s) collected from {table_count} table(s)")

@@ -256,6 +256,59 @@ all — confirmed 19 August 2026 by running `fmlv fetch-export` successfully, wh
 26 products (13 of them the current 2026 model year, the rest a 2022-dated prior
 generation the diff run does not compare against).
 
+## `mh_passenger_seats_inc_driver`: a ceiling, not fitted seats — unset for two ranges
+
+"Permitted number of seats (including driver)" is a **type-approval ceiling**. Footnote 3
+of every document says so: it is *"determined by the manufacturer in what is referred to as
+the type-approval procedure"*, and it exists to drive the 75kg-per-passenger mass
+calculation. Its lower bound is therefore not necessarily what is fitted as standard, and
+the FMLV baseline is what proves the difference:
+
+| Range | Published | FMLV holds | |
+|---|---|---|---|
+| B66 TD / C | `4` | `4` on all seven | agree — recorded |
+| Signature SFT | `4 - 5` | `2` on 7.0, 7.4, 7.5 — `4` on 7.1 | **disagree — not recorded** |
+| Habiton HM / HMX | `4` | `2` on both 6.0 | **disagree — not recorded** |
+
+The Signature ranges have a face-to-face lounge with no belted rear seats as standard. The
+belted seats come from an equipment item — *"Sofa convertible to L-shaped bench (4 belted
+seats in total), including folding table top and sliding table through floor rail
+system"* — which appears in the SFT document's own per-layout standard-equipment table.
+**But that table marks per-layout availability with glyphs `extract_text` drops**, leaving
+only the legend (`Standard equipment` / `Not possible`), so the document cannot say which
+layouts have it. FMLV holding `4` for SFT 7.1 alone is consistent with it being standard on
+that layout only. The SMT document does not mention the bench at all and still publishes
+`4 - 5`.
+
+So the field is **left unset for Signature and Habiton**, and unset means *unregistered* —
+registering it with a `None` value would propose *clearing* the figure FMLV already holds,
+which is worse than proposing a wrong one. An existing record keeps its value; a new layout
+(all four SMT, both 6.1) surfaces as a `missing_required` gap. The published figure is
+narrated on every run through `on_progress`, so the gap is visible rather than silent, and
+says where to get the real number.
+
+### How this was found, and the mistake worth not repeating
+
+Run #11 proposed **`2 → 4` on all five** affected products. The requester challenged the
+figure on 27 August 2026 — *"can I check that this doesn't only apply with optional
+extras... they use the phrase 'permitted number of seats (including driver)' meaning the
+maximum number that COULD travel safely"* — which was exactly right.
+
+The first answer to that challenge was **wrong, and wrong in an instructive way**: it
+confirmed that the *fifth* seat is a priced accessory ("Additional seat secured with a
+seatbelt and Isofix (Vario Seat)", part 793011) and concluded from that that four must be
+standard. Those are different claims. Evidence that the upper bound is optional says
+nothing about whether the lower bound is fitted. A colleague's independent source then said
+two belted seats as standard, *"up to 4 or 5 by adding Bürstner's rotating/convertible
+bench"* — the same equipment item, from an unrelated direction — and the FMLV baseline had
+been saying the same thing all along, in the very column the run was proposing to overwrite.
+
+**The check that would have caught it: when a scrape proposes changing an existing value,
+the baseline is evidence, not just a target.** Five products disagreeing the same way is a
+signal about the parse, not five stale records. The same lesson as `body_type`, in the
+opposite direction — there the baseline was wrong and the site right, here the baseline was
+right — which is why neither can be assumed.
+
 ## `body_type`: derived from the published width
 
 **Width, not height, separates the two families**, and it is the one measurement in these

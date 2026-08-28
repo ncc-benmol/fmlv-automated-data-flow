@@ -229,6 +229,36 @@ picking its own spelling fails a test rather than reaching a reviewer.
 vehicle — which was correctly rejected and is recorded in [`bailey.md`](bailey.md). It is
 deliberately *not* in the map: mapping it would legitimise it.
 
+### A "permitted" figure is a ceiling, and the baseline is evidence
+
+Two rules that came out of the same mistake, Bürstner 27 August 2026.
+
+**"Permitted number of seats (including driver)" is not `mh_passenger_seats_inc_driver`.**
+It is a type-approval ceiling — the manufacturer's own footnote says it is "determined by
+the manufacturer in what is referred to as the type-approval procedure", and it exists to
+drive the 75kg-per-passenger mass calculation. FMLV records the belted seats **fitted as
+standard**. Those coincide on a conventional layout with a belted rear bench, and come
+apart on a lounge layout where the belted rear seats are an equipment item: Bürstner
+publish `4 - 5` for every Signature layout where FMLV holds `2` on three of four.
+
+So the lower-figure rule for **berths** does not transfer to seats by analogy. It is safe
+for berths because that row is explicitly labelled `standard / max`. Where a seats row is
+labelled "permitted", the lower bound is a homologation minimum, not a fitment claim —
+corroborate it before recording it, and leave the field unset (and *unregistered*) if you
+cannot. See [`burstner.md`](burstner.md).
+
+**And when a scrape proposes changing a value FMLV already holds, treat the baseline as
+evidence, not just as a target.** Several products disagreeing *the same way* is a signal
+about the parse, far more often than it is several stale records. Bürstner's run proposed
+`2 → 4` on five products at once; that shape was the tell, and it was missed because the
+question being asked was "is the adapter's reading defensible?" rather than "why does the
+customer's own data disagree five times?".
+
+Note this cuts both ways and neither side can be assumed: on `body_type` the same brand's
+baseline was **wrong** and the manufacturer right. The rule is not "trust the baseline" —
+it is that a systematic disagreement is a question to answer, and often only the requester
+can answer it.
+
 ### A field is only real if it has provenance
 
 `ExtractedMotorhome` carries the value and the provenance separately, and **the provenance

@@ -224,10 +224,17 @@ _ELEVATING_ROOF = re.compile(r"Elevating roof[^(]{0,80}\(([^)]{1,80})\)", re.IGN
 #: A model name inside that parenthetical: `212, 244, 264 & 274`, `Trekker X`, `244 only`.
 _ELEVATING_ROOF_MODEL = re.compile(r"(?:Trekker\s+)?([A-Z]{1,2}\b|\d{3})")
 
-#: Above this, a van's roof is an extended high top rather than a standard one.
-#: `docs/adapters/README.md`: "A published height around **2680 mm** is characteristically
-#: an extended high top." Swift's campervans sit at 2720-2980mm, comfortably clear of it.
-HIGH_TOP_THRESHOLD_MM = 2680
+#: A campervan taller than this is a high top. The same shared threshold as
+#: `auto_trail.HIGH_TOP_ABOVE_MM`, set by the NCC side on 16 August 2026: FMLV's tallest
+#: standard-height campervan is 2050mm, so 2300mm clears every known standard roof.
+#:
+#: **Not 2680.** That figure appears in `docs/adapters/README.md` as a description of what
+#: an extended high top characteristically measures, not as the cut-off, and the README
+#: warns against the confusion in as many words — Elddis's 2610mm Boxer "**is** a high top,
+#: so the shared `HIGH_TOP_ABOVE_MM = 2300` needed no adjustment". This adapter used 2680
+#: briefly on 2026-08-29 and it was wrong. It changed no Swift result (the Merlin is
+#: 2720/2790, above both) but it would have called a standard-roof van a plain campervan.
+HIGH_TOP_ABOVE_MM = 2300
 
 #: `From £114,395 OTR`. The site states the basis itself, which is the on-the-road
 #: figure FMLV records as its guide price.
@@ -518,7 +525,7 @@ def find_body_type(
 
     if height_mm is None:
         return None
-    high_top = height_mm >= HIGH_TOP_THRESHOLD_MM
+    high_top = height_mm > HIGH_TOP_ABOVE_MM
     has_roof = model in elevating
     if high_top:
         return (
@@ -643,7 +650,7 @@ def _body_type_basis(product: SwiftProduct) -> str:
     roof = "with a standard elevating roof" if "elevating" in product.body_type.value else "with no elevating roof"
     return (
         f"Body type: {product.body_type.value}. Roof class from the range's published "
-        f"height (>= {HIGH_TOP_THRESHOLD_MM}mm is an extended high top per "
+        f"height (above {HIGH_TOP_ABOVE_MM}mm is a high top per "
         f"docs/adapters/README.md); this model is listed {roof} in the range page's "
         f"standard equipment, and no elevating roof appears in any optional-extras list"
     )

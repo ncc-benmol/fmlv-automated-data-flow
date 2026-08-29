@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.adapters.swift import (
+    HIGH_TOP_ABOVE_MM,
     SwiftProduct,
     _MARKUP,
     _reconciles,
@@ -522,20 +523,45 @@ def test_a_campervan_range_with_no_height_gets_no_body_type() -> None:
     assert all(p.body_type is None for p in products)
 
 
-def test_the_high_top_threshold_is_applied_to_the_roof_class() -> None:
-    below = find_body_type(
-        "", index_path="campervans", height_mm=2400, model="A", elevating=frozenset()
-    )
-    above = find_body_type(
-        "", index_path="campervans", height_mm=2720, model="A", elevating=frozenset()
-    )
-    below_pop = find_body_type(
-        "", index_path="campervans", height_mm=2400, model="A", elevating=frozenset({"A"})
-    )
+def test_the_roof_class_uses_the_shared_2300mm_threshold_not_2680() -> None:
+    """`HIGH_TOP_ABOVE_MM` is 2300, the same figure the other four adapters use.
 
-    assert below is BodyType.CAMPERVAN
-    assert above is BodyType.CAMPERVAN_HIGH_TOP
-    assert below_pop is BodyType.CAMPERVAN_ELEVATING_ROOF
+    The 2680mm in `docs/adapters/README.md` describes what an extended high top
+    characteristically measures; it is not the cut-off, and the README says so — Elddis's
+    2610mm Boxer is a high top. This adapter briefly used 2680 and would have called a
+    2610mm van a plain campervan.
+    """
+    assert HIGH_TOP_ABOVE_MM == 2300
+
+    def roof(height: int, *, pop: bool = False) -> BodyType | None:
+        return find_body_type(
+            "",
+            index_path="campervans",
+            height_mm=height,
+            model="A",
+            elevating=frozenset({"A"}) if pop else frozenset(),
+        )
+
+    assert roof(2050) is BodyType.CAMPERVAN  # FMLV's tallest standard-height van
+    assert roof(2300) is BodyType.CAMPERVAN  # strictly above, as auto_trail has it
+    assert roof(2301) is BodyType.CAMPERVAN_HIGH_TOP
+    assert roof(2610) is BodyType.CAMPERVAN_HIGH_TOP  # the Elddis case 2680 would fail
+    assert roof(2050, pop=True) is BodyType.CAMPERVAN_ELEVATING_ROOF
+    assert roof(2720, pop=True) is BodyType.CAMPERVAN_HIGH_TOP_ELEVATING_ROOF
+
+
+def test_swift_publishes_no_roof_wording_to_fall_back_on() -> None:
+    """Why the Carrera and Trekker vans get no body type at all.
+
+    Some manufacturers state a roof class in words (Bailey publishes an `H3` code), which
+    would settle the class without a height. Swift publish nothing of the sort on any
+    campervan page — so when the height is missing there is no second route, and the
+    field is left unset rather than guessed.
+    """
+    for page in (MERLIN, TREKKER_VAN):
+        text = _MARKUP.sub(" ", page).lower()
+        for wording in ("high top", "high-top", "raised roof", "extended roof", "roof height"):
+            assert wording not in text
 
 
 def test_price_is_the_on_the_road_figure_the_site_publishes() -> None:

@@ -391,17 +391,69 @@ since this adapter does not propose `body_type`, nothing would ever correct it.
 Escape 640 went 4 berths to 2 *with* MTPLM 3700→3500, MRO 3200→3130 and £1,995 off, and
 Carrera 144 and 194 went 3 berths to 2 with 10kg off — small, self-consistent changes.
 
-## Not emitted, and why
+## Body type — added 28 August 2026, after the first review found it blank
 
-- **`body_type`** — as in the brochure version. With no published height the campervan
-  height-threshold rule has nothing to work on for the Carrera and Trekker, and FMLV's
-  existing values are better than a guess. Merlin's 9 new products need it filled by
-  hand, as Chausson's new products did — and the page gives whoever does it the one fact
-  that is easy to get wrong: **the elevating roof is standard on 212, 244, 264 and 274
-  only.** With heights of 2720/2790, comfortably above the ~2680mm the
-  [README](README.md) calls characteristic of an extended high top, that makes the four
-  `2xx` models `campervan_high_top_elevating_roof` and the five `1xx` models
-  `campervan_high_top`.
+Both earlier versions of this adapter left `body_type` unset, on the grounds that the
+campervan rule needs a height and Swift publish none. **That reasoning only held for
+products FMLV already has.** For a new product there is no stored value to protect, so
+"leave it alone" means "leave it blank forever", and the first review of the 15 new
+products found exactly that. The requester asked why; this is the fix.
+
+It is settled two different ways, because the two halves of the roster ask different
+questions.
+
+### Motorhomes need no height at all
+
+Low profile against over-cab against A-class is about shape, not millimetres, and every
+2027 Swift coachbuilt range states its shape in the construction list — `GRP front low
+line pod` on the Voyager and Trekker 500, `AL-KO low line chassis conversion` on the
+Escape and Kon-Tiki. All 22 are `coach_built_low_profile`.
+
+**The trap, and it is a good one: `over-cab` on a Swift page does not mean an over-cab
+bed.** Both ranges that use the phrase mean *storage* — "Moulded over-cab storage
+compartments with Skyview opening sunroof" (Kon-Tiki), "Zip pocket storage on the overcab
+side lockers" (Trekker 500). Those are lockers in the low-profile pod. Swift's extra
+berths come from a **drop-down bed over the front lounge** ("Height adjustable electric
+drop-down bed over front lounge (505, 540 & 574)"), which is a low-profile feature. A
+keyword search for "over cab" classifies two low-profile ranges as Luton, so
+`_OVER_CAB_BED` requires the word *bed*, *double* or *island* after it, and there is a
+test for both directions.
+
+A range stating no profile comes back unset and narrated, rather than defaulting to low
+profile — which is what should happen the day Swift add an A-class.
+
+### Campervans need both halves of the 2×2
+
+Roof class from the height, elevating roof from the page. The Merlin has heights (above),
+so all nine classify:
+
+| | Models | |
+|---|---|---|
+| `campervan_high_top` | 112, 122, 144, 164, 174 | 2720mm, no elevating roof |
+| `campervan_high_top_elevating_roof` | 212, 244, 264, 274 | 2790mm, roof standard |
+
+Both figures clear the ~2680mm the [README](README.md) calls characteristic of an extended
+high top.
+
+**112, 122 and 212 have no height of their own and are still classified**, because a
+campervan range is one bodyshell — the shortest published height in the range decides the
+roof class for all of it. Their `mh_height_mm` still stays empty: this settles the body
+type, not the figure.
+
+**The Carrera and Trekker campervans get nothing**, and that is the rule working rather
+than failing. Swift publish no height for them, so the roof class is unanswerable, so
+FMLV's existing values are left untouched — including the Carrera 244 flag discussed
+above, which the requester is correcting by hand.
+
+### What it changed on the first run
+
+Fifteen new products got a body type, fifteen existing motorhomes had theirs confirmed
+unchanged, and **one real correction was proposed: Voyager 505,
+`coach_built_over_cab_bed` → `coach_built_low_profile`.** That is the change the rename
+audit predicted — every other over-cab Voyager was discontinued for 2027, and the 505's
+own range page states a low-line pod and a drop-down bed over the front lounge.
+
+## Not emitted, and why
 - **`year`** — a carry-through field only a human bumps
   (`src/diff/year_rollover.py`). Today falls inside the June–September window, so the
   review app offered 21 bumps. The site does say 2027.

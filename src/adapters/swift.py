@@ -78,6 +78,7 @@ from pathlib import Path
 
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
+from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
 from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
@@ -193,6 +194,41 @@ _MANUALLY_SOURCED_HEIGHT_MM: dict[tuple[str, str], int] = {
     ("Merlin", "274"): 2790,
 }
 
+#: A coachbuilt range's roof profile, from the range page's own construction list. Every
+#: 2027 motorhome range states it: `GRP front low line pod` on the Voyager and Trekker
+#: 500, `AL-KO low line chassis conversion` on the Escape and Kon-Tiki.
+#:
+#: **Matched rather than assumed** so that an A-class or an over-cab range added later
+#: comes out unset and narrated instead of silently mislabelled `low profile`.
+_LOW_PROFILE = re.compile(r"\blow[ -]line\b", re.IGNORECASE)
+
+#: **`over-cab` on a Swift page does NOT mean an over-cab bed.** Both ranges that use the
+#: phrase mean *storage*: "Zip pocket storage on the overcab side lockers" (Trekker 500),
+#: "Moulded over-cab storage compartments with Skyview opening sunroof" (Kon-Tiki). Those
+#: are lockers in the low-profile pod. Swift's extra berths come from a **drop-down bed
+#: over the front lounge**, which is a low-profile feature, not a Luton.
+#:
+#: Kept only to make the distinction explicit and testable: a keyword search for
+#: "over cab" would classify two low-profile ranges as `COACH_BUILT_OVER_CAB_BED`.
+_OVER_CAB_BED = re.compile(r"over[ -]?cab\s+(?:double|bed|island)", re.IGNORECASE)
+
+#: The models an elevating roof is standard on, from the campervan range pages:
+#: `Elevating roof in Black with Mini-Heki skylight (212, 244, 264 & 274)`,
+#: `Elevating roof in body colour (Trekker X)`, `Elevating roof ... (244 only)`.
+#:
+#: It appears in **no** `optionalExtras` list on any of the 39 products, so where it is
+#: named it is standard fitment restricted by model — which per `docs/adapters/README.md`
+#: is what decides the elevating half of the campervan 2x2.
+_ELEVATING_ROOF = re.compile(r"Elevating roof[^(]{0,80}\(([^)]{1,80})\)", re.IGNORECASE)
+
+#: A model name inside that parenthetical: `212, 244, 264 & 274`, `Trekker X`, `244 only`.
+_ELEVATING_ROOF_MODEL = re.compile(r"(?:Trekker\s+)?([A-Z]{1,2}\b|\d{3})")
+
+#: Above this, a van's roof is an extended high top rather than a standard one.
+#: `docs/adapters/README.md`: "A published height around **2680 mm** is characteristically
+#: an extended high top." Swift's campervans sit at 2720-2980mm, comfortably clear of it.
+HIGH_TOP_THRESHOLD_MM = 2680
+
 #: `From £114,395 OTR`. The site states the basis itself, which is the on-the-road
 #: figure FMLV records as its guide price.
 _PRICE = re.compile(r"£\s*([\d,]+)")
@@ -280,6 +316,7 @@ class SwiftProduct:
     mro_kilograms: int | None = None
     rrp_pounds: int | None = None
     base_vehicle_manufacturer: str | None = None
+    body_type: BodyType | None = None
 
     @property
     def label(self) -> str:
@@ -441,6 +478,57 @@ def range_and_model(title: str, slug: str) -> tuple[str, str] | None:
     return range_label, model
 
 
+def find_elevating_roof_models(page_html: str) -> frozenset[str]:
+    """The models a campervan range fits an elevating roof to as standard.
+
+    Swift name them in a parenthetical after the feature, and the feature is listed twice
+    on a page (range highlights and Exterior & Construction), so every match is merged.
+    An empty set means the range has no elevating roof anywhere — not that the answer is
+    unknown, since a range that fits one always says so.
+    """
+    models: set[str] = set()
+    for group in _ELEVATING_ROOF.findall(_MARKUP.sub(" ", page_html)):
+        models.update(_ELEVATING_ROOF_MODEL.findall(group))
+    return frozenset(models - {"ONLY", "AND"})
+
+
+def find_body_type(
+    page_html: str, *, index_path: str, height_mm: int | None, model: str, elevating: frozenset[str]
+) -> BodyType | None:
+    """One product's body type, or `None` when the page does not settle it.
+
+    **Motorhomes** need no height. Every 2027 Swift coachbuilt range states `low line` in
+    its construction list, and none has an over-cab bed — see `_OVER_CAB_BED` for the trap
+    that makes that worth asserting rather than assuming. A range stating neither comes
+    back `None` rather than being guessed at, which is what would happen the day Swift add
+    an A-class.
+
+    **Campervans** need both halves of the 2x2 in `docs/adapters/README.md`: the roof
+    height, which decides `campervan` vs `campervan_high_top`, and whether an elevating
+    roof is standard *on this model*. Without a height the first half is unanswerable, so
+    the whole thing returns `None` and the baseline value is left alone — that is why the
+    Carrera and Trekker campervans get no body type while the Merlin does.
+    """
+    text = _MARKUP.sub(" ", page_html)
+
+    if index_path == "motorhomes":
+        if _OVER_CAB_BED.search(text):
+            return BodyType.COACH_BUILT_OVER_CAB_BED
+        return BodyType.COACH_BUILT_LOW_PROFILE if _LOW_PROFILE.search(text) else None
+
+    if height_mm is None:
+        return None
+    high_top = height_mm >= HIGH_TOP_THRESHOLD_MM
+    has_roof = model in elevating
+    if high_top:
+        return (
+            BodyType.CAMPERVAN_HIGH_TOP_ELEVATING_ROOF
+            if has_roof
+            else BodyType.CAMPERVAN_HIGH_TOP
+        )
+    return BodyType.CAMPERVAN_ELEVATING_ROOF if has_roof else BodyType.CAMPERVAN
+
+
 def find_base_vehicle(page_html: str) -> str | None:
     """The base-vehicle make stated on one range page, as FMLV spells it.
 
@@ -462,14 +550,27 @@ def parse_range_page(page_html: str, *, slug: str, index_path: str) -> list[Swif
     manufacturer punishes hardest.
     """
     base_vehicle = find_base_vehicle(page_html)
-    products: list[SwiftProduct] = []
+    elevating = find_elevating_roof_models(page_html)
+
+    layouts = []
     for layout in parse_layouts_json(page_html):
         title = (layout.get("title") or "").strip()
         split = range_and_model(title, slug) if title else None
         if split is None:
             continue
         range_label, model = split
-        range_label = RANGE_NAME_CORRECTIONS.get((index_path, range_label), range_label)
+        layouts.append((RANGE_NAME_CORRECTIONS.get((index_path, range_label), range_label), model, layout))
+
+    # A campervan range is one bodyshell, so the high-top half of the 2x2 is a property of
+    # the range rather than of a layout. Merlin publishes a height for six of its nine
+    # models; the shortest of them decides the roof class for all nine, which is what lets
+    # 112, 122 and 212 be classified without inventing a height for them. Their own
+    # `mh_height_mm` still stays empty — this settles the body type, not the figure.
+    known = [_MANUALLY_SOURCED_HEIGHT_MM.get((r, m)) for r, m, _ in layouts]
+    range_height = min((h for h in known if h is not None), default=None)
+
+    products: list[SwiftProduct] = []
+    for range_label, model, layout in layouts:
         products.append(
             SwiftProduct(
                 range_label=range_label,
@@ -483,6 +584,13 @@ def parse_range_page(page_html: str, *, slug: str, index_path: str) -> list[Swif
                 mro_kilograms=_kilograms(layout.get("weightMro")),
                 rrp_pounds=_price(layout.get("priceLabel")),
                 base_vehicle_manufacturer=base_vehicle,
+                body_type=find_body_type(
+                    page_html,
+                    index_path=index_path,
+                    height_mm=range_height,
+                    model=model,
+                    elevating=elevating,
+                ),
             )
         )
     return products
@@ -514,6 +622,33 @@ def parse_guide_payloads(guide_text: str) -> GuidePayloads:
 # --------------------------------------------------------------------------- #
 
 
+def _body_type_basis(product: SwiftProduct) -> str:
+    """Why this product got the body type it did, for the reviewer.
+
+    `body_type` is a layout field, which `diff/compare.py` marks high-suspicion and sorts
+    to the back of a reviewer's queue — so the reasoning has to travel with it.
+    """
+    if product.body_type is None:
+        return ""
+    if product.body_type in {
+        BodyType.COACH_BUILT_LOW_PROFILE,
+        BodyType.COACH_BUILT_OVER_CAB_BED,
+    }:
+        return (
+            f"Body type: {product.body_type.value}, from the range page's construction "
+            f"list stating a 'low line' front pod / chassis conversion. Swift's extra "
+            f"berths come from a drop-down bed over the front lounge, not a Luton — the "
+            f"page's 'over-cab' wording refers to storage lockers"
+        )
+    roof = "with a standard elevating roof" if "elevating" in product.body_type.value else "with no elevating roof"
+    return (
+        f"Body type: {product.body_type.value}. Roof class from the range's published "
+        f"height (>= {HIGH_TOP_THRESHOLD_MM}mm is an extended high top per "
+        f"docs/adapters/README.md); this model is listed {roof} in the range page's "
+        f"standard equipment, and no elevating roof appears in any optional-extras list"
+    )
+
+
 def _build_extracted_motorhome(
     product: SwiftProduct, source_url: str, *, payload_basis: str
 ) -> ExtractedMotorhome:
@@ -532,6 +667,7 @@ def _build_extracted_motorhome(
         mh_height_mm=product.mh_height_mm,
         rrp_pounds=product.rrp_pounds,
         base_vehicle_manufacturer=product.base_vehicle_manufacturer,
+        body_type=product.body_type,
     )
 
     snippets = {
@@ -551,6 +687,7 @@ def _build_extracted_motorhome(
             f"Base vehicle: {product.base_vehicle_manufacturer}, from the range page's own "
             f"Exterior & Construction list, which names the chassis once for the whole range"
         ),
+        "body_type": _body_type_basis(product),
         "mtplm_kilograms": f"MTPLM: {product.mtplm_kilograms}kg",
         "mro_kilograms": f"MRO: {product.mro_kilograms}kg",
         "rrp_pounds": (
@@ -574,6 +711,7 @@ def _build_extracted_motorhome(
         "mro_kilograms": product.mro_kilograms,
         "rrp_pounds": product.rrp_pounds,
         "base_vehicle_manufacturer": product.base_vehicle_manufacturer,
+        "body_type": product.body_type,
         "mh_payload_kilograms": product.mh_payload_kilograms,
     }
     provenance = {

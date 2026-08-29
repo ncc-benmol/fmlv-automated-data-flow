@@ -15,8 +15,11 @@ from pathlib import Path
 
 from src.adapters.swift import (
     SwiftProduct,
+    _MARKUP,
     _reconciles,
     find_base_vehicle,
+    find_body_type,
+    find_elevating_roof_models,
     find_quick_guide_url,
     find_range_page_paths,
     parse_guide_payloads,
@@ -24,6 +27,7 @@ from src.adapters.swift import (
     parse_range_page,
     range_and_model,
 )
+from src.product_model.enums import BodyType
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -413,6 +417,125 @@ def test_no_other_range_gets_a_hand_sourced_height() -> None:
         (TREKKER_VAN, "swift-trekker", "campervans"),
     ):
         assert all(p.mh_height_mm is None for p in parse_range_page(page, slug=slug, index_path=index))
+
+
+# --------------------------------------------------------------------------- #
+# Body type
+# --------------------------------------------------------------------------- #
+
+
+def test_every_coachbuilt_range_is_low_profile() -> None:
+    """All four 2027 motorhome ranges state `low line` in their construction list."""
+    products = parse_range_page(KON_TIKI, slug="swift-kon-tiki", index_path="motorhomes")
+
+    assert products
+    assert all(p.body_type is BodyType.COACH_BUILT_LOW_PROFILE for p in products)
+
+
+def test_over_cab_storage_is_not_an_over_cab_bed() -> None:
+    """The trap that would mislabel two low-profile ranges.
+
+    The Kon-Tiki page says "Moulded over-cab storage compartments" and the Trekker 500
+    says "Zip pocket storage on the overcab side lockers" — both are lockers in the
+    low-profile pod. Swift's extra berths come from a drop-down bed over the *front
+    lounge*. A keyword search for "over cab" classifies both ranges as Luton.
+    """
+    # The real Kon-Tiki page carries the trap wording, and still comes out low profile.
+    assert "over-cab storage" in _MARKUP.sub(" ", KON_TIKI).lower()
+    assert all(
+        p.body_type is BodyType.COACH_BUILT_LOW_PROFILE
+        for p in parse_range_page(KON_TIKI, slug="swift-kon-tiki", index_path="motorhomes")
+    )
+
+    storage = "<li>Moulded over-cab storage compartments with Skyview sunroof</li><li>low line pod</li>"
+    assert find_body_type(
+        storage, index_path="motorhomes", height_mm=None, model="774", elevating=frozenset()
+    ) is BodyType.COACH_BUILT_LOW_PROFILE
+
+    lounge = "<li>Height adjustable electric drop-down bed over front lounge (505)</li><li>low line pod</li>"
+    assert find_body_type(
+        lounge, index_path="motorhomes", height_mm=None, model="505", elevating=frozenset()
+    ) is BodyType.COACH_BUILT_LOW_PROFILE
+
+    # A real Luton must still be recognised, so the distinction is not just "always low".
+    luton = "<li>Over-cab double bed</li><li>low line pod</li>"
+    assert find_body_type(
+        luton, index_path="motorhomes", height_mm=None, model="475", elevating=frozenset()
+    ) is BodyType.COACH_BUILT_OVER_CAB_BED
+
+
+def test_a_range_stating_no_profile_is_left_unset() -> None:
+    # What should happen the day Swift add an A-class, rather than a silent "low profile".
+    assert find_body_type(
+        "<li>Some new construction</li>",
+        index_path="motorhomes", height_mm=None, model="900", elevating=frozenset(),
+    ) is None
+
+
+def test_elevating_roof_models_are_read_from_the_page() -> None:
+    """Standard fitment, restricted by model, stated in a parenthetical."""
+    assert find_elevating_roof_models(MERLIN) == frozenset({"212", "244", "264", "274"})
+    assert find_elevating_roof_models(TREKKER_VAN) == frozenset({"X"})
+
+    # The Carrera's phrasing, which uses "only" rather than a list.
+    carrera = "<li>Elevating roof in Black with Mini-Heki skylight (244 only)</li>"
+    assert find_elevating_roof_models(carrera) == frozenset({"244"})
+
+
+def test_a_range_with_no_elevating_roof_yields_an_empty_set() -> None:
+    assert find_elevating_roof_models("<li>Fixed high top roof</li>") == frozenset()
+
+
+def test_merlin_body_types_split_on_the_elevating_roof() -> None:
+    products = {p.model: p for p in parse_range_page(MERLIN, slug="merlin", index_path="campervans")}
+
+    high = BodyType.CAMPERVAN_HIGH_TOP
+    elevating = BodyType.CAMPERVAN_HIGH_TOP_ELEVATING_ROOF
+    assert {m: p.body_type for m, p in products.items()} == {
+        "112": high, "122": high, "144": high, "164": high, "174": high,
+        "212": elevating, "244": elevating, "264": elevating, "274": elevating,
+    }
+
+
+def test_merlins_without_their_own_height_still_get_a_roof_class() -> None:
+    """112, 122 and 212 have no height, but a range is one bodyshell.
+
+    The shortest published height in the range decides the roof class for all of it.
+    Their own `mh_height_mm` stays empty — this settles the body type, not the figure.
+    """
+    products = {p.model: p for p in parse_range_page(MERLIN, slug="merlin", index_path="campervans")}
+
+    for model in ("112", "122", "212"):
+        assert products[model].mh_height_mm is None
+        assert products[model].body_type is not None
+
+
+def test_a_campervan_range_with_no_height_gets_no_body_type() -> None:
+    """The Carrera and Trekker vans, whose heights Swift do not publish.
+
+    The high-top half of the 2x2 is unanswerable without one, so the field is left unset
+    and FMLV's existing value is preserved rather than guessed over.
+    """
+    products = parse_range_page(TREKKER_VAN, slug="swift-trekker", index_path="campervans")
+
+    assert products
+    assert all(p.body_type is None for p in products)
+
+
+def test_the_high_top_threshold_is_applied_to_the_roof_class() -> None:
+    below = find_body_type(
+        "", index_path="campervans", height_mm=2400, model="A", elevating=frozenset()
+    )
+    above = find_body_type(
+        "", index_path="campervans", height_mm=2720, model="A", elevating=frozenset()
+    )
+    below_pop = find_body_type(
+        "", index_path="campervans", height_mm=2400, model="A", elevating=frozenset({"A"})
+    )
+
+    assert below is BodyType.CAMPERVAN
+    assert above is BodyType.CAMPERVAN_HIGH_TOP
+    assert below_pop is BodyType.CAMPERVAN_ELEVATING_ROOF
 
 
 def test_price_is_the_on_the_road_figure_the_site_publishes() -> None:

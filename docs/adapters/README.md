@@ -383,6 +383,21 @@ renders a grouped dropdown rather than the free-text box — `webapp/choices.py`
 this, correcting one meant typing `type_campervan_high_top_elevating_roof` exactly, and a
 typo only failed later, at upload, in `output.build.apply_field`.
 
+**Put the manufacturer's own words in the snippet, not your reasoning about them.** The
+provenance travels all the way to the review form, link included, and it is what a
+reviewer uses to settle the value — so quote the page. Swift's undetermined campervans
+carry the source URL of the range page and the line that identifies them:
+
+> Swift describe this as a campervan — it is listed under `/campervans/` on their site and
+> its range page says so. Swift's own words for it: *"Fiat Ducato panel van in Artense
+> Grey, with body coloured grille and front bumper"*. Which of the four campervan types it
+> is cannot be settled from the site … Open the source link to see the vehicle, then choose.
+
+Quote from **inside one element**, by splitting the HTML on tags rather than stripping
+them. Flattening a page runs one feature bullet into the next, and the quote ends up
+finishing mid-sentence in the following bullet — `swift.find_family_evidence` has the
+worked example.
+
 **Use it where the family is genuinely certain and the value genuinely is not.** It is not
 a way to defer work an adapter could do: a field the source *does* answer should be
 parsed, not passed to a reviewer.

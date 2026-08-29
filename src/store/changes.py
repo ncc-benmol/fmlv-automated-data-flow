@@ -47,7 +47,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from ..diff.classify import ChangeKind, ProductDiff
-from ..diff.compare import field_value
+from ..diff.compare import MissingField, field_value
 from ..diff.year_rollover import bump_year, can_bump_year
 from ..product_model import schema
 from . import products as products_store
@@ -96,6 +96,29 @@ UNDETERMINED_FIELD_SNIPPET = (
 #: `output.build.apply_field` is `_serialize`'s inverse and splits on this same
 #: constant — keep them in sync.
 LIST_SEPARATOR = ", "
+
+
+def _missing_field_snippet(missing: MissingField) -> str:
+    """The confirm-or-replace offer, plus whatever evidence the adapter recorded.
+
+    Both constants stay **prefixes** of what is stored, because `webapp.app`'s
+    `is_missing_field` identifies these rows by their opening text — there is no DB column
+    for "why was this proposed" — and rows already written to a deployed run store carry
+    the bare constant.
+
+    Appending the adapter's own snippet is what gives a reviewer something to act on: for
+    a field the adapter attempted and could not fill, that snippet quotes the page wording
+    identifying what kind of product this is, and `source_url` links to the page it came
+    from. Requested 2026-08-29.
+    """
+    base = (
+        MISSING_FIELD_SNIPPET
+        if missing.field in schema.IN_SCOPE
+        else UNDETERMINED_FIELD_SNIPPET
+    )
+    if missing.provenance and missing.provenance.snippet:
+        return f"{base} {missing.provenance.snippet}"
+    return base
 
 
 @dataclass(frozen=True)
@@ -473,12 +496,8 @@ def persist_diff(
                 field=missing.field,
                 old_value=old_serialized,
                 new_value=old_serialized,
-                source_url=None,
-                source_snippet=(
-                    MISSING_FIELD_SNIPPET
-                    if missing.field in schema.IN_SCOPE
-                    else UNDETERMINED_FIELD_SNIPPET
-                ),
+                source_url=missing.provenance.source_url if missing.provenance else None,
+                source_snippet=_missing_field_snippet(missing),
             )
             proposed += 1
             missing_field_proposed += 1

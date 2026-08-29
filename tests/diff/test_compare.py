@@ -164,7 +164,14 @@ def test_an_attempted_but_unfilled_field_never_proposes_blanking_the_baseline() 
 
     assert all(change.field != "body_type" for change in changes)
     assert "body_type" not in confirmed
-    assert MissingField(field="body_type", old_value=BASELINE.body_type) in missing
+
+    (entry,) = [m for m in missing if m.field == "body_type"]
+    assert entry.old_value == BASELINE.body_type
+    # The adapter's evidence travels with it, so the review form can link to the page
+    # and quote the wording that says what kind of product this is.
+    assert entry.provenance is not None
+    assert entry.provenance.source_url == "https://example.com"
+    assert entry.provenance.snippet == "choose one"
 
 
 def test_an_attempted_unfilled_field_is_ignored_when_the_baseline_is_empty_too() -> None:

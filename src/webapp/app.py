@@ -84,9 +84,8 @@ _templates.env.globals["choice_label"] = choices.label_for
 # A `MissingField` proposal (store.changes.persist_diff) always has `old_value ==
 # new_value` and this exact snippet — same "match on the snippet text" trick as the
 # archive/year-rollover proposals above, since there's no DB column for "why".
-_templates.env.globals["is_missing_field"] = lambda change: change.source_snippet in (
-    store.MISSING_FIELD_SNIPPET,
-    store.UNDETERMINED_FIELD_SNIPPET,
+_templates.env.globals["is_missing_field"] = lambda change: (change.source_snippet or "").startswith(
+    (store.MISSING_FIELD_SNIPPET, store.UNDETERMINED_FIELD_SNIPPET)
 )
 
 

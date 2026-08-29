@@ -327,6 +327,9 @@ class SwiftProduct:
     #: Which half of `BodyType` this product draws from. Known even when the exact
     #: subtype is not, because it comes from which index page led to the range page.
     is_campervan: bool = False
+    #: Swift's own wording for what kind of vehicle this is, quoted for the reviewer
+    #: when the exact body type could not be determined.
+    family_evidence: str | None = None
 
     @property
     def label(self) -> str:
@@ -539,6 +542,25 @@ def find_body_type(
     return BodyType.CAMPERVAN_ELEVATING_ROOF if has_roof else BodyType.CAMPERVAN
 
 
+def find_family_evidence(page_html: str) -> str | None:
+    """The phrase on a range page that says what kind of vehicle this is.
+
+    `Fiat Ducato panel van with body coloured grille...` for a campervan, `Fiat chassis
+    cab in Black Metallic` for a coachbuilt. Quoted verbatim into the provenance of an
+    undetermined `body_type`, so a reviewer sees Swift's own wording beside the source
+    link rather than only this adapter's reasoning about it. Requested 2026-08-29.
+
+    **Bounded to the single element it appears in**, by splitting on tags rather than
+    stripping them. Flattening the whole page runs one feature-list item straight into
+    the next, and the quote ends mid-sentence in the following bullet.
+    """
+    for chunk in re.split(r"<[^>]+>", page_html):
+        text = " ".join(chunk.split())
+        if text and _BASE_VEHICLE.search(text):
+            return text if len(text) <= 120 else f"{text[:117].rstrip()}..."
+    return None
+
+
 def find_base_vehicle(page_html: str) -> str | None:
     """The base-vehicle make stated on one range page, as FMLV spells it.
 
@@ -560,6 +582,7 @@ def parse_range_page(page_html: str, *, slug: str, index_path: str) -> list[Swif
     manufacturer punishes hardest.
     """
     base_vehicle = find_base_vehicle(page_html)
+    family_evidence = find_family_evidence(page_html)
     elevating = find_elevating_roof_models(page_html)
 
     layouts = []
@@ -595,6 +618,7 @@ def parse_range_page(page_html: str, *, slug: str, index_path: str) -> list[Swif
                 rrp_pounds=_price(layout.get("priceLabel")),
                 base_vehicle_manufacturer=base_vehicle,
                 is_campervan=index_path == "campervans",
+                family_evidence=family_evidence,
                 body_type=find_body_type(
                     page_html,
                     index_path=index_path,
@@ -648,13 +672,20 @@ def _body_type_basis(product: SwiftProduct) -> str:
     on.
     """
     if product.body_type is None:
-        family = "campervan" if product.is_campervan else "coachbuilt motorhome"
+        family = "campervan" if product.is_campervan else "coach built motorhome"
+        options = "four campervan" if product.is_campervan else "three coach built"
+        quote = (
+            f' Swift\'s own words for it: "{product.family_evidence}".'
+            if product.family_evidence
+            else ""
+        )
         return (
-            f"Body type NOT DETERMINED — please choose one. Swift publish no height for "
-            f"this {family} and no roof wording anywhere on the range page, so the high "
-            f"top / standard roof half of the rule cannot be answered from the site. "
-            f"This vehicle is a {family}, so the choice is between the "
-            f"{'four campervan' if product.is_campervan else 'three coach built'} types"
+            f"Swift describe this as a {family} — it is listed under "
+            f"/{'campervans' if product.is_campervan else 'motorhomes'}/ on their site "
+            f"and its range page says so.{quote} Which of the {options} types it is "
+            f"cannot be settled from the site: Swift publish no height for 2027 and no "
+            f"roof wording on any campervan page. Open the source link to see the "
+            f"vehicle, then choose"
         )
     if product.body_type in {
         BodyType.COACH_BUILT_LOW_PROFILE,

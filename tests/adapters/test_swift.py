@@ -21,6 +21,7 @@ from src.adapters.swift import (
     find_base_vehicle,
     find_body_type,
     find_elevating_roof_models,
+    find_family_evidence,
     find_quick_guide_url,
     find_range_page_paths,
     parse_guide_payloads,
@@ -570,3 +571,56 @@ def test_price_is_the_on_the_road_figure_the_site_publishes() -> None:
     # Merlin 112 is Swift's cheapest 2027 leisure vehicle.
     assert products["112"].rrp_pounds == 64685
     assert all(product.rrp_pounds is not None for product in products.values())
+
+
+def test_family_evidence_quotes_swifts_own_wording() -> None:
+    """Shown to a reviewer beside the source link when the body type is undetermined."""
+    assert find_family_evidence(MERLIN) == (
+        "Fiat Ducato panel van with body coloured grille and standard black front bumper"
+    )
+    assert find_family_evidence(TREKKER_VAN) == "Ford Transit panel van in Grey Matter"
+    assert find_family_evidence(KON_TIKI) == (
+        "Fiat chassis cab in Black Metallic, with body coloured grille and bumper"
+    )
+
+
+def test_the_quote_stops_at_its_own_element() -> None:
+    """Flattening the page runs one feature bullet into the next.
+
+    The Trekker's chassis bullet is followed immediately by its elevating-roof bullet;
+    a quote taken from flattened text ends up saying "...Grey Matter Elevating roof in
+    body colour (Trekker X) Fr".
+    """
+    quote = find_family_evidence(TREKKER_VAN)
+
+    assert quote is not None
+    assert "Elevating roof" not in quote
+
+
+def test_a_page_naming_no_chassis_yields_no_quote() -> None:
+    assert find_family_evidence("<li>Nothing about the base vehicle here</li>") is None
+
+
+def test_an_undetermined_body_type_still_records_provenance() -> None:
+    """So the field reaches the reviewer with a link and a quote, not as silence.
+
+    The Trekker campervans have no published height, so their type cannot be settled —
+    but Swift plainly call them panel vans, and that is what a reviewer needs to see.
+    """
+    from src.adapters.swift import _build_extracted_motorhome
+
+    product = next(
+        p for p in parse_range_page(TREKKER_VAN, slug="swift-trekker", index_path="campervans")
+    )
+    assert product.body_type is None  # the premise of this test
+
+    extracted = _build_extracted_motorhome(
+        product, "https://www.swiftgroup.co.uk/campervans/product/63872/swift-trekker/",
+        payload_basis="checked",
+    )
+
+    provenance = extracted.provenance["body_type"]
+    assert provenance.source_url.endswith("/swift-trekker/")
+    assert "campervan" in provenance.snippet
+    assert "Ford Transit panel van in Grey Matter" in provenance.snippet
+    assert "four campervan" in provenance.snippet

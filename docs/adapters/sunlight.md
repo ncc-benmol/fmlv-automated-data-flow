@@ -247,8 +247,23 @@ Against the real baseline the rule **confirms all 20** products FMLV already hol
 contradicts none — a stronger start than `burstner.py` got, where two of thirteen
 disagreed and turned out to be FMLV's own errors.
 
-`VW IBEX 604D` is deliberately **left blank**. It is a VW Crafter camper van with no FMLV
-precedent, and the price list does not say whether its roof is a fixed high top or an
-elevating one. Its 2720mm height sits between CLIFF's 2610mm high tops and Vanlife's
-2810mm pop-top, so height does not settle it either. A blank is an honest gap a reviewer
-fills in seconds; a wrong `Yes` is a silent error nothing downstream re-checks.
+`VW IBEX 604D` needed a second source. The price list is silent on the roof — it is the
+only van in the catalogue with no `Sleeping roof` row — and FMLV had no IBEX precedent to
+fall back on, so the adapter left it blank rather than guess. Sunlight's own model page
+settles it: *"the specially developed roof provides up to 1.98 m of standing height"*, a
+fixed fibreglass roof with no lifting section, and a rear transverse double rather than a
+roof bed. That is `campervan_high_top`, and it is now in the table.
+
+Worth knowing for the next one: the model is listed on the site as **IBEX VW**, while the
+price list heads its table **VW IBEX**. Searching the site for the price list's spelling
+finds nothing.
+
+Height is *not* the discriminator here, despite looking like one. The IBEX's 272cm sits
+between CLIFF's 261cm high tops and Vanlife's 281cm pop-top. What actually separates them
+is the `Sleeping roof` row and whether the roof bed is standard: Vanlife has one as
+standard (`high_top_elevating_roof`), CLIFF X has one as an option and FMLV records the
+base vehicle (`high_top`), and the IBEX has none at all.
+
+Anything genuinely unrecognised is still left blank on purpose. One wrong `Yes` among
+eight mutually exclusive columns is a silent error nothing downstream re-checks; a blank
+is an honest gap a reviewer fills in seconds.

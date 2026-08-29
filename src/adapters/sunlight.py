@@ -195,6 +195,11 @@ _VAN_RANGE_BODY_TYPES: tuple[tuple[str, BodyType], ...] = (
     ("cliff rt", BodyType.CAMPERVAN_ELEVATING_ROOF),
     ("cliff x", BodyType.CAMPERVAN_HIGH_TOP),
     ("cliff adventure", BodyType.CAMPERVAN_HIGH_TOP),
+    # Confirmed against Sunlight's own model page, which the price list does not say:
+    # "the specially developed roof provides up to 1.98 m of standing height", a fixed
+    # fibreglass roof with no lifting section. Corroborated by the price list, where the
+    # IBEX is the only van without a `Sleeping roof` row.
+    ("ibex", BodyType.CAMPERVAN_HIGH_TOP),
 )
 
 #: The letter a layout code starts with is Sunlight's series marker, and it decides the

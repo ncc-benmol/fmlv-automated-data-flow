@@ -389,10 +389,19 @@ def test_body_type_comes_from_the_range_name_for_camper_vans() -> None:
     assert {product.body_type for product in cliff} == {BodyType.CAMPERVAN_HIGH_TOP}
 
 
-def test_an_unrecognised_range_is_left_blank_rather_than_guessed() -> None:
-    # VW IBEX is a Crafter camper van with no FMLV precedent, and nothing in the price
-    # list says whether its roof is fixed or elevating. A blank is an honest gap.
+def test_the_ibex_is_a_fixed_high_top() -> None:
+    # The price list is silent on the roof; Sunlight's model page settles it ("the
+    # specially developed roof provides up to 1.98 m of standing height", fixed
+    # fibreglass, no lifting section). FMLV had no precedent to fall back on.
     product = SunlightProduct(range_label="VW IBEX", model="604D", page_number=35)
+
+    assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
+
+
+def test_an_unrecognised_range_is_left_blank_rather_than_guessed() -> None:
+    # One wrong Yes among eight mutually exclusive columns is a silent error; a blank is
+    # an honest gap a reviewer fills in seconds.
+    product = SunlightProduct(range_label="Sunlight Somethingnew", model="900Z", page_number=1)
 
     assert product.body_type is None
     assert "body_type" not in _build_extracted_motorhome(product, "http://x").provenance

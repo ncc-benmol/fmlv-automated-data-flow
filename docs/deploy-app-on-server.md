@@ -8,23 +8,23 @@
 
    NB: tick the option for sharing the clipboard. This lets you copy/paste between your local machine and the VM
 
-2. Make sure 
+2. Make sure you are on the server, the remote desktop connection, before doing the rest of the instructions.
 
-2. Search for the "PowerShell" app, and choose **Run as Administrator**.
+3. Search for the "PowerShell" app, and choose **Run as Administrator**.
 
-3. Navigate to the project folder:
+4. Navigate to the project folder:
 
    ```powershell
    cd C:\apps\fmlv-automated-data-flow\
    ```
 
-4. Pull down the latest copy of the source code from GitHub (NB: this will pull the `master` branch):
+5. Pull down the latest copy of the source code from GitHub (NB: this will pull the `master` branch):
 
    ```powershell
    git pull
    ```
 
-5. Stop and restart the deployed app:
+6. Stop and restart the deployed app:
 
    ```powershell
    .\deploy\windows\05-install-app-service.ps1

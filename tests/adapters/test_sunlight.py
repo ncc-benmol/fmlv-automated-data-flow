@@ -25,6 +25,7 @@ from src.adapters.sunlight import (
     find_price_list_urls,
     parse_technical_page,
 )
+from src.product_model.enums import BodyType
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -316,3 +317,91 @@ def test_base_vehicle_is_registered_as_provenance_so_a_new_product_keeps_it() ->
     assert "base_vehicle_manufacturer" in extracted.provenance
     snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
     assert "Standard chassis: Ford Transit" in snippet  # the row's own label and value
+
+
+# --------------------------------------------------------------------------- #
+# The name FMLV renders, and the body type
+# --------------------------------------------------------------------------- #
+
+
+def test_a_model_repeating_its_range_name_is_trimmed() -> None:
+    # FMLV renders manufacturer + range + model, so range "CLIFF Adventure" with model
+    # "CLIFF 540" would read back as "Sunlight CLIFF Adventure CLIFF 540".
+    products = parse_technical_page(CLIFF_ADVENTURE, page_number=4)
+
+    assert [product.model for product in products][0] == "CLIFF 540"
+    assert [product.fmlv_model for product in products] == [
+        "540",
+        "600",
+        "601",
+        "602",
+        "640",
+    ]
+
+
+def test_trimming_the_range_name_keeps_a_trailing_letter() -> None:
+    # CLIFF Vanlife's "CLIFF 540 V" must not collapse onto CLIFF Adventure's "540".
+    (product,) = parse_technical_page(CLIFF_VANLIFE, page_number=25)
+
+    assert product.model == "CLIFF 540 V"
+    assert product.fmlv_model == "540 V"
+
+
+def test_a_model_that_is_only_the_range_name_is_left_alone() -> None:
+    # Trimming here would leave the product with no model at all.
+    product = SunlightProduct(range_label="CLIFF X", model="CLIFF", page_number=1)
+
+    assert product.fmlv_model == "CLIFF"
+
+
+def test_a_model_not_repeating_its_range_is_untouched() -> None:
+    products = parse_technical_page(VAN_ADVENTURE, page_number=4)
+
+    assert [product.fmlv_model for product in products] == ["V 60", "V 66", "V 67S"]
+
+
+def test_body_type_comes_from_the_series_letter_for_coachbuilts() -> None:
+    products = parse_technical_page(LOW_PROFILE_UNLTD, page_number=24)
+
+    assert {product.body_type for product in products} == {
+        BodyType.COACH_BUILT_LOW_PROFILE
+    }
+
+
+def test_the_v_series_is_a_coachbuilt_not_a_van_conversion() -> None:
+    # The trap: "Van Adventure" reads like a panel-van conversion, but the V-series is a
+    # narrow-bodied low profile and sits in the *motorhome* price list. FMLV holds all
+    # seven live V layouts that way.
+    products = parse_technical_page(VAN_ADVENTURE, page_number=4)
+
+    assert {product.body_type for product in products} == {
+        BodyType.COACH_BUILT_LOW_PROFILE
+    }
+
+
+def test_body_type_comes_from_the_range_name_for_camper_vans() -> None:
+    (vanlife,) = parse_technical_page(CLIFF_VANLIFE, page_number=25)
+    cliff = parse_technical_page(CLIFF_ADVENTURE, page_number=4)
+
+    # "CLIFF Vanlife" in the price list is FMLV's "Vanlife" — matched as a substring, so
+    # the leading CLIFF does not drag it into the plain high-top bucket.
+    assert vanlife.body_type is BodyType.CAMPERVAN_HIGH_TOP_ELEVATING_ROOF
+    assert {product.body_type for product in cliff} == {BodyType.CAMPERVAN_HIGH_TOP}
+
+
+def test_an_unrecognised_range_is_left_blank_rather_than_guessed() -> None:
+    # VW IBEX is a Crafter camper van with no FMLV precedent, and nothing in the price
+    # list says whether its roof is fixed or elevating. A blank is an honest gap.
+    product = SunlightProduct(range_label="VW IBEX", model="604D", page_number=35)
+
+    assert product.body_type is None
+    assert "body_type" not in _build_extracted_motorhome(product, "http://x").provenance
+
+
+def test_body_type_is_registered_as_provenance() -> None:
+    product = SunlightProduct(range_label="Low Profile UNLTD", model="T 7003S", page_number=24)
+
+    extracted = _build_extracted_motorhome(product, "http://x")
+
+    assert extracted.motorhome.body_type is BodyType.COACH_BUILT_LOW_PROFILE
+    assert "type_coach_built_low_profile" in extracted.provenance["body_type"].snippet

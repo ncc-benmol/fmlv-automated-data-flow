@@ -200,3 +200,55 @@ the eleven recovered products. The model-year update would have landed on a dead
 while the live one drifted out of date, which is a quieter failure than a duplicate and
 would not have shown up in a health check at all. `matching.py` now breaks ties toward
 the live row, newest year first.
+
+## The name FMLV renders
+
+FMLV builds a product's display name as manufacturer + range + model, so the price
+list's `CLIFF X` / `CLIFF 602` reads back as **"Sunlight CLIFF X CLIFF 602"**. The
+adapter now trims a leading model word the range already carries, via
+`base.model_without_range_prefix`.
+
+It only ever drops a *leading* word, only when the range genuinely contains it, and only
+when what remains still names the layout — so `CLIFF Vanlife`'s `CLIFF 540 V` becomes
+`540 V` and stays distinct from `CLIFF Adventure`'s `540`, and a hypothetical model of
+just `CLIFF` is left alone rather than emptied.
+
+This produces no churn on the products FMLV already holds: it stores the CLIFF layouts
+as `540`, `600`, `640` already, so the trim makes the adapter agree with the baseline
+rather than propose a rename. Only genuinely new products were carrying the doubled name,
+which is why `CLIFF X 602` surfaced it.
+
+The helper is deliberately **not** wired into every adapter. Bürstner's
+`Lyseo TD Harmony Line` holds both `TD 680 G` and `680 G` as separate FMLV rows, so the
+same rule there would collapse a distinction FMLV is currently making. Apply it per
+manufacturer, once that manufacturer's naming has been checked.
+
+## body_type
+
+Filled from the range name and the layout's series letter — Sunlight's naming carries it
+reliably, which not every manufacturer's does:
+
+| Source | Reads as | Evidence |
+|---|---|---|
+| `T` series | `coach_built_low_profile` | the range is *named* `Low Profile` |
+| `I` series | `a_class` | the range is *named* `A Class` |
+| `A` series | `coach_built_over_cab_bed` | not stated; all three live FMLV `Coachbuilts` layouts |
+| `V` series | `coach_built_low_profile` | not stated; all seven live FMLV `Van` layouts |
+| `CLIFF Adventure`, `CLIFF X` | `campervan_high_top` | FMLV precedent across both ranges |
+| `CLIFF RT` | `campervan_elevating_roof` | FMLV precedent |
+| `CLIFF Vanlife` | `campervan_high_top_elevating_roof` | FMLV precedent |
+
+**The `V` series is the trap.** `Van Adventure` reads like a panel-van conversion, and
+guessing that would put a `Yes` in the wrong one of eight mutually exclusive columns. It
+is a narrow-bodied (2140mm) low-profile coachbuilt, it sits in the *motorhome* price
+list, and FMLV classes every live V layout that way.
+
+Against the real baseline the rule **confirms all 20** products FMLV already holds and
+contradicts none — a stronger start than `burstner.py` got, where two of thirteen
+disagreed and turned out to be FMLV's own errors.
+
+`VW IBEX 604D` is deliberately **left blank**. It is a VW Crafter camper van with no FMLV
+precedent, and the price list does not say whether its roof is a fixed high top or an
+elevating one. Its 2720mm height sits between CLIFF's 2610mm high tops and Vanlife's
+2810mm pop-top, so height does not settle it either. A blank is an honest gap a reviewer
+fills in seconds; a wrong `Yes` is a silent error nothing downstream re-checks.

@@ -33,8 +33,14 @@ from pathlib import Path
 
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_positioned_text, extract_text
+from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
+from .base import (
+    ExtractedMotorhome,
+    Provenance,
+    fmlv_base_vehicle,
+    model_without_range_prefix,
+)
 
 BASE_URL = "https://www.sunlight.de"
 INFO_MATERIAL_URL = f"{BASE_URL}/en/info-material/"
@@ -150,6 +156,22 @@ class SunlightProduct:
     mtplm_kilograms: int | None = None
 
     @property
+    def fmlv_model(self) -> str:
+        """The model name with any redundant range word removed.
+
+        `CLIFF X` + `CLIFF 602` would render in FMLV as "Sunlight CLIFF X CLIFF 602".
+        """
+        return model_without_range_prefix(self.range_label, self.model) or self.model
+
+    @property
+    def body_type(self) -> BodyType | None:
+        """The FMLV body type, from the range name and the layout's series letter.
+
+        `None` where the source does not settle it — see `_body_type_for`.
+        """
+        return _body_type_for(self.range_label, self.model)
+
+    @property
     def mh_payload_kilograms(self) -> int | None:
         """Payload, which Sunlight does not state directly.
 
@@ -161,6 +183,55 @@ class SunlightProduct:
         if self.mro_kilograms is None or self.mtplm_kilograms is None:
             return None
         return self.mtplm_kilograms - self.mro_kilograms
+
+
+#: Camper-van ranges, where the roof is what separates the FMLV types and the range name
+#: is the only thing that says which. Searched as substrings, most specific first, because
+#: the two names for a range do not always agree: the price list heads the pop-top range
+#: `CLIFF Vanlife` while FMLV holds it as plain `Vanlife`, and matching on the leading
+#: word would have read that one as an ordinary high-top CLIFF.
+_VAN_RANGE_BODY_TYPES: tuple[tuple[str, BodyType], ...] = (
+    ("vanlife", BodyType.CAMPERVAN_HIGH_TOP_ELEVATING_ROOF),
+    ("cliff rt", BodyType.CAMPERVAN_ELEVATING_ROOF),
+    ("cliff x", BodyType.CAMPERVAN_HIGH_TOP),
+    ("cliff adventure", BodyType.CAMPERVAN_HIGH_TOP),
+)
+
+#: The letter a layout code starts with is Sunlight's series marker, and it decides the
+#: coachbuilt body shape. `T` and `I` are corroborated by the range names themselves
+#: (`Low Profile UNLTD`, `A Class Adventure`); `A` and `V` are not stated anywhere in the
+#: price list, and rest on FMLV's own baseline holding every live layout of each series
+#: as one type — all three `Coachbuilts` A-layouts as over-cab, all seven `Van` and
+#: `Van Adventure Edition` V-layouts as low profile. Note `V` is *not* a van conversion:
+#: the V-series is a narrow-bodied coachbuilt (2140mm) and sits in the motorhome price
+#: list, which is exactly the trap this table exists to stop anyone falling into.
+_SERIES_BODY_TYPES: dict[str, BodyType] = {
+    "T": BodyType.COACH_BUILT_LOW_PROFILE,
+    "V": BodyType.COACH_BUILT_LOW_PROFILE,
+    "A": BodyType.COACH_BUILT_OVER_CAB_BED,
+    "I": BodyType.A_CLASS,
+}
+
+
+def _body_type_for(range_label: str, model: str) -> BodyType | None:
+    """FMLV body type for one layout, or `None` when the source does not settle it.
+
+    Left unset rather than guessed for anything not covered — `VW IBEX` is the live
+    example, a VW Crafter camper van with no FMLV precedent and nothing in the price
+    list to say whether its roof is a fixed high top or an elevating one. A blank is an
+    honest gap a reviewer can fill in seconds; a wrong `Yes` against one of eight
+    mutually exclusive type columns is a silent error, since nothing downstream
+    re-checks it. Same reasoning as `burstner.py`'s note on the two FMLV
+    classifications no rule reproduced.
+    """
+    lowered = " ".join(range_label.lower().split())
+    for marker, body_type in _VAN_RANGE_BODY_TYPES:
+        if marker in lowered:
+            return body_type
+    code = model.strip()
+    if code:
+        return _SERIES_BODY_TYPES.get(code[0].upper())
+    return None
 
 
 def _reconciles(product: SunlightProduct) -> bool:
@@ -315,7 +386,8 @@ def _build_extracted_motorhome(product: SunlightProduct, pdf_url: str) -> Extrac
         manufacturer=MANUFACTURER,
         manufacturer_display_name=MANUFACTURER_DISPLAY_NAME,
         manufacturer_range=product.range_label,
-        model=product.model,
+        model=product.fmlv_model,
+        body_type=product.body_type,
         base_vehicle_manufacturer=product.base_vehicle_manufacturer,
         rrp_pounds=product.rrp_pounds,
         berths=product.berths,
@@ -335,6 +407,12 @@ def _build_extracted_motorhome(product: SunlightProduct, pdf_url: str) -> Extrac
     def record(field: str, snippet: str) -> None:
         provenance[field] = Provenance(source_url=source, snippet=f"{label} — {snippet}")
 
+    if product.body_type is not None:
+        record(
+            "body_type",
+            f"Range '{product.range_label}', layout code '{product.model}' "
+            f"-> {product.body_type.value}",
+        )
     if product.base_vehicle_manufacturer is not None:
         record(
             "base_vehicle_manufacturer",

@@ -103,6 +103,38 @@ def fmlv_base_vehicle(make: str | None) -> str | None:
     return _FMLV_BASE_VEHICLE_MAKES.get(cleaned.lower(), cleaned)
 
 
+def model_without_range_prefix(manufacturer_range: str | None, model: str | None) -> str | None:
+    """Drop a leading word from `model` that the range name already carries.
+
+    FMLV renders a product as manufacturer + range + model, so Sunlight's range
+    `CLIFF X` with model `CLIFF 602` reads back as "Sunlight CLIFF X CLIFF 602". The
+    second CLIFF is noise: the range has already said it.
+
+    Only ever drops a *leading* word, only when the range genuinely contains that word,
+    and only when what is left still has letters or digits in it to name the layout —
+    so `CLIFF X` + `CLIFF` keeps `CLIFF`, since the alternative is a product with no
+    model at all. `CLIFF 540 V` in range `CLIFF Vanlife` becomes `540 V`, which stays
+    distinct from `CLIFF Adventure`'s `540`.
+
+    Deliberately *not* applied by every adapter. Bürstner's `Lyseo TD Harmony Line`
+    holds models `TD 680 G` and `680 G` as separate FMLV rows, so the same rule there
+    would collapse a distinction FMLV is currently making. Call it where a manufacturer's
+    naming has been checked, rather than wiring it into `Motorhome`.
+    """
+    if not model or not manufacturer_range:
+        return model
+    words = model.split()
+    if len(words) < 2:
+        return model
+    range_words = {word.lower() for word in manufacturer_range.split()}
+    if words[0].lower() not in range_words:
+        return model
+    remainder = " ".join(words[1:])
+    if not any(character.isalnum() for character in remainder):
+        return model
+    return remainder
+
+
 @dataclass(frozen=True)
 class Provenance:
     """Where one extracted field's value came from, shown next to it for the reviewer."""

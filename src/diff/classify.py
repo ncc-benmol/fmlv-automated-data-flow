@@ -47,10 +47,23 @@ class ProductDiff:
     missing_fields: list[MissingField] = field(default_factory=list)
     match_score: float | None = None
     match_method: str | None = None
-    #: A plausible (not certain) sign this changed product is a model-year rollover —
-    #: DESIGN.md §9 open question 1. True only for a `CHANGED_FIELD` product seen
-    #: during `year_rollover.ROLLOVER_WINDOW`; the review app (Phase 6) surfaces this
-    #: as a checkbox, it never bumps `year` on its own.
+    #: A plausible (not certain) sign this product is a model-year rollover — DESIGN.md
+    #: §9 open question 1. True for **any product still found on the manufacturer's site**
+    #: during `year_rollover.ROLLOVER_WINDOW`; the review app surfaces it as a checkbox
+    #: and never bumps `year` on its own.
+    #:
+    #: **Widened 2026-08-29 from `CHANGED_FIELD` only** — requester's decision, recorded in
+    #: DESIGN.md §6.9. The old rule read "a change was detected, so this is plausibly a
+    #: rollover", which excluded every model a manufacturer carries over *unrevised* into
+    #: the new season: the specs match, so nothing is detected, so no bump is offered, and
+    #: the year quietly stays stale. Swift's Carrera 122 was the case that found it —
+    #: unchanged for 2027, on the 2027 site, and the only one of twenty-four matched
+    #: products never offered a bump. What makes a product a current-model-year product is
+    #: that it is still on sale, not that its figures moved.
+    #:
+    #: `UNCHANGED_CONFIRMED` and `CHANGED_FIELD` both mean "matched a baseline product and
+    #: was found on the site this run". `NEW_PRODUCT` has no baseline year to advance and
+    #: `DISAPPEARED` was not found at all, so neither is eligible.
     year_rollover_eligible: bool = False
 
 
@@ -102,7 +115,8 @@ def diff_products(
                 match_score=result.score,
                 match_method=result.method,
                 year_rollover_eligible=(
-                    kind == ChangeKind.CHANGED_FIELD and in_rollover_window(today)
+                    kind in (ChangeKind.CHANGED_FIELD, ChangeKind.UNCHANGED_CONFIRMED)
+                    and in_rollover_window(today)
                 ),
             )
         )

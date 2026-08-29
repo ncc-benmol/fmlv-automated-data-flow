@@ -267,10 +267,31 @@ exactly as the guide says ("PLEASE Leave as is!"). A 2027 model updating the 202
 
 1. **Globally**, for every product of a manufacturer, as a parameter given when a run is
    triggered (Phase 8's CLI).
-2. **Per product, at review time** (Phase 6's UI), via a checkbox offered only when a
-   change was actually detected *and* the run fell within the window manufacturers
-   typically publish next year's models, **June–September**. This is a plausibility
-   signal, not a determination — ticking it is still the reviewer's call.
+2. **Per product, at review time** (Phase 6's UI), via a checkbox offered for **every
+   product still found on the manufacturer's site** when the run falls within the window
+   manufacturers typically publish next year's models, **June–September**. This is a
+   plausibility signal, not a determination — ticking it is still the reviewer's call.
+
+   > **Amended 29 August 2026.** This originally read "offered only when a change was
+   > actually detected *and* the run fell within the window". Dropping the change
+   > condition was the requester's decision, from the case that exposed it: Swift's
+   > Carrera 122 carried over into the 2027 range **unrevised**, so every scraped figure
+   > matched, so no change was detected, so the one product of twenty-four that needed no
+   > correction was also the only one never offered a rollover — and it stayed a 2026 row
+   > in the upload CSV while sitting on Swift's 2027 site.
+   >
+   > "If it's on sale, it's a current model that has to be live … all of the output should
+   > contain models that are on the current website, and therefore we should have an
+   > option to roll over every model." What makes a product a current-model-year product
+   > is that the manufacturer is still selling it, not that its figures moved — and a
+   > carried-over model is the *most* likely thing to be silently left stale, because it
+   > generates no other reason for a reviewer to look at it.
+   >
+   > The seasonal window stays. The requester's own counter-example is the reason it is
+   > still useful: "there will be times in the year when a range has an update, like a
+   > price update, and the year won't change" — a change detected in March is an ordinary
+   > correction, and offering a bump there would be noise. Route 1's `--bump-year` remains
+   > the way to force the question outside the window.
 
 **Why:** `year` drives which model-year row a change lands on, so getting it wrong is
 worse than leaving it for a human — consistent with §6.3's per-field accept/reject/correct

@@ -57,9 +57,11 @@ from .products import Product
 #: `source_snippet` for the year-rollover suggestion — explains its provenance is the
 #: pipeline's own seasonal heuristic, not a fact read off the manufacturer's site.
 YEAR_ROLLOVER_SNIPPET = (
-    "Suggested by the pipeline: a change was detected during the June-September "
-    "model-year rollover window (DESIGN.md §6.9), not read from the "
-    "manufacturer's site."
+    "Suggested by the pipeline: this product is still on the manufacturer's site during "
+    "the June-September model-year rollover window (DESIGN.md §6.9). Offered whether or "
+    "not anything else changed, since a model carried over unrevised is still a current "
+    "one. The model year is not published on the site, so this is a prompt to confirm, "
+    "not a reading."
 )
 
 #: `note` for a `disappearance_notice` row — a `DISAPPEARED` product.

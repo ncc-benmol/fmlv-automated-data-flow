@@ -324,6 +324,9 @@ class SwiftProduct:
     rrp_pounds: int | None = None
     base_vehicle_manufacturer: str | None = None
     body_type: BodyType | None = None
+    #: Which half of `BodyType` this product draws from. Known even when the exact
+    #: subtype is not, because it comes from which index page led to the range page.
+    is_campervan: bool = False
 
     @property
     def label(self) -> str:
@@ -591,6 +594,7 @@ def parse_range_page(page_html: str, *, slug: str, index_path: str) -> list[Swif
                 mro_kilograms=_kilograms(layout.get("weightMro")),
                 rrp_pounds=_price(layout.get("priceLabel")),
                 base_vehicle_manufacturer=base_vehicle,
+                is_campervan=index_path == "campervans",
                 body_type=find_body_type(
                     page_html,
                     index_path=index_path,
@@ -634,9 +638,24 @@ def _body_type_basis(product: SwiftProduct) -> str:
 
     `body_type` is a layout field, which `diff/compare.py` marks high-suspicion and sorts
     to the back of a reviewer's queue — so the reasoning has to travel with it.
+
+    **When the subtype is undetermined this still returns a snippet**, and the caller
+    still records provenance, so the field reaches the reviewer as a choice rather than
+    as silence. On a new product `store.changes.persist_diff` proposes every field an
+    adapter puts in `provenance`, whether or not it carries a value, and the review form
+    renders a single-select for it (`webapp/choices.py`). Requested 2026-08-29, after the
+    first review of the 15 new Swift products found the field blank with nothing to act
+    on.
     """
     if product.body_type is None:
-        return ""
+        family = "campervan" if product.is_campervan else "coachbuilt motorhome"
+        return (
+            f"Body type NOT DETERMINED — please choose one. Swift publish no height for "
+            f"this {family} and no roof wording anywhere on the range page, so the high "
+            f"top / standard roof half of the rule cannot be answered from the site. "
+            f"This vehicle is a {family}, so the choice is between the "
+            f"{'four campervan' if product.is_campervan else 'three coach built'} types"
+        )
     if product.body_type in {
         BodyType.COACH_BUILT_LOW_PROFILE,
         BodyType.COACH_BUILT_OVER_CAB_BED,
@@ -721,10 +740,14 @@ def _build_extracted_motorhome(
         "body_type": product.body_type,
         "mh_payload_kilograms": product.mh_payload_kilograms,
     }
+    #: `body_type` is recorded even when unset, so an undetermined subtype reaches the
+    #: reviewer as a selectable proposal instead of a silent blank. See
+    #: `_body_type_basis` and `webapp/choices.py`.
+    always_record = {"body_type"}
     provenance = {
         name: Provenance(source_url=source_url, snippet=f"{product.label} — {snippets[name]}")
         for name, value in values.items()
-        if value is not None
+        if value is not None or name in always_record
     }
 
     return ExtractedMotorhome(motorhome=motorhome, provenance=provenance)

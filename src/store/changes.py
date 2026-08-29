@@ -49,6 +49,7 @@ from typing import Any
 from ..diff.classify import ChangeKind, ProductDiff
 from ..diff.compare import field_value
 from ..diff.year_rollover import bump_year, can_bump_year
+from ..product_model import schema
 from . import products as products_store
 from .decisions import Decision
 from .products import Product
@@ -77,6 +78,18 @@ MISSING_FIELD_SNIPPET = (
     "This field is marked in-scope for automated collection, but was not found on "
     "the manufacturer's site this run. Confirm the existing figure is still "
     "correct, or enter a replacement."
+)
+
+#: The same offer for a field that is *not* in scope, but which the adapter attempted and
+#: could not fill — it identified the family but not the value. Separate from
+#: `MISSING_FIELD_SNIPPET` only so neither piece of wording has to lie; the reviewer is
+#: offered exactly the same two actions, and `webapp.app`'s `is_missing_field` matches
+#: both. Kept distinct rather than replacing the original, because rows already stored in
+#: a deployed run store carry the original text and are matched on it exactly.
+UNDETERMINED_FIELD_SNIPPET = (
+    "The adapter identified what kind of product this is but could not determine this "
+    "field from the manufacturer's site. Confirm the existing value is still correct, "
+    "or choose a replacement."
 )
 
 #: How `_serialize` joins a multi-valued field (e.g. `bed_types`) into one TEXT column.
@@ -461,7 +474,11 @@ def persist_diff(
                 old_value=old_serialized,
                 new_value=old_serialized,
                 source_url=None,
-                source_snippet=MISSING_FIELD_SNIPPET,
+                source_snippet=(
+                    MISSING_FIELD_SNIPPET
+                    if missing.field in schema.IN_SCOPE
+                    else UNDETERMINED_FIELD_SNIPPET
+                ),
             )
             proposed += 1
             missing_field_proposed += 1

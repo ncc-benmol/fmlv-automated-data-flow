@@ -1,4 +1,5 @@
 {% set missing = is_missing_field(entry.change) %}
+{% set choices = field_choices(entry.change.field) %}
 <div id="change-{{ entry.change.id }}" class="change-row{% if missing %} missing-field-row{% endif %}">
   <div class="field-name">
     {{ entry.change.field }}
@@ -18,9 +19,9 @@
       </div>
     {% else %}
       <div class="value-diff">
-        <span class="old">{{ entry.change.old_value if entry.change.old_value is not none else "—" }}</span>
+        <span class="old">{{ choice_label(entry.change.old_value) if choices else (entry.change.old_value if entry.change.old_value is not none else "—") }}</span>
         →
-        <span class="new">{{ entry.change.new_value if entry.change.new_value is not none else "—" }}</span>
+        <span class="new">{{ choice_label(entry.change.new_value) if choices else (entry.change.new_value if entry.change.new_value is not none else "—") }}</span>
       </div>
     {% endif %}
     {% if entry.change.source_url or entry.change.source_snippet %}
@@ -43,7 +44,7 @@
         {% if missing and entry.decision.action == "accept" %}
           kept existing value
         {% elif entry.decision.action == "correct" %}
-          {{ entry.decision.action }} → {{ entry.decision.corrected_value }}
+          {{ entry.decision.action }} → {{ choice_label(entry.decision.corrected_value) if choices else entry.decision.corrected_value }}
         {% else %}
           {{ entry.decision.action }}
         {% endif %}
@@ -67,8 +68,21 @@
         hx-include="#reviewer-name"
       >
         <button type="submit" name="action" value="accept" class="btn btn-accept">Keep existing value</button>
+        {% if choices %}<select name="corrected_value" class="choice-select">
+          <option value="">choose a value…</option>
+          {% for group, options in choices %}
+            {% if group %}<optgroup label="{{ group }}">{% endif %}
+            {% for value, label in options %}
+              <option value="{{ value }}"{% if entry.change.new_value == value %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+            {% if group %}</optgroup>{% endif %}
+          {% endfor %}
+        </select>
+        <button type="submit" name="action" value="correct" class="btn btn-correct">Replace</button>
+        {% else %}
         <input type="text" name="corrected_value" placeholder="replacement value">
         <button type="submit" name="action" value="correct" class="btn btn-correct">Replace</button>
+        {% endif %}
       </form>
     {% else %}
       <form
@@ -80,8 +94,21 @@
       >
         <button type="submit" name="action" value="accept" class="btn btn-accept">Accept</button>
         <button type="submit" name="action" value="reject" class="btn btn-reject">Reject</button>
+        {% if choices %}<select name="corrected_value" class="choice-select">
+          <option value="">choose a value…</option>
+          {% for group, options in choices %}
+            {% if group %}<optgroup label="{{ group }}">{% endif %}
+            {% for value, label in options %}
+              <option value="{{ value }}"{% if entry.change.new_value == value %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+            {% if group %}</optgroup>{% endif %}
+          {% endfor %}
+        </select>
+        <button type="submit" name="action" value="correct" class="btn btn-correct">Set</button>
+        {% else %}
         <input type="text" name="corrected_value" placeholder="corrected value">
         <button type="submit" name="action" value="correct" class="btn btn-correct">Correct</button>
+        {% endif %}
       </form>
     {% endif %}
   </div>

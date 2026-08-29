@@ -347,6 +347,46 @@ figures on the whole range while missing a tenth of it.
 When checking, read what a **customer** sees. The year sat in the card's title element; the
 text inside the `<a>` tag was only the word "Download".
 
+### "I know what this is, but not which one" is now something an adapter can say
+
+Added 29 August 2026, on the requester's suggestion, after the first Swift review found
+fifteen new products with no `body_type` and nothing to act on.
+
+Normally an adapter records provenance only for fields it filled, and a field it left
+empty is invisible — which is right for the ~40 layout flags nobody attempts. But there
+is a middle case: **the adapter can identify a product's family without resolving the
+exact value.** Swift's Carrera is certainly a campervan; which of the four campervan types
+it is cannot be told from a site that publishes no height.
+
+An adapter says that by **recording provenance for the field with no value on it**:
+
+```python
+provenance = {
+    name: Provenance(source_url=url, snippet=...)
+    for name, value in values.items()
+    if value is not None or name in {"body_type"}
+}
+```
+
+What happens next depends on whether the product already exists, and both are safe:
+
+- **New product** — `store.changes.persist_diff` proposes every field in `provenance`,
+  value or not, so it reaches the review queue as a choice.
+- **Existing product** — `diff.compare.compare_fields` turns it into a `MissingField`,
+  the same confirm-or-replace offer an unfound in-scope field gets. **It never becomes a
+  change proposing `None`**, which would offer a reviewer an "accept" that silently blanks
+  a good stored value. That guard is the whole reason this is pipeline behaviour rather
+  than something each adapter improvises.
+
+For the single-select fields (`body_type`, `sleeping_area`, `heating`, …) the review form
+renders a grouped dropdown rather than the free-text box — `webapp/choices.py`. Before
+this, correcting one meant typing `type_campervan_high_top_elevating_roof` exactly, and a
+typo only failed later, at upload, in `output.build.apply_field`.
+
+**Use it where the family is genuinely certain and the value genuinely is not.** It is not
+a way to defer work an adapter could do: a field the source *does* answer should be
+parsed, not passed to a reviewer.
+
 ### A source can be retired outright, and a clean skip hides it
 
 Every rule above is about choosing between sources that exist. Swift, 28 August 2026, is

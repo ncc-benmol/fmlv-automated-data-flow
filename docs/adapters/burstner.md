@@ -428,6 +428,45 @@ upload CSV with `base_vehicle_manufacturer` blank, a REQUIRED field. Setting a f
 not enough; it has to be registered. The same omission was found and fixed in
 `morelo.py` and `sunlight.py` at the same time.
 
+## The habitation layout fields, and where the floorplans actually are
+
+**None of the habitation layout fields can be read from the technical-data PDFs.** Every
+one of them — sleeping area, bed types, kitchen location, bathroom layout, lounge location,
+heating, rear garage — lives in the same per-layout standard-equipment tables whose
+availability marks are vector graphics rather than text (see the `body_type` section).
+The item *names* extract fine, and they are mutually exclusive across a range: B66 C lists
+`Double bed drop-down above seating group`, `Double bed lengthwise with fold up slat
+frame`, `Double bed transverse with removable slat frame` **and** `Rear seating group
+convertible to bed`, with nothing readable to say which layout gets which. Note B66 C's
+legend has *three* states — `Standard equipment | Optional equipment | Not possible` — so
+even a readable mark would not by itself mean "standard".
+
+There are **no floorplan drawings in the PDFs either**: every image in them is a 160x160
+icon or a logo.
+
+What *can* be read from the documents, per layout:
+
+| Field | Source | Notes |
+|---|---|---|
+| `refrigeration` | `Refrigerator volume incl. freezer (approx. l)` | The bracketed figure is the freezer, so `138 (12)` / `84 (6)` both mean **fridge/freezer** |
+| `heating` | the optional-equipment list, by elimination | Signature sells `Hot water heating (Gas)` `794299` and `(Diesel)` `711045` as **options**, so wet is not standard. B66 C names `Truma Combi 6E` in standard equipment — blown air, stated outright |
+| `rear_garage` | standard-equipment item names | Signature lists `Lashing system in rear garage` and both side garage doors; B66 C lists no garage item at all |
+
+**The floorplans are on the website, and they are gettable.** B66's range pages carry them
+in served HTML under `.../6-pdp-b66/neu/camper-van/grundrisse/`, and **stripping the
+`image-thumb__<id>__<variant>/` segment from the URL returns the 1440x1440 original** —
+easily readable by eye, e.g. `b66-c-details-02-640-grundriss.png`. Read that way, B66 C 640
+is unambiguous: swivel cab seats plus a side bench at the front, a Vario-type washroom with
+a swivelling partition mid-left, a two-burner hob and sink mid-right, and two longitudinal
+single beds at the rear.
+
+**Signature and Habiton floorplans are not in served HTML.** `/gb/signature` (which is the
+Fiat page; no Mercedes equivalent was found) carries interior, kitchen, bathroom and
+sleeping photographs but no `grundriss` asset, no layout codes, and no API or JSON blob —
+the layouts are rendered by the page's JS bundle. Getting them needs `BrowserFetcher`,
+which this adapter otherwise has no use for. Until then the Signature habitation fields
+have to come from the brochure or from EHG.
+
 ## What is still unconfirmed
 
 - Whether the Signature and B66 PDFs (June 2026 edition) have since been superseded by an

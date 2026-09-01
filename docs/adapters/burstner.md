@@ -448,9 +448,33 @@ What *can* be read from the documents, per layout:
 
 | Field | Source | Notes |
 |---|---|---|
-| `refrigeration` | `Refrigerator volume incl. freezer (approx. l)` | The bracketed figure is the freezer, so `138 (12)` / `84 (6)` both mean **fridge/freezer** |
+| `refrigeration` | `Refrigerator volume incl. freezer (approx. l)` | The bracketed figure is the freezer — but see the caveat below: **only B66 C is safe to record** |
 | `heating` | the optional-equipment list, by elimination | Signature sells `Hot water heating (Gas)` `794299` and `(Diesel)` `711045` as **options**, so wet is not standard. B66 C names `Truma Combi 6E` in standard equipment — blown air, stated outright |
 | `rear_garage` | standard-equipment item names | Signature lists `Lashing system in rear garage` and both side garage doors; B66 C lists no garage item at all |
+
+### `refrigeration`: safe for B66 C, not for Signature
+
+The bracketed figure in `Refrigerator volume incl. freezer` is the freezer compartment, so
+the row does establish that a freezer exists. Whether it is *standard* is a separate
+question, and the two documents answer it differently:
+
+* **B66 C — safe.** Its Kitchen standard-equipment list names the fridge twice over,
+  `Compressor refrigerator, 84 l (freezer 10l)` and `Compressor refrigerator, 84 l
+  (freezer 6l)`. **Both named variants include a freezer**, so whichever a layout gets it
+  is a fridge/freezer, and the three-state legend cannot change that — the technical-data
+  row states a figure, so a fridge is fitted.
+* **Signature — not safe.** The word "refrigerator" appears **exactly once in the whole
+  26-page document**: in that technical-data row. The standard-equipment lists never name a
+  fridge at all. And the row carries two numbered footnote markers, `1)` and `2)`, on every
+  column — while one of the seven conditions printed on that page is *"Only in conjunction
+  with Technology & Design package"*. So package-dependence is a live possibility.
+
+**The footnote numbering is not recoverable.** The markers (`1)`, `2)`) survive extraction
+as text, but the footnote *definitions* lose their leading number — it is a superscript
+glyph, and the definitions come through as lines beginning with a bare space
+(`" Only in conjunction with diesel heating"`). Positioned extraction does not recover
+them either. So a numbered footnote on any Bürstner row can be seen to exist but never
+read, which is worth knowing before trusting any single-figure row in these documents.
 
 **The floorplans are on the website, and they are gettable.** B66's range pages carry them
 in served HTML under `.../6-pdp-b66/neu/camper-van/grundrisse/`, and **stripping the

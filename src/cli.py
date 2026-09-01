@@ -61,7 +61,7 @@ from typing import Any
 
 from . import paths, store
 from .adapters import Adapter, adapter_for
-from .diff import diff_products
+from .diff import DEFAULT_THRESHOLD, diff_products
 from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
 from .fetch.ncc import NccCredentials, NccCredentialsError, NccExportError, download_export
@@ -205,6 +205,23 @@ def _is_current_model_year(year: int | None, *, today: date | None = None) -> bo
     """
     current_year = (today or date.today()).year
     return year in (current_year, current_year + 1)
+
+
+
+def match_threshold(adapter: Adapter) -> float:
+    """How similar a scraped product's name must be to a baseline row's to be the same vehicle.
+
+    `diff.matching`'s 0.5 default suits almost every manufacturer, but it is a single
+    number applied to a token-bag score, and `docs/adapters/README.md` records why it
+    cannot be moved globally: Adria's documented *good* match scores 0.667, lower than
+    Etrusco's worst *bad* match at 0.750, so no global value separates them.
+
+    An adapter whose own products happen to be separable declares `MATCH_THRESHOLD` and
+    this returns it — the same `getattr` opt-in as `DEFAULT_RANGES` and
+    `baseline_in_scope`, so no other manufacturer is affected. This is the
+    per-manufacturer threshold that README names as "the shape to reach for".
+    """
+    return float(getattr(adapter, "MATCH_THRESHOLD", DEFAULT_THRESHOLD))
 
 
 def baseline_scope(
@@ -396,7 +413,9 @@ def execute_run(
             )
 
             diff_started = time.monotonic()
-            diffs = diff_products(scraped, baseline)
+            diffs = diff_products(
+                scraped, baseline, threshold=match_threshold(adapter)
+            )
             persisted = store.persist_diff(
                 connection,
                 run_id=run.id,

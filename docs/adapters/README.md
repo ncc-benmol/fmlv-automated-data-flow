@@ -549,6 +549,21 @@ number. Anything high enough to reject the Etrusco pairs orphans Adria's product
 per-manufacturer threshold would work (Etrusco's good matches are all 1.000) and is the shape to
 reach for if a third brand hits this.
 
+**Knaus was that third brand, 1 September 2026, and the hook now exists.** An adapter may
+declare a module-level `MATCH_THRESHOLD`; `cli.match_threshold` reads it with the same `getattr`
+opt-in as `DEFAULT_RANGES` and `baseline_in_scope`, so declaring one affects nobody else.
+Knaus's 2027 SKY TI moved from Fiat to VW and replaced its `700 MEG` layout with a `700 DEG`;
+that pair scores exactly **0.500** against FMLV's old row and was being offered as a revision,
+which would have rewritten a Fiat coachbuilt into a VW one *and* hidden the 700 MEG's
+discontinuation — a claimed baseline row cannot also be reported as disappeared.
+
+`knaus.MATCH_THRESHOLD = 0.55` works because that brand's own matches are separable, which is
+the precondition and is **not** general: Knaus's lowest legitimate score is 0.600 (five
+`Boxlife` -> `BOXLIFE PLATINUM SELECTION` renames) and its only 0.500 is the bad pair. Before
+reaching for this, check the same thing — list every score in a real run and look for a gap. If
+the good and bad matches interleave, as Adria's and Etrusco's do, no threshold helps and the
+answer is still a human reading the proposal.
+
 **A wrong match also hides a discontinuation**, which is easy to miss when reading the counts: a
 claimed baseline row cannot also be reported as disappeared. Etrusco's run said 4 new and 3
 disappeared where the truth was 7 and 6.

@@ -1,0 +1,906 @@
+Price List Model Year 2027-1
+Motorhomes
+EN | UK
+Data as of: 28.08.2026
+
+2 
+ 
+ 
+ 
+I. General 
+This document is valid from July 2026 for vehicles of model year 2027. Any previous price lists, brochure information and technical data shall cease to 
+be valid with respect to the vehicles contained herein. Errors and misprints excepted. Before purchasing a vehicle, you must obtain comprehensive 
+advice from an authorized dealer regarding the information in our price lists and catalogues, any changes that may have occur red after the printing 
+date, as well as the topics listed below. 
+II. Extras & Option Packs  
+Certain combinations of options and extras may not always be possible.  
+III. Images 
+Some images show options and extras that are not included in the standard equipment and can only be ordered at additional cost (options & extras). 
+Also, some equipment featured is only found in prototypes or specific country models and do not correspond to the standard equipment, nor can they 
+be ordered as an option or extra. Slight colour deviations between the illustrations in the brochure and the actual vehicle cannot be completely excluded 
+for printing reasons. The decoration shown in the catalogue is not part of the equipment supplied. 
+IV. Retrofitting  
+In order not to jeopardise your safety and/or the operating licence of your vehicle, we advise you to have attachments, conversions or installations 
+carried out  exclusively by an authorised dealer and to insist on original parts.  Any retrofitting of alterations or installations, in so far as they are 
+technically feasible, shall incur a cost.  We reserve the right to make reasonable changes to the design, colour and equipment, insofar as these serve 
+technical progress and/or safety. We reserve the right to make changes to fittings, technical data, series equipment and prices. After conclusion of the 
+contract, we reserve the right to make reasonable technical changes within the scope of the design, insofar as they serve technical progress. 
+Reasonable deviations in colour and quality are also reserved - even after conclusion of the contract -  insofar as these cannot be avoided due to the 
+material. (e.g. colour deviations of up to approx. 2.0  ΔE between paint on sheet metal and paint on GRP/plastic). 
+ 
+Important technical and legal information regarding vehicle configuration and weight-related data 
+In road traffic, each vehicle is only approved for a certain maximum weight. This maximum weight must not be exceeded during operation. Therefore, 
+particular attention must be paid to the technical and legal requirements for the weight of your vehicle when configuring and selecting optional 
+equipment (‘packages’, ‘features’ and ‘options’) from our factory-fitted range when configuring your vehicle. 
+The EU Commission’s Implementing Regulation (EU) 2021/535 dated 31 March 2021 (up to and including 06/2022: EU Commission Regulation (EU) 
+No. 1230/2012 dated 12 December 2012) sets out the legal requirements for the weight of your vehicle. In order provide information that is as 
+transparent and comprehensive as possible about the weight-related data specified in the configurator, the following explanations and information 
+provided by Knaus Tabbert AG are based on the requirements of this Regulation. Please read the following explanations and information regarding 
+weight-related data carefully before configuring and ordering your vehicle. Our retail partners will also be happy to help you select and configure your 
+vehicle. 
+Information regarding the vehicle's dimensions 
+The vehicle dimensions (overall length, width and height) stated in the technical specifications are nominal values based on the standard factory 
+specification for the relevant layout. These figures are subject to manufacturing tolerances. The permissible tolerances are derived – in accordance 
+with the regulations on weight declarations – from the same relevant EU regulations (in particular Implementing Regulation (EU) 2021/535 
+(previously Regulation (EU) No 1230/2012) and amount to up to ± 3 %. 
+Please note that the factory installation of additional equipment, as well as the retrofitting of accessories (e.g. roof-mounted air conditioning units, 
+awnings, aerials, bike racks or roof boxes), may alter the external dimensions of your vehicle. In particular, the overall height and length of the vehicle 
+may be increased by such attachments. 
+You must be aware of your vehicle’s actual external dimensions when driving on public roads, particularly when passing through areas with height 
+restrictions (e.g. underpasses, bridges, tunnels or car park entrances), when using ferries, and when choosing parking spaces and campsites. It is 
+your responsibility to ensure that the vehicle complies with the applicable size limits. We recommend that you check the actual external dimensions 
+of your vehicle, including any attachments, before setting off and take these into account. 
+1. The technically permissible maximum mass of the vehicle 
+The ‘technically permissible maximum mass’ of the vehicle is shown in Part I of the registration certificate (under point F.1.) and refers to the 
+maximum mass that your vehicle may weigh when loaded (e.g. 3,500 kg) as specified by the manufacturer. This may not be exceeded during any 
+journey. Exceeding the technically permissible maximum mass during operation is punishable by fines in many European countries. In Germany, 
+exceeding the technically permissible maximum mass during operation can constitute an administrative offence punishable by a fine. We therefore 
+recommend that you weigh your vehicle prior to every journey and check that it complies with the technically permissible maximum mass. 
+Compliance with the technically permissible maximum mass is your responsibility. 
+The technically permissible maximum mass for each layout is shown in the technical data. 
+IMPORTANT TECHNICAL AND LEGAL INFORMATION 
+
+3 
+ 
+ 
+2. The mass of the vehicle in running order 
+The ‘mass in running order’ refers to the mass of the vehicle including the body and standard factory equipment (or ‘basic equipment’) including the 
+standard fuel tank filled to 90% of its capacity, as well as operating fluids such as lubricants, oils and coolants, tools and puncture repair kit, plus the 
+driver mass, which is calculated as a fixed weight of 75 kg by law. 
+For each layout, the mass in running order is shown in the technical data. 
+The following items are included in the mass in running order: 
+• the unladen weight of the vehicle, including the body and operating fluids such as lubricants, oils and coolants, tools and puncture repair 
+kit; 
+• the standard factory equipment, i.e. the basic configuration of a vehicle equipped with all the features required by law, including any fitted 
+equipment that does not require further specifications at a configuration or equipment level; 
+• 100% filled fresh water tank; in running order (the capacity of the fresh water tank is limited to 10, 20 or 40 litres in running order depending 
+on the vehicle model) and a 100% filled aluminium gas cylinder weighing 16 kg; 
+• the 90% filled standard fuel tank including fuel; 
+• the driver, whose weight is calculated as a fixed 75 kg. 
+Please note that the mass in running order specified in the technical data is a calculated nominal value that is subject to production‐related 
+tolerances of up to ± 5%. These legally permissible tolerances can have a direct impact on the actual mass of your vehicle and therefore also the load 
+capacity or remaining pay-mass. So you should always take these tolerances into account when configuring your vehicle. 
+ 
+3. The actual vehicle mass 
+The ‘actual vehicle mass’ refers to the mass of the vehicle in running order plus the mass of any optional factory‐fitted equipment on a particular 
+vehicle. 
+  
+4. The mass of the driver and the mass of the passengers 
+The ‘driver mass’ is calculated as a fixed weight of 75 kg, regardless of the driver’s actual weight. Since the driver mass is already included in the 
+mass in running order, it is not included in the authorised passenger mass. 
+The ‘passenger mass’ is based on the permissible number of occupants in running order, as determined by the manufacturer during the type‐
+approval process minus the driver mass, which is calculated as a fixed weight of 75 kg. 
+For each layout, the permissible number of occupants in running order is shown in the technical data. 
+The passenger mass is also calculated as a fixed weight of 75 kg per passenger, regardless of their actual weight. For a vehicle with a permissible 
+number of occupants in running order of four, the passenger mass is therefore 225 kg (3x75 kg). 
+  
+5. Standard equipment and optional equipment 
+The ‘standard equipment’ (or ‘basic equipment’) refers to the basic configuration of a vehicle equipped with all the features required by law, including 
+any fitted equipment that does not require further specifications at a configuration or equipment level. 
+Details of the standard equipment (or ‘basic equipment’) are provided for the layout you have selected as part of the configuration. 
+The ‘optional equipment’ (‘packages’, ‘features’, and ‘options’) refers to all equipment not included in the standard equipment that is factory fitted to 
+the vehicle by the manufacturer and which can be ordered by the customer. Optional equipment in this sense does not include any other accessories 
+that are fitted to the vehicle by you or your retail partner after the manufacturer has delivered the vehicle. 
+Details of the (equipment) packages, features, and options that can be ordered from the factory are provided for the layout you have selected as part 
+of the configuration. 
+Please note that the installation of optional equipment always results in a reduction in pay-mass (see point 6.). The maximum optional equipment 
+mass that can be selected for each layout can be found in the information on the respective layouts (see point 7.). 
+  
+6. The pay-mass and the minimum pay-mass 
+The ‘pay-mass’ is calculated by subtracting the mass in running order, the passenger mass and the manufacturer’s maximum optional equipment 
+mass from the technically permissible maximum mass. 
+
+4 
+ 
+European legislation stipulates a fixed ‘minimum pay-mass’ for motorhomes that must be adhered to for luggage and other accessories not installed 
+by the manufacturer. This must not be reduced when configuring your vehicle and is calculated using the following formula: 
+Minimum pay-mass in kg ≥ 10 * (n + L) 
+Where ‘n’ = maximum number of passengers plus the driver and ‘L’ = the overall length of the vehicle in metres. 
+  
+7. The maximum optional equipment mass 
+To ensure compliance with the legally prescribed minimum pay-mass, the ‘maximum optional equipment mass’ is specified by the manufacturer for 
+each layout. This is the mass available for selecting optional factory‐fitted equipment (‘packages’, ‘features’ and ‘options’) while complying with the 
+minimum pay-mass required by law. 
+Knaus Tabbert AG calculates the maximum optional equipment mass by subtracting the mass in running order, the passenger mass and the 
+minimum pay-mass from the technically permissible maximum mass.  
+However, the mass in running order is a calculated nominal value that may be subject to production-related tolerances of up to ± 5% (see point 2.). 
+The occurrence of these production-related tolerances could result in the minimum pay-mass not actually being observed if the calculated optional 
+equipment mass is used. 
+To prevent such a reduction in the minimum pay-mass, Knaus Tabbert AG therefore takes account of the permissible weight deviations that 
+experience has shown may occur for each layout when determining the maximum optional equipment mass. 
+In addition, equipment features of national variants/special models that are not part of the standard equipment are also taken into account when 
+calculating the maximum optional equipment mass. 
+If due to the selection of optional equipment, the maximum optional equipment mass is exceeded, you can generally (depending on the layout) select 
+an increase in vehicle load capacity, reduce the permitted number of seats when driving and/or deselect optional equipment in the configurator in 
+order to continue with the configuration. If you fail to do this, the configuration and therefore the order process for your vehicle cannot be continued. 
+ 
+8. Legally permissible tolerances in the calculation of weight data 
+The mass in running order figures given in the technical data are calculated nominal values that are subject to production‐related tolerances of up to 
+± 5%. These production‐related tolerances of up to ± 5% are legally permissible and result from the use of natural materials such as wood, as well as 
+the manufacturing processes used by some suppliers. Despite optimised production processes, weight fluctuations resulting from the materials used 
+cannot be ruled out. As these legally permissible tolerances have a direct impact on the actual mass of your vehicle and therefore also the possible 
+vehicle load capacity or remaining pay-mass, you should always take these into account when configuring your vehicle. 
+Example: 
+Mass in running order according to technical data:  2,968 kg 
+Legally permissible tolerance of ± 5%: 148 kg 
+Legally permissible range of mass in running order 2,820 to 3,116 kg 
+ 
+Based on the above example, if you order the vehicle with optional equipment with a total weight of 150 kg, the nominal value of the mass in running 
+order shown in the technical data results in a pay-mass of 180 kg. However, the actual load capacity may deviate from this value because of the 
+legally permissible tolerances. If the mass in running order of your vehicle is about 1% higher than the nominal value stated in the technical data, the 
+load capacity is reduced from 180 kg to 151 kg: 
+Example: 
+  3,500 kg Technically permissible maximum mass 
+- 2,998 kg Actual weight of the vehicle in running order (+ 1% compared to the mass in running order of 2,968 kg 
+stated in the technical data) 
+- 3x75 kg Passenger mass 
+-  150 kg Optional equipment ordered for the specifically configured vehicle 
+= 127 kg Remaining  load capacity (NB: the remaining load capacity must be greater than the minimum pay-
+mass, see point 6.) 
+We therefore recommend that you weigh your loaded vehicle prior to every journey and check that you comply with the technically permissible 
+maximum mass. As the driver of the vehicle, you are responsible for checking this. 
+ 
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Technical Data s = standard
+o = optional
+– = not possible
+Important Notes
+Please note when selecting and configuring your vehicle that the factory installation of additional equipment increases the actual mass of the vehicle and reduces the payload. The weight specified
+on the following pages for the additional equipment ("packages", "features" and "options") corresponds to the additional weight compared to the standard equipment of the respective floor plan.
+The total weight of the configured additional equipment must not exceed the manufacturer-defined maximum mass of additional equipment specified in the technical data. This is a value calculated
+for each floor plan, with which Knaus Tabbert AG, as manufacturer, defines the maximum mass available for factory-installed additional equipment. The "mass in running order" specified in the
+technical data is a calculated nominal value subject to production-related variations of up to ± 5%. These production-related tolerances of up to ± 5% are legally permissible and are separately
+indicated in the technical data following the calculated value. Since these legally permissible tolerances directly affect the actual mass of your vehicle and thus also the maximum mass of additional
+equipment, you should ensure that these are factored in when configuring your vehicle. The manufacturer-defined maximum mass of additional equipment is intended to ensure that the statutory
+minimum payload for luggage and other accessories is actually available for loading after delivery of a vehicle by the manufacturer. If the actual vehicle mass increases through the selection of
+additional equipment to such an extent that, calculated between the actual vehicle mass and the technically permissible gross vehicle mass, there is no longer sufficient loading capacity for the
+transport of the permitted passengers and the minimum payload, you have, as part of the configuration, in principle (depending on the floor plan), the option to select a vehicle upgrade (uprating),
+select a reduction in the number of approved seating positions during driving, and/or deselect additional equipment in order to continue the configuration. If this does not occur, the configuration
+and thus also the ordering process for your vehicle cannot be continued. Detailed technical and legal information on the subject of "vehicle weights" can be found from page 2 onwards and at
+"configurator.knaus.com".
+Technical Data 650 MG 650 MF 650 MEG 700 MEG 700 DX
+List price in GBP including 20% VAT 79.985,- 80.685,- 80.695,- 83.485,- 84.185,-
+FIAT Ducato 3,500 kg***(103 kW /
+140 hp); front-wheel drive; Euro 6e-bis
+(Dependencies: ABH251, Hints: H724)
+s s s s s
+BASIC EQUIPMENT
+Chassis FIAT FIAT FIAT FIAT FIAT
+Engine power 103 kW / 140 PS 103 kW / 140 PS 103 kW / 140 PS 103 kW / 140 PS 103 kW / 140 PS
+Gearbox man. man. man. man. man.
+Total length (cm) 694 694 694 748 748
+Width (outside) (cm) 232 232 232 232 232
+Width (inside) (cm) 218 218 218 218 218
+Height (outside) (cm) 294 294 294 294 294
+Height (inside) (cm) 215 215 215 215 215
+Mass in running order (basic model
+without optional equipment but with basic
+equipment) (kg) (Hints: H140)
+2.945 (2.797
+- 3.092)
+2.975 (2.826
+- 3.123)
+2.960 (2.812
+- 3.108)
+3.050 (2.897
+- 3.202)
+3.070 (2.916
+- 3.223)
+Mass in running order (basic model
+without optional equipment but with basic
+equipment) (kg) (Hints: H140)
+2.955 (2.808
+- 3.103)
+2.985 (2.836
+- 3.135)
+2.970 (2.822
+- 3.119)
+3.033 (2.881
+- 3.184)
+3.053 (2.900
+- 3.205)
+Technically maximum authorised laden
+mass (kg) 3.500 3.500 3.500 3.500 3.500
+Maximum payload (kg) 40 37 20 -14 3
+Towing load (kg) 2.000 2.000 2.000 2.000 2.000
+Technically permissible maximum laden
+mass of the vehicle combination 5.500 5.500 5.500 5.500 5.500
+Wheelbase (cm) 380 380 380 403 403
+Tyre size 225/75 R 16 C
+116 R, 215/70
+225/75 R 16 C
+116 R, 215/70
+225/75 R 16 C
+116 R, 215/70
+225/75 R 16 C
+116 R, 215/70
+225/75 R 16 C
+116 R, 215/70
+*** The specified weight refers to the technically permissible total mass. Further additional information
+as well as legal and technical notes on the subject of “vehicle weights“ can be found from page 2 of
+this price list and at “configurator.knaus.com“.
+Please note the hints and dependencies from page 15 onwards.
+5
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Technical Data s = standard
+o = optional
+– = not possible
+Technical Data 650 MG 650 MF 650 MEG 700 MEG 700 DX
+R 15 C 109
+R, 215/70 R
+15 C 109 R
+Allwetterreifen
+R 15 C 109
+R, 215/70 R
+15 C 109 R
+Allwetterreifen
+R 15 C 109
+R, 215/70 R
+15 C 109 R
+Allwetterreifen
+R 15 C 109
+R, 215/70 R
+15 C 109 R
+Allwetterreifen
+R 15 C 109
+R, 215/70 R
+15 C 109 R
+Allwetterreifen
+Rim size 6J x 16 H2,
+6J x 15 Alu
+Fiat, 6J x 15
+6J x 16 H2,
+6J x 15 Alu
+Fiat, 6J x 15
+6J x 16 H2,
+6J x 15 Alu
+Fiat, 6J x 15
+6J x 16 H2,
+6J x 15 Alu
+Fiat, 6J x 15
+6J x 16 H2,
+6J x 15 Alu
+Fiat, 6J x 15
+Number of persons allowed in driving
+operation 4 4 4 4 4
+Beds (Hints: H141) 6 6 5 6 4
+Max. number of beds (Hints: H142) 6 6 5 5 6
+Automatic three-point belts, height-
+adjustable 2 2 2 2 2
+Max. belt-secured seats 5 5 4 5 4
+BODY
+Total number of hinged windows 5 3 4 5 4
+Body door (width x height) 60 x 195 60 x 195 60 x 195 60 x 195 60 x 195
+Wall thickness, roof (mm) 32 32 32 32 32
+Wall thickness, side wall (mm) 31 31 31 31 31
+Wall thickness, floor (mm) 40 40 40 50 50
+LIVING AREA
+Three-point belts in driving direction 2 2 2 2 2
+Bed size, lifting bed (cm) (Hints: H192) 198 x 124 198 x 124 198 x 122 198 x 124 194 x 130
+Bed size, front (cm) (Hints: H192) 209 x 118/84 211 x 118 211 x 118/32 209 x 118/84 212 x 102/92
+Bed size, rear (cm) (Hints: H192) 212 x 147/135 207 x 141 202 x 78;
+197 x 78
+199 x 78;
+205 x 78 196 x 162
+Single bed – – s s –
+Transverse bed s – – – –
+Queen-size bed – – – – s
+French double bed – s – – –
+Drop-down bed s s s s s
+WATER
+Waste water volume in liters 95 95 95 95 95
+Fresh water volume in liters (Hints: H711,
+H712C) 100 100 100 100 100
+Fill level of the fresh water tank (liter) 10 10 10 10 10
+KITCHEN
+Refrigerator (ltr.) 142 142 142 150 150
+ELECTRICAL SUPPLY
+Living area battery 80 80 80 100Ah 100Ah
+Number of 230 V socket(s) 6 6 6 6 6
+Number of USB socket(s) 3 3 3 3 3
+*** The specified weight refers to the technically permissible total mass. Further additional information
+as well as legal and technical notes on the subject of “vehicle weights“ can be found from page 2 of
+this price list and at “configurator.knaus.com“.
+Please note the hints and dependencies from page 15 onwards.
+6
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Packages
+Art. No.
+List price
+[GBP]*
+210250 TV package 27" (incl. external LTE / W-LAN antenna) (7 kg)
+253609 27" SMART TV set with HD tuner 991,-
+253651 External LTE / WIFI antenna 868,-
+Total price options 1.859,-
+Package Price 1.486,-
+Saving 373,-
+Art. No.
+List price
+[GBP]*
+221013 Arctic Package (4 kg)
+202392 Seat heating for driver's and passenger's seats
+203734 Heated windscreen
+352966 Heating control panel ALDE LCD
+550592 Windscreen insulation mat set (exterior)
+Package Price 3.849,-
+Art. No.
+List price
+[GBP]*
+210140 10" Navigation Package (2 kg)
+201686 Air conditioning in cab, automatic (extra charge from difference to manual air conditioning) 408,-
+203725 Virtual cockpit 512,-
+203727 Inductive charging cradle 230,-
+204681 10" FIAT sat-nav 982,-
+Total price options 2.132,-
+Package Price 1.920,-
+Saving 212,-
+Art. No.
+List price
+[GBP]*
+210059 Light and Visibility Package (-9 kg)
+202164 Rain and light sensors with automatic dimming 285,-
+203723 Full LED front lighting (low beam, high beam and indicators) 879,-
+203729 Electric parking brake 515,-
+Total price options 1.679,-
+Package Price 1.394,-
+Saving 285,-
+Please note the hints and dependencies from page 15 onwards.
+* List Price = List price in GBP including 20% VAT
+7
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Packages
+Art. No.
+List price
+[GBP]*
+210028 Lounge package
+201686 Air conditioning in cab, automatic (extra charge from difference to manual air conditioning) 408,-
+203725 Virtual cockpit 512,-
+203727 Inductive charging cradle 230,-
+Total price options 1.150,-
+Package Price 1.043,-
+Saving 107,-
+Please note the hints and dependencies from page 15 onwards.
+* List Price = List price in GBP including 20% VAT
+8
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Features and Options s = standard
+o = optional
+– = not possible
+Art. No.
+In Package /
+Option kg List price [GBP]*
+650 MG
+650 MF
+650 MEG
+700 MEG
+700 DX
+          
+Motorisation / Drive / Gearing / Load increase
+Motorisation / Drive
+3.500 kg Chassis light
+204364-01 FIAT Ducato 3,500 kg***(103 kW / 140 hp); front-wheel drive; Euro 6e-bis (Dependencies: ABH251, Hints:
+H724)
+s s s s s
+204365-01 FIAT Ducato 3,500 kg***(132 kW / 180 hp); front-wheel drive; Euro 6e-bis (Dependencies: ABH251,
+ABH032, Hints: H724)
+2.622,- o o o o o
+4.000 kg Chassis
+204366-01 FIAT Ducato 4,000 kg***(132 kW / 180 hp); front-wheel drive; Euro 6e-bis (Dependencies: ABH022,
+ABH250, ABH033, Hints: H724)
+35 4.288,- - - - o o
+Heavy Duty Chassis
+203116 FIAT Ducato 3,500 kg ***(120 kW / 160 hp); 
+front-wheel drive; Euro 6e Final (Dependencies: ABH022, ABH251, Hints: H724)
+60 1.184,- o o o o o
+204367 FIAT Ducato 4.000 kg***; 2.2 l 140 Multijet; front-wheel drive; Euro VI HD (103 kW/140 HP) (Dependencies:
+ABH022, ABH252, ABH024, Hints: H724)
+35 1.561,- o o o o o
+203114 FIAT Ducato 4,000 kg ***(120 kW / 160 hp); 
+front-wheel drive; Euro 6e Final (Dependencies: ABH022, ABH250, ABH024, Hints: H724)
+60 2.525,- - o o o o
+Gearing
+202826 6-speed manual gearbox s s s s s
+204383 8-speed automatic gearbox (Dependencies: ABH022, ABH251) 35 3.235,- o o o o o
+Load Increase
+201781-01 Load increase from 3.500 kg*** to 3.650 kg*** (Dependencies: ABH013, Hints: H724) 329,- o o o o o
+201869-01 Load increase from 4.000 kg*** to 4.250 kg*** (Dependencies: ABH017, Hints: H724) 276,- o o o o o
+201869-02 Load increase from 4.000 kg*** to 4,400 kg*** (Dependencies: ABH018, Hints: H724) 276,- - - - o o
+204634 Chassis downgrade from 4,000 kg to 3,500 kg (Dependencies: ABH017) 276,- o o o o o
+952791 Reduction of the number of permitted seats in operation from 4 to 3 people o o o o o
+551773 Additional belt-secured seat, pluggable 14 525,- o o - o -
+Chassis / Climate Control / Multimedia
+202843 Wide-track chassis s s s s s
+200318 Right-hand drive FIAT with speedometer mph s s s s s
+204487 203114,
+203116,
+204366-01,
+204367,
+204383
+verstärkte Achsen und Bremsanlage (Dependencies: ABH036) 25 o o o o o
+203722 Plastic leaf springs (Dependencies: ABH027) -15 380,- o o o o o
+Paints
+202852-01 Chassis uni paint: White o o o o o
+201786-01 Chassis in metallic paint: Campovolo Grey 745,- o o o o o
+201786-05 Chassis in metallic paint: Black s s s s s
+203720-01 Spoiler (skid-plate) (Dependencies: ABH026) s s s s s
+202139 Headlights in black frame s s s s s
+204390 Radiator grille cover painted black s s s s s
+201788 Front bumper painted in chassis colour (Dependencies: ABH014) s s s s s
+Tyres
+202132 203114,
+203116,
+204366-01,
+204367,
+204383
+16" tyres (Dependencies: ABH019, ABH020) s s s s s
+203808 All-weather tyres s s s s s
+201815 Alloy rims for standard tyres (Dependencies: ABH015, ABH016) s s s s s
+Air Conditioning / Interior
+200176 Air conditioning in cab, manual including pollen filter and outside temperature display s s s s s
+201686 210028,
+210140
+Air conditioning in cab, automatic (extra charge from difference to manual air conditioning) 408,- o o o o o
+201862 Driver airbag s s s s s
+200501 Passenger airbag s s s s s
+201952-01 Driver's seat height adjustment s s s s s
+201952 Passenger's seat height adjustment s s s s s
+201519-01 Techno leather steering wheel and gear knob s s s s s
+*** The specified weight refers to the technically permissible total mass. Further additional information
+as well as legal and technical notes on the subject of “vehicle weights“ can be found from page 2 of
+this price list and at “configurator.knaus.com“.
+Please note the hints and dependencies from page 15 onwards.
+* List Price = List price in GBP including 20% VAT
+9
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Features and Options s = standard
+o = optional
+– = not possible
+Art. No.
+In Package /
+Option kg List price [GBP]*
+650 MG
+650 MF
+650 MEG
+700 MEG
+700 DX
+          
+203730 Instrument panel in Techno design (aluminium) s s s s s
+200975-01 Original FIAT Captainchair seats with armrests s s s s s
+204386 Storage tray under the driver's seat s s s s s
+201789 High-quality fitted seat covers for driver's/passenger's seat in KNAUS fabric style s s s s s
+200633 Cab seats swivelling s s s s s
+202392 221013 Seat heating for driver's and passenger's seats 1 693,- o o o o o
+550592 221013 Windscreen insulation mat set (exterior) 2 145,- o o o o o
+203734 221013 Heated windscreen 1 447,- o o o o o
+550610 Front and side window blackout s s s s s
+Assistance Systems
+200567 Tempomat ® - Cruise Control s s s s s
+204387 Adaptive cruise control > 30 km/h (Dependencies: ABH035) s s s s s
+202871 ESP s s s s s
+202872 Hill Holder (Hill Start Assist) s s s s s
+202873 ABS s s s s s
+202874 Electronic immobiliser s s s s s
+202876 Electromechanical power steering s s s s s
+203755 Trailer Stability Control System s s s s s
+203756 Post Collision Braking System s s s s s
+222881 Crosswind Assist s s s s s
+201787 "Traction Plus" traction aid, including Hill Descent Assist s s s s s
+202150 Tyre pressure monitoring system s s s s s
+202879 Emergency Brake Assist s s s s s
+204691 Active Lane Keeping Assist s s s s s
+204692 Fatigue detection s s s s s
+204693 Intelligent Speed Assistant with traffic sign recognition s s s s s
+202164 210059 Rain and light sensors with automatic dimming 285,- o o o o o
+203729 210059 Electric parking brake -9 515,- o o o s s
+Lighting / Technology
+200178-01 Front fog lights with cornering light (Dependencies: ABH011) s s s s s
+201043 Spare tyre 35 282,- o o o o o
+204388 Fuel tank 60 litres - - - s s
+202712 Fuel tank 90 ltr. 89,- s s s o o
+202891 Car key with remote control for central locking for cab doors s s s s s
+202227 Additional car key with remote control (Dependencies: ABH021) s s s s s
+200488 Electrically adjustable and heated exterior mirrors s s s s s
+202901-01 Daytime running light with series headlamps s s s s s
+203723 210059 Full LED front lighting (low beam, high beam and indicators) (Dependencies: ABH028) 879,- o o o o o
+Multimedia / Navigation
+250233-02 Radio preparation incl. 2 loudspeakers in living area s s s s s
+204389 Preparation for multimedia s s s s s
+204672 7-inch media centre with Apple CarPlay and Android Auto s s s s s
+204681 210140 10" FIAT sat-nav (Dependencies: ABH038) 2 982,- o o o o o
+204695 Rear view camera s s s s s
+203727 210028,
+210140
+Inductive charging cradle (Dependencies: ABH030) 230,- o o o o o
+203725 210028,
+210140
+Virtual cockpit (Dependencies: ABH029) 512,- o o o o o
+Transport Systems
+102273-01 Maximum load capacity of the rear garage: 150 kg s s s s s
+102273 200188 Maximum load capacity of the rear garage: 250 kg 20 1.165,- o o o o o
+200188 Trailer hitch, rigid (Dependencies: ABH012) 46 1.482,- o o o o o
+203933 Preparation for towbar hitch s s s s s
+102514 Bicycle carrier for 2 bikes, rear: THULE LIFT V16 (Dependencies: ABH008, Hints: H157) 17 744,- o o o o o
+102515 Bicycle carrier for 3 bikes, rear: THULE LIFT V16 (Dependencies: ABH008, Hints: H157) 18 815,- o o o o o
+Packages
+210250 TV package 27" (incl. external LTE / W-LAN antenna) 7 1.486,- o o o o -
+*** The specified weight refers to the technically permissible total mass. Further additional information
+as well as legal and technical notes on the subject of “vehicle weights“ can be found from page 2 of
+this price list and at “configurator.knaus.com“.
+Please note the hints and dependencies from page 15 onwards.
+* List Price = List price in GBP including 20% VAT
+10
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Features and Options s = standard
+o = optional
+– = not possible
+Art. No.
+In Package /
+Option kg List price [GBP]*
+650 MG
+650 MF
+650 MEG
+700 MEG
+700 DX
+          
+221013 Arctic Package 4 3.849,- o o o o o
+210140 10" Navigation Package (Dependencies: ABH040) 2 1.920,- o o o o o
+210059 Light and Visibility Package -9 1.394,- o o o - -
+210028 Lounge package (Dependencies: ABH039) 1.043,- o o o o o
+Doors
+102564 Body door: KNAUS PREMIUM (Dependencies: ABH009) s s s s s
+102576 Body door: KNAUS EXkLUSIV (Dependencies: ABH009) 2 320,- o o o o o
+102577 102564,
+102576
+Multifunctional bag in KNAUS design (Dependencies: ABH010) s s s s s
+100602 Insect screen door s s s s s
+100212 Electrical entry step 7 517,- s s s s o
+102840 One-key locking system s s s s s
+Service hatches / Garage doors
+102911 Service/storage space hatches and garage door/hatch with one-hand operation s s s s s
+Front
+252578 352533-01 External battery storage box for 2 on-board batteries (Dependencies: ABH041) 333,- o o o o -
+102915-03 KNAUS ServiceBox s s s s s
+102916-01 Service hatch for ServiceBox 53 x 37.5 cm, bow left s s s s s
+Centre
+102914-14 102914-10 Easy access to gas locker via the service door located in side wall, position lengthwise (Dependencies:
+ABH061)
+- s s o -
+102914-10 Gas locker for 2 x 11 kg gas bottles (Dependencies: ABH059, ABH248, ABH249) s s s o o
+102914-01 102914-07 Easy access to gas locker via the service door located in side wall (Dependencies: ABH246) s s s s s
+102914-07 Gas locker for gas bottle reserves 1 x 5 kg (Dependencies: ABH247) - - - s s
+Rear
+100526-15 Garage door 80 x 110 cm, left (Dependencies: ABH005) s - s s -
+100526-13 551711 Garage door 80 x 80 cm, left (Dependencies: ABH001, ABH239) 4 460,- - - o o -
+100526-33 Garage door 55 x 110 cm, left - - - - s
+100526-16 Garage door 80 x 110 cm, right s - s s -
+100526-14 551711 Garage door 80 x 80 cm, right (Dependencies: ABH240, ABH241) 4 460,- - s o o -
+100526-30 Garage door 72.5 x 110 cm, right - - - - s
+Windows / Roof Hoods / Ventilation
+101820 Frame window SEITZ S7P s s s s s
+Front
+102619-01 Roof hood 40 x 40 cm with insect screen and blackout, clear (bow) s s s s s
+101779 Sliding window on passenger side, height of seating group 8 460,- o o - o o
+101721 Hinged window in roof hood, with insect screen and blackout (bow) s s s s s
+Centre
+102619-02 101944 Roof hood 40 x 40 cm with insect screen and blackout, clear (centre) 3 189,- - - o o o
+Rear
+102619-03 Roof hood 40 x 40 cm with insect screen and blackout, clear (rear) s s s s s
+101944 Panorama skylight 130 x 45 cm (rear) (Dependencies: ABH244, ABH245) 12 - 15 604,- - - o o o
+101019-02 Hinged window 70 x 40 cm, (rear left) (Dependencies: ABH243) s - s s -
+101019-01 Hinged window 90 x 52 cm (rear left) (Dependencies: ABH242) 7 346,- - - o o s
+Toilet Room
+100960-04 Roof hood 28 x 28 cm with insect screen, (toilet room) s s s s s
+101848 Roof hood (lift-tilt) 40 x 40 cm with insect screen and blackout, in shower/toilet room 3 206,- - - - - o
+101666 Hinged window 52 x 50 cm with insect screen and blackout, toilet room 6 276,- o - - o o
+Materials / Vehicle Graphics
+Materials
+100887 GRP roof with reduced hail sensitivity s s s s s
+102926-18 FoldXpand rear concept: full-plastic rear wall with flush integrated taillight carrier s s s s s
+103717 Plain sheet side walls, Campovolo Grey s s s s s
+102928-05 Resistant underfloor coating s s s s s
+224480-01 Frame of the service hatch, heating chimney and external sockets in grey, door frame of the superstructure
+and garage doors in silver
+s s s s s
+*** The specified weight refers to the technically permissible total mass. Further additional information
+as well as legal and technical notes on the subject of “vehicle weights“ can be found from page 2 of
+this price list and at “configurator.knaus.com“.
+Please note the hints and dependencies from page 15 onwards.
+* List Price = List price in GBP including 20% VAT
+11
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Features and Options s = standard
+o = optional
+– = not possible
+Art. No.
+In Package /
+Option kg List price [GBP]*
+650 MG
+650 MF
+650 MEG
+700 MEG
+700 DX
+          
+Vehicle Graphics
+103551-01 Special foil graphics "PLATINUM SELECTION" s s s s s
+103760-01 KNAUS emblems rear, black/chrome o o o o o
+Lighting / Technology
+102933-01 KNAUS CATEYE evolution – taillight with exclusive night signature and dynamic indicator in LED
+technology
+s s s s s
+102933-12 Third brake light integrated at the rear s s s s s
+252937 Awning light with motion sensor LED s s s s s
+Furniture / Surfaces
+552940-31 Furniture decor: Modern Oak s s s s s
+552940-33 Furniture decor: Samoa Dark s s s s s
+552941-02 Ventilated cabinets and cupboards s s s s s
+552944 Vinyl flooring s s s s s
+552492 Metal furniture locking system s s s s s
+552941-16 Storage locker hatches with soft-close function s s s s s
+Living / Sleeping / Upholstery and Fabrics
+Living
+551770 L-shaped seating group with telescopic single-column lifting table (Dependencies: ABH054) s s s s -
+552960-11 Face-to-face seating group - - - - s
+552686-01 Two folding seats with 3-point seat belts, facing the direction of travel - - - - s
+552247 ISOFIX system (2 child seats) s s s s s
+Sleeping
+552945-01 EvoPore HRC mattress, fixed beds only s s s s s
+552574 EvoPore HRC mattress incl. WaterGEL topper, fixed beds only 6 431,- o o o o o
+551746 Lifting bed with high-quality lifting mechanism (Hints: H147) s s s s s
+551711 Low single bed, incl. cabinet above the end of the bed (Dependencies: ABH256) -19 - - o o -
+552473 Queen-sized bed electrically height-adjustable 30 1.394,- - - - - o
+551234 Bed extension in foot area, layouts with F-bed - s - - -
+551796 Bed extension to make one large sleeping surface - - s s -
+552198 551770 Bed conversion of the seating group (Dependencies: ABH055) 2 115,- - - o - o
+552198-02 551770 Bed conversion of the seating group (Dependencies: ABH055) 2 115,- o o - o -
+552369 Fitted sheet set, precisely fitting for the mattress shape - for 2 beds (fixed beds) 1 87,- o o o o o
+Upholstery / Fabrics / Carpets
+Upholstery Variants
+552188-04 Upholstery selection: ACTIVE ROCK 402,- o o o o o
+554642-02 Special upholstery: SOFT GRAPHITE 'PLATINUM SELECTION’ s s s s s
+COZY HOME Package consisting of: 2 decorative pillows, 2 sleeping pillows, 2 blankets, table
+runner
+550660-15 COZY HOME pack URBAN SAND 3 200,- o o o o o
+550660-16 COZY HOME pack NORDIC DOTS 3 200,- o o o o o
+550660-17 COZY HOME pack SCANDIC GREEN 3 200,- o o o o o
+Carpets
+201074 Floor mat set in driver's cab in KNAUS design 2 104,- o o o o o
+550235 Carpet floor in living area 6 415,- o o o o o
+Kitchen / Bathroom
+Kitchen
+402985-01 3-burner cooker with glass cover, stainless steel sink, recessed (Dependencies: ABH049) s s s s -
+402985-06 Cooker-sink combination incl. 2-burner cooker with electric ignition and divided glass cover (Dependencies:
+ABH049)
+- - - - s
+552941-17 Kitchen drawers with soft-close function s s s s s
+402767 Refrigerator 142 ltr. s s s - -
+402602 Compressor refrigerator 150 ltr. (incl. 17 ltr. freezer compartment), with external soundproofed compressor
+unit
+- - - s s
+402417 Automatic energy selection for refrigerator (AES) s s s - -
+400369-01 Gas oven incl. grill function (installation location in the kitchen block) s s s s -
+Bathroom Area
+451777 Wooden grate for shower tray 2 259,- o - - o o
+*** The specified weight refers to the technically permissible total mass. Further additional information
+as well as legal and technical notes on the subject of “vehicle weights“ can be found from page 2 of
+this price list and at “configurator.knaus.com“.
+Please note the hints and dependencies from page 15 onwards.
+* List Price = List price in GBP including 20% VAT
+12
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Features and Options s = standard
+o = optional
+– = not possible
+Art. No.
+In Package /
+Option kg List price [GBP]*
+650 MG
+650 MF
+650 MEG
+700 MEG
+700 DX
+          
+453502-07 High-quality fittings s s s s s
+453509-07 Folding clothes rail in the toilet room or shower s s s s s
+453505-21 L!VE bathroom with separate shower - - - - s
+453505-16 Comfort bathroom with shower and washbasin - - s - -
+453505-15 Longitudinal washroom with shower s s - s -
+453503-03 Cassette toilet DOMETIC swivelling s - - s -
+453503-04 Cassette toilet Thetford swivelling - - - - s
+453503-01 Bench toilet Thetford - s s - -
+Heating / Air conditioning / Gas Supply / Water Supply
+Gas Supply
+302973 Gas system 30 mbar s s s s s
+302976 Gas hose version UK s s s s s
+302980 Gas regulator version UK s s s s s
+301057 Remote display DuoC (Ice Ex integrated) (Dependencies: ABH046) 173,- o o o o o
+301957 TRUMA DuoControl CS (incl. gas filter) (Dependencies: ABH254, ABH047) 1 438,- s s s o o
+551327 Smoke detector s s s s s
+300518 External gas socket 1 235,- o o o o o
+Heating / Air conditioning
+551054 Air circulation system 12 V s s s s s
+351166 Heating TRUMA Combi 6 s s s - -
+351274 Heating TRUMA Combi E (Dependencies: ABH213) s s s - -
+354173 Diesel heating TRUMA Combi 6 D - - - s s
+352379 Electrical heating element for TRUMA Combi D (Dependencies: ABH076) - - - s s
+352533-01 ALDE hot water heating incl. booster (Dependencies: ABH050, ABH051, ABH061, ABH255, Hints: H160) 49 2.429,- o o o o o
+550825 Electric underfloor heating 8 744,- o o o o o
+352966 221013,
+352533-01
+Heating control panel ALDE LCD (Dependencies: ABH041) o o o o o
+352059 TRUMA CP-Plus digital heating control panel (Hints: H149) s s s s s
+450740 Insulating hood waste water tank, heatable s s s s s
+554394-01 DOMETIC FJX4 2200 FS air conditioner, black (Dependencies: ABH056, ABH057, Hints: H145) 30 2.453,- o o o o o
+Water Supply
+453510-01 Water supply with submerged pump s s s s s
+453510-03 Hot water supply with single-lever mixer tap s s s s s
+453510-07 Water pipes laid in insulated area s s s s s
+Electronics / Multimedia / Safety
+Electronics
+253523-02 Power supply / interior lighting with 230 V and 12 V, various interior sockets s s s s s
+253526-01 Control panel with touch function s s s s s
+253530 Circuit breaker s s s s s
+232667-01 Charger with 25A charging capacity, suitable for lithium batteries s s s s s
+252723 Charging booster for on-board battery s s s s s
+253520 230 V SCHUKO sockets "UK" version s s s s s
+250072-06 230 V SCHUKO socket, additional 1 pc. in kitchen s s s s s
+252729 230 V SCHUKO socket, additional 1 pc. in garage s s s s s
+252524 Atmospheric ambient lighting s s s s s
+254702-01 LiFePO4-board battery (100 Ah) (Dependencies: ABH253) - - - s s
+254702 LiFePO4-on-board battery (instead of standard battery) (100 Ah) (Dependencies: ABH043, ABH044) -12 868,- o o o - -
+254706 LiFePO4-board battery (100 Ah) (Dependencies: ABH045) 12 956,- o o o o o
+253782 Solar system (200 W) 17 1.662,- o o o o o
+Multimedia
+253609 210250 27" SMART TV set with HD tuner (Dependencies: ABH042) 4 991,- o o o o o
+254632 Pre-wiring for TV (living area) s s s s s
+252479 Pre-cabling for TV in the sleeping area s s s s s
+252405 TV holder s s s s s
+253651 210250 External LTE / WIFI antenna 3 868,- o o o o o
+Awning / Awning Accessories
+*** The specified weight refers to the technically permissible total mass. Further additional information
+as well as legal and technical notes on the subject of “vehicle weights“ can be found from page 2 of
+this price list and at “configurator.knaus.com“.
+Please note the hints and dependencies from page 15 onwards.
+* List Price = List price in GBP including 20% VAT
+13
+
+L!VE WAVE PLATINUM
+SELECTION (2027)
+Features and Options s = standard
+o = optional
+– = not possible
+Art. No.
+In Package /
+Option kg List price [GBP]*
+650 MG
+650 MF
+650 MEG
+700 MEG
+700 DX
+          
+Awning THULE OMNISTOR
+500893-01 Awning 355 x 250 cm, anthracite s - - - -
+501333-01 Awning 405 x 250 cm, anthracite - s s s s
+Miscellaneous
+953542-06 Operating instruction (English) s s s s s
+951036 MOT and registration document s s s s s
+Accessories
+953543 10-year leak-proofness guarantee s s s s s
+*** The specified weight refers to the technically permissible total mass. Further additional information
+as well as legal and technical notes on the subject of “vehicle weights“ can be found from page 2 of
+this price list and at “configurator.knaus.com“.
+Please note the hints and dependencies from page 15 onwards.
+* List Price = List price in GBP including 20% VAT
+14
+
+IMPORTANT HINTS
+AND DEPENDENCIES
+HINTS
+H140 Incl. indication of production-related tolerances of ±5%
+H141 Please note that the number of beds indicated may include beds for both adults and children. The beds do not have the same dimensions. We therefore recommend that you consult
+your KNAUS dealer about the dimensions of the beds provided in the vehicle so that you can decide whether they are suitable for the occupancy (adults/children) you intend to have.
+H142 For some models, additional equipment must be selected in order to achieve the maximum possible beds. Your KNAUS dealer will be happy to advise you.
+H145 If this option is selected, the vehicle height increases by approx. 11 cm
+H147 Maximum loadability 250 kg
+H149 If ALDE hot water heating is selected, panel is replaced by ALDE LCD control panel.
+H157 Please note that mounting the bicycle carrier on the rear wall limits the field of view of the reversing camera.
+H160 Depending on the layout, one or more boosters are included to increase the heat output
+H192 The specified bed dimensions do not correspond to the mattress dimensions. The shape of the bed varies depending on the floor plan. Individual elements can partially restrict the
+area due to structural conditions. We therefore recommend that you consult your KNAUS dealer about the dimensions of the sleeping places provided in the vehicle so that you can
+decide whether they are suitable for the intended occupants (adults/children).
+H711 The fresh water tank capacity referred to schedule V, part A, no. 2.6. footnote (h) VO (EU) 1230/2012 is limited by a overflow valve to 10 ltr. (suggested filling for running order)
+H712C The fresh water tank capacity is 100 ltr. with the overflow valve closed.
+H724 *** The weight stated is the technically permissible total mass.
+DEPENDENCIES
+ABH001 Only with 551711 ABH044 Replaces 253749
+ABH005 Not with 551711 ABH045 Not with 914707 along with 254702
+ABH008 Not with 100237 ABH046 Only with 301957
+ABH009 Contains 102577 ABH047 Replaces 302978 along with 302979 along with 302980 along with 302981
+ABH010 Not with 102839 ABH049 Contains 953554 along with 953555
+ABH011 Only with 203720-01 and 201788 ABH050 Contains 352966 along with 252578
+ABH012 Contains 102273 ABH051 Not with 202060 and 203729
+ABH013 Only with 204363-01 or 204364-01 or 204365-01 ABH054 Contains 552198 along with 552198-02
+ABH014 Only with 203720-01 and 200178-01 ABH055 Only with 551770
+ABH015 Only with 202132 ABH056 Not with 914395 or 914395-01
+ABH016 Replaces 202200 along with 200868 ABH057 Replaces 102619-02
+ABH017 Only with 204366-01 or 204368 or 204367 or 203114 ABH059 Contains 102914-14
+ABH018 Only with 204366-01 or 204368 or 203114 ABH061 Only with 102914-10
+ABH019 Not with 204363-01 ABH076 Only with 354173
+ABH020 Only with (204364-01:201815 and 202826:201815) or 204383 or 204365-01 or
+204366-01 or 204417 or 203116 or 204367 or 203114 or 204368
+ABH213 Only with 351166
+ABH021 Not with 202541 ABH239 Replaces FR1544377*, FR1549377*:100526-15
+ABH022 Contains 202132 along with 204487 ABH240 Only with FR1544377*, FR1549377*:551711
+ABH024 Only with 203587 ABH241 Replaces FR1544377*, FR1549377*:100526-16
+ABH026 Only with 201788 and 200178-01 ABH242 Only with FR1549377*, FR1544377*, FR15493772799,
+FR15443772799:551711
+ABH027 Only with 202843 along with 204363-01 or 204364-01 or 204365-01 ABH243 Not with FR1549377*, FR1544377*, FR15493772799,
+FR15443772799:551711
+ABH028 Only with 202139 ABH244 Contains FR1548399*:102619-02
+ABH029 Only with 201686 and 203727 ABH245 Not with FR1544377*:252793
+ABH030 Only with 201686 and 203725 ABH246 Only with 102914-07
+ABH032 Only with 204383 ABH247 Contains 102914-01
+ABH033 Only with 204383 and 203587 ABH248 Only with FR1548399*, FR1549377*:550566-01 or 352533-01
+ABH035 Only with 202710-01 and 201519-01 along with 203720-01 or 201788 or
+200178-01
+ABH249 Replaces 102914-07 along with 102914-01
+ABH036 Only with 204383 or 204366-01 or 204367 or 204368 or 204417 or 203116 or
+302114
+ABH250 Not with 203722 along with FR15443872799, FR15443452799,
+FR15443772799, FR15493772799, FR15483992799:152828 and 212561-01
+ABH038 Only with 201686 or 210028 or 210140 ABH251 Not with FR15443872799, FR15443452799, FR15443772799,
+FR15493772799, FR15483992799:152828 and 212561-01
+ABH039 Not with 210140 ABH252 Not with 203722 along with 200318 along with FR15443872799,
+FR15443452799, FR15443772799, FR15493772799,
+FR15483992799:152828 and 212561-01
+ABH040 Not with 210028 ABH253 Not with 254702 along with 914707 along with 254706
+ABH041 Only with 550566-01 or 352533-01 ABH254 Only with FR1549377*, FR1548399*:550566-01 or 352533-01
+ABH042 Only with 252405 ABH255 Replaces 351274 along with 204386 along with 354173 along with 352379
+ABH043 Not with 914707 along with 254706 ABH256 Contains 100526-14 along with FR15493772799, FR15443772799:100526-13
+15
+
+@knaus_official
+@knaus_official
+schwalbenblog.knaus.com
+shop.knaus.com
+facebook.knaus.com
+youtube.knaus.com
+knaus.com
+Knaus T abbert AG     Helmut-Knaus-Str. 1     D–94118 Jandelsbrunn

@@ -462,17 +462,26 @@ Performances.
 
 ### The three fields the requester added, and what the sources actually say
 
-**Rear garage — all 48 are `yes`, but there are two different kinds.** The 36 motorhomes
+**Rear garage — `yes` on the 36 motorhomes, `no` on the 12 campervans.** The motorhomes
 have a dedicated rear garage: every range's standard equipment names it ("Large rear
 garage: two garage doors/flaps…"), and each model page publishes
 `Measurement storage opening right/left (W x H)`. Six Trend layouts publish **two** heights
 per side, e.g. `90 x 75 (○) / 90 x 110` — that is the height-adjustable rear bed, not a
 parsing artefact. Only the two Alpa Coachbuilts publish
-`Clear dimensions of rear garage door/flap`, an *optional* extra flap. The 12 Globetrail
-campervans publish no opening row at all; their under-bed space is loaded through the rear
-doors, and Dethleffs' own equipment list calls it "rear storage space with 4 integrated
-lashing eyes" while the model pages call it a rear garage. Recorded as `yes` with the
-distinction in each row's note, so flipping the campervans is one filter.
+`Clear dimensions of rear garage door/flap`, an *optional* extra flap.
+
+The 12 Globetrail campervans publish no opening row at all: their under-bed space is loaded
+through the rear doors, with no external side hatch and no published opening dimensions.
+**Requester decision, 2 September 2026: under-bed storage is not a rear garage**, so all 12
+are `no`. Note that the two sources on the site disagree and the *marketing copy is the one
+to ignore* — Dethleffs' equipment list calls it "rear storage space with 4 integrated
+lashing eyes", while the model pages' prose calls it a rear garage. The equipment list is
+the specific source and it wins, the same way the specific footnote wins on price.
+
+The first build of this pack recorded all 48 as `yes` on the strength of that marketing
+copy, which was wrong. **Any manufacturer whose panel vans are described as having a
+"garage" needs the same test**: is there an external hatch and a published opening, or is
+it just the space under the bed?
 
 **Fridge — all 48 are fridge/freezer, none is a plain fridge.** The 36 motorhomes publish
 `Refrigerator volume (thereof freezer), approx.` on their own page, 83 l to 177 l, always

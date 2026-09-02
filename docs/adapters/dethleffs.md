@@ -405,10 +405,26 @@ cross-check; the motorhome one is 17.6 MB.
 
 ## The habitation pack — floorplans, and the ~40 layout fields the adapter never collects
 
-Built 2 September 2026, after the adapter, as the same post-build step Knaus got. Two
-outputs, both under `data/` and neither tracked:
-`data/dethleffs-2027-habitation-layouts.csv` and `data/dethleffs-2027-floorplans.html`,
-the page generated from the CSV so the two cannot drift.
+Built 2 September 2026, after the adapter, as the same post-build step Knaus got. Four
+outputs, all under `data/` and none tracked — they are large and regenerable:
+
+| File | What it is |
+|---|---|
+| `dethleffs-2027-habitation-layouts.csv` | the data, 48 rows × 21 columns — **the only hand-maintained one** |
+| `dethleffs-2027-floorplans.html` | the reference page, published as an Artifact |
+| `dethleffs-2027-floorplans.pdf` | that page printed to A4, 46 pages |
+| `dethleffs-2027-floorplans.docx` | a Word version, 38 pages, for annotating |
+
+**Everything downstream is generated from the CSV**, so the four cannot drift: edit the CSV
+and rebuild. The HTML carries a print stylesheet, so `Ctrl+P` from the published Artifact
+gives the same document as the generated PDF — on paper the card goes single column, so the
+floorplan gets the full 188 mm text width instead of sharing it with the facts column.
+
+The Word build needs `python-docx`, which is **not** a project dependency and should not
+become one — run it isolated, `uv run --with python-docx --no-project python <script>`. It
+places the pre-rendered PNGs rather than the SVGs, since python-docx cannot embed SVG.
+Word 16 is installed on the laptop, so `Document.SaveAs(..., 17)` over COM converts the
+.docx to PDF if the rendering ever needs checking.
 
 These cover the fields flagged out of scope in `config/field_guide_motorhome.csv` — bed
 types, sleeping area, bathroom layout, kitchen location, lounge, rear garage, fridge and

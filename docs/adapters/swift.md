@@ -1,105 +1,500 @@
 # Swift Group — site survey and adapter notes
 
-Surveyed 6 August 2026, against the **2026** motorhome and campervan brochures.
+Surveyed 6 August 2026 against the **2026** brochures. **Re-surveyed and the adapter
+rewritten 28 August 2026 against the 2027 range**, because the source it was built on no
+longer exists.
 
-Swift is the third manufacturer surveyed and the easiest so far. It also confirms the
-revised rule from [Morelo](morelo.md): **look for a brochure before surveying the
-website.** Both index pages link a brochure PDF directly — no form, no login — and the
-back of each carries a "Specification at a glance" table covering every layout sold.
+Swift was the third manufacturer surveyed and the easiest. It is now the first to have
+had its source taken away mid-life, and the lesson is in the shape of that failure rather
+than in the parsing.
 
-**30 layouts, four fetches, no browser:**
+## What happened
 
-| Catalogue | Ranges | Layouts |
+The 2026 adapter read the "Specification at a glance" table out of Swift's annual
+brochure PDFs. On 28 August 2026 it collected **zero products**:
+
+```
+[Motorhomes] SKIPPED: no brochure link found on https://www.swiftgroup.co.uk/motorhomes/
+[Campervans] SKIPPED: no brochure link found
+0 product(s) collected
+```
+
+For 2027 there is **no full brochure**. Motorhomes, campervans and caravans all got a
+two-page *quick guide* instead — all three stamped "Issued September 2026" — and the
+detailed per-layout data moved onto the website. The adapter's link pattern required
+`_brochure.pdf`; the file is now `2027-swift-motorhome-quick-guide.pdf`.
+
+Two things about that are worth carrying to every other adapter:
+
+**It failed silently.** Two narrated skips, no crash, no raised error, run status
+succeeded. The pipeline treats "no brochure link on the page" as a skip because on any
+given run that is usually a transient site change, and it is the right default — but it
+means a dead source looks exactly like a quiet week.
+
+**The trigger dropdown kept showing Swift throughout**, because that list is filtered by
+`adapter_for()`, which only checks a module is registered under the manufacturer name.
+Presence there says the plumbing is connected. It says nothing about whether the source
+still exists.
+
+## The trap: the old brochure is still live
+
+The obvious fix — loosen the pattern to accept hyphens and "quick guide" — is the wrong
+one. `/brochures/` still lists 70 PDFs including both 2026 brochures, and the old URL
+still resolves:
+
+```
+/media/noeb4jei/2026_swift_motorhome_brochure.pdf   OK, 20,248,570 bytes
+```
+
+A pattern loose enough to match the 2027 guide matches the 2026 brochure too, and would
+propose last season's range as current: 30 plausible, internally consistent, wholly stale
+products. That is worse than collecting nothing, and nothing downstream would catch it.
+
+So the adapter reads the site, anchors its guide pattern on `quick-guide` rather than on
+`.pdf`, and never looks at `/brochures/` at all. `test_swift.py` has an explicit negative
+test feeding it both 2026 brochure links and asserting it finds neither.
+
+## Where the data lives now
+
+One page per **range**, at `/{motorhomes,campervans}/product/<id>/<slug>/`, each carrying
+a `<script type="application/json" data-product-layouts-data>` block with one object per
+layout — plain server-rendered HTML, so still no JavaScript:
+
+```json
+{"id":75041,"title":"Kon-Tiki 774","code":"kon-tiki-774","badge":"New for 2027",
+ "priceLabel":"From £114,395 OTR","berths":"6 berths",
+ "travellingSeats":"5 travelling seats","licenceCategory":"C1","length":"8.22m",
+ "width":"2.39m","weightMtplm":"4500kg","weightMro":"3638kg"}
+```
+
+**39 products, 13 fetches, no browser.** All nine of those fields are populated on all 39.
+
+| Category | Ranges | Products |
 |---|---|---|
-| Motorhomes | Voyager, Trekker, Escape, Kon-Tiki | 20 |
-| Campervans | Monza, Trekker, Carrera | 10 |
+| Motorhomes | Kon-Tiki 7, Voyager 6, Escape 5, Trekker 500 4 | 22 |
+| Campervans | Merlin 9, Carrera 6, Trekker 2 | 17 |
 
-20 motorhomes matches Swift's own claim on the page ("20 layouts across four
-exceptional ranges"), which is a useful independent check that nothing was missed.
+Up from 30 in 2026. **Monza is gone**; **Merlin is new** — "Swift's new entry-level
+campervan". Three vehicles are badged *New for 2027*: Kon-Tiki 740, Kon-Tiki 774,
+Trekker 505.
 
-## What Swift publishes
+Better than the brochure in two ways, worse in one:
 
-This is the richest per-product data of the three manufacturers so far — Swift publishes
-**berths, seat belts, overall length/width/height, MTPLM, MRO *and* payload** for every
-layout:
+- **Price, on every layout.** The 2026 survey recorded that Swift published none
+  anywhere. All 39 now carry `From £x OTR`, which is the basis
+  [README](README.md) says FMLV records.
+- **Range attribution is free**, which matters more here than anywhere else — see below.
+- **No height**, on any Swift document for 2027.
+
+## Trekker is two different ranges
+
+Swift sells a `Trekker` **coachbuilt** range and a `Trekker` **campervan** range. Same
+collision as Auto-Trail's Expedition, and the requester flagged it independently.
+
+FMLV already models it, which the real export confirms: the coachbuilts are range
+`Trekker 500` (models 540, 584, 594) and the vans are range `Trekker` (S, X, XF, XL). So
+`RANGE_NAME_CORRECTIONS` renames the motorhome range, and a layout's range always comes
+from **which index page led to its page**, never from its name.
+
+It is worse than a name clash. The layout *numbers* collide too, with **identical length
+and MTPLM**:
+
+| | Length | MTPLM | MRO |
+|---|---|---|---|
+| Voyager 505 | 6.19m | 3500kg | 2837kg |
+| Trekker 505 | 6.19m | 3500kg | **2885kg** |
+
+540, 584 and 594 are shared as well. **Only MRO separates them.** Nothing may key a
+layout on its number alone — and this is not hypothetical:
+
+**FMLV was holding the wrong weight.** Baseline `Trekker 500 540` carried MRO 3012, which
+is the *Voyager* 540's figure, and `Trekker 500 594` carried 3102, the Voyager 594's. The
+site says 3074 and 3156. The first run proposes both corrections.
+
+## The bug the first live run found
+
+**Swift's nav block is global**, so the motorhomes index links every campervan range page
+too. An href pattern accepting either category read all nine ranges from *each* index —
+emitting all 39 products twice, and applying the `Trekker` → `Trekker 500` correction to
+the **campervan** Trekker on the first pass.
+
+The category is now interpolated into the pattern per index. Same trap as
+[chausson.md](chausson.md)'s global nav, and `test_range_paths_are_scoped_to_their_own_category`
+asserts the nav really is global before checking the scoping holds.
+
+## The self-check is cross-document
+
+The JSON publishes MRO but no payload. The quick guide publishes payload but no MRO. So
+`payload == MTPLM - MRO` is a genuine check across two independent documents rather than
+an arithmetic tautology within one.
+
+On 28 August 2026 it was an **exact bijection**: 39 payload figures across the two
+guides, 39 products on the site, all reconciling, none left over.
+
+The guide prints them two ways and both must be read:
 
 ```
-475 Ford 130 Bhp 165 Bhp Auto 2.0ltr 360Nm 1 4.52m 5 5 7.54m 2.37m 2.98m Thule T4200 4.0m^ Cat C1
-475 3550kg+ 3094kg‡ 456kg‡ 2000kg 5500kg THREE Truma Neo 12"
+740                     ← full block, one per floorplan
+Length
+6.99m / 22'11"
+Max Payload
+1220kg
+MTPLM
+4500kg
 ```
 
-Berths and seats are worth calling out: Morelo publishes neither, and Adria's come from
-a separate PDF per product. Swift gives both, for every layout, in one table.
-
-The two brochures are laid out differently, and the adapter handles each:
-
-- **Motorhomes** split the data across *two* tables — dimensions and berths in one,
-  weights in another — keyed by range and layout number. They are joined on
-  `(range, layout)`, not on layout alone: Voyager and Trekker both sell a 540, 584 and
-  594, on different weights.
-- **Campervans** use one table, and name their models (`Trekker`, `Trekker X`,
-  `Trekker XL`) rather than numbering them.
-
-## Parsing approach: anchor on the tail, not the columns
-
-The rows are ragged. A row's *leading* columns are engine prose of unpredictable width —
-`Ford 130 Bhp 165 Bhp Auto` against `Ford 165 Bhp Auto N/A` against a campervan row with
-no chassis make at all. Counting columns from the left therefore doesn't work.
-
-Its *trailing* columns, though, are a fixed run of typed values: metres, then two
-integers, then more metres, then a known literal (`Thule`) or the three `kg` figures. So
-every pattern here anchors on that tail and never parses the variable part at all.
-
-Three things that bit, each now covered by a test:
-
-1. **Footnote marks are not confined to the columns you read.** Swift annotates figures
-   with `+`, `‡`, `△`, `*` and `#`. Allowing for marks on the three weights that matter
-   but not on the trailing trailer/train columns silently dropped *every Escape and
-   Kon-Tiki weight* — eight of twenty motorhomes, and the failure looked like "those
-   ranges just don't publish weights" rather than like a bug.
-2. **A model name isn't always one token.** `Trekker`, `Trekker X` and `Trekker XL` are
-   three campervans; a lazy match stops at `Trekker` and collapses them into one,
-   losing two products. The adapter anchors the name's end on where the engine columns
-   begin, matching a chassis make as a capitalised word of 3+ letters precisely so `X`
-   and `XL` aren't mistaken for one.
-3. **Range headings are discovered, not hardcoded.** A heading is a short line of
-   letters with no figures, sitting above its layout rows. A new Swift range needs no
-   code change. Footnotes and the symbol legend share these pages and are skipped by
-   the same pass.
-
-As with Morelo, Swift publishes MTPLM, MRO *and* payload, so `payload == MTPLM − MRO`
-is a free check — here on the *join* between the motorhome brochure's two tables, where
-pairing the wrong layout's weights would be out by tens or hundreds of kg. All 30
-products reconcile. A small tolerance is allowed because Swift rounds and annotates some
-figures (`*` marks an estimate; `†`/`‡` flag an automatic-transmission adjustment).
-
-## Known gaps
-
-- **No price.** Neither brochure quotes one — the motorhome PDF contains a single `£`,
-  in unrelated prose. `rrp_pounds` is therefore never proposed for Swift, so a price
-  change on a Swift product will not be caught by this adapter at all. This is the one
-  significant gap and it is worth a decision:
-  - Swift's own product pages (`/motorhomes/product/42117/swift-kon-tiki/`) were **not**
-    surveyed for a price — I ran out of time. That is the first place to look, and if a
-    per-layout price is there this becomes a straightforward third fetch.
-  - Failing that, Swift is an NCC member (`ncc_member=yes` in the registry), so asking
-    them for a price list directly is likely to be quicker than scraping dealers.
-- **Campervan berths vs. Swift's own marketing.** The table gives Monza 5 seat belts and
-  4 berths; the range page's "Quick View" panel repeats the same figures, so they agree.
-  No conflict found, but only spot-checked.
-- **The brochure URL is a changing opaque media key** (`/media/noeb4jei/...`), so it is
-  re-discovered from the index page each run. The registry's `brochure_url` column
-  records the current one for reference only — the adapter does not read it.
-- Swift also makes caravans, deliberately out of scope for this prototype (DESIGN.md §3).
-
-## Running it
-
-Both catalogues by default; `--range` picks one:
-
-```bash
-uv run fmlv run Swift --range Campervans
+```
+244 Max Payload         ← compact line, for a variant sharing its sibling's floorplan
+470kg
 ```
 
-Note this is `cli.resolve_ranges` doing its usual job, but a Swift "range" at that level
-is a whole *catalogue*, not a model range — the model ranges (Voyager, Carrera, …) come
-out of the brochure and can't be selected from the command line.
+Nine of the seventeen campervans are only reachable the compact way, so reading full
+blocks alone would leave a third of the range unchecked.
+
+The Escape prints **dual figures** — `270kg | 400kg` against `3500kg | 3700kg` — paired
+*positionally*. That is how the guide encodes what the site sells as separate 2-berth and
+4-berth products.
+
+**A contradicted payload drops the layout; a floorplan the guide doesn't cover only
+warns.** That asymmetry is deliberate. The brochure version dropped hard because its two
+tables were joined on `(range, layout)` and a misjoin was the risk being defended
+against. There is no join now — one JSON object is one vehicle — so column misalignment
+is structurally impossible, and the remaining risk is Swift mis-stating a figure. Losing
+a real vehicle over a gap in a marketing leaflet's coverage would be the worse error.
+
+## The base vehicle comes free, and cross-checks perfectly
+
+Every range page names its chassis once, in the "Exterior & Construction" feature list.
+It is a range-level fact — every layout in the range is built on it:
+
+| Range | Stated as | FMLV |
+|---|---|---|
+| Voyager | Ford Transit Skeletal chassis cab | `Ford` |
+| Trekker 500 | Ford Transit Skeletal chassis cab | `Ford` |
+| Escape | Fiat chassis cab | `Fiat` |
+| Kon-Tiki | Fiat chassis cab | `Fiat` |
+| Carrera | Fiat Ducato panel van | `Fiat` |
+| Trekker | Ford Transit panel van | `Ford` |
+| Merlin | Fiat Ducato panel van | `Fiat` |
+
+Reading it this way reproduces FMLV's own split **exactly** across all 31 baseline
+products — Ford 17 (Voyager 9, Trekker 500 3, Trekker 4, Monza 1) and Fiat 14 (Escape 4,
+Kon-Tiki 4, Carrera 6). That agreement is what makes it safe to emit, and it is why the
+field was added on 28 August 2026 rather than left to hand-filling.
+
+**The make and the body phrase must be matched together.** The Carrera page titles itself
+"Award-winning Swift Carrera panel van, refreshed for 2026", so anchoring on `panel van`
+alone finds a heading with no make in it. Up to two words are allowed between the two, so
+`Transit`, `Ducato` and `Transit Skeletal` all pass.
+
+## Height: nothing is published, and it is handled two different ways
+
+**No 2027 Swift document publishes an overall height.** Not the layout JSON, not the
+quick guides — their only "height" mentions are prose ("full height GRP rear panel",
+"height adjustable electric drop-down bed"), never a spec row beside Length and Width.
+`test_no_swift_document_publishes_a_height_for_2027` asserts that premise, and is the
+test to watch: if it ever fails, Swift have started publishing heights again and the
+constant below should be retired.
+
+The right answer differs by whether the product already exists in FMLV.
+
+### For the 30 products with a baseline — emit nothing
+
+The requester asked (28 August 2026) to carry the 2026 heights over where 2027 omits
+them. **That is implemented by emitting nothing**, because it is what the pipeline
+already does: an in-scope field the adapter cannot fill arrives at review as a flagged
+no-op change (`old == new`, snippet *"not found on the manufacturer's site this run.
+Confirm the existing figure is still correct, or enter a replacement"*). The reviewer sees
+it; the stored value is preserved untouched. All 24 matched products behaved that way.
+
+Proposing the 2026 brochure's figure *instead* was considered and rejected. FMLV already
+holds heights that disagree with that brochure on the Kon-Tikis — FMLV 2890 against the
+brochure's 2880 — so proposing it would rewrite good data with older data on no 2027
+evidence at all.
+
+For reference, had a constant been used, this is how far it would have stretched —
+measured by whether 2027's length *and* width still match 2026 exactly:
+
+| | Count | |
+|---|---|---|
+| Length + width identical | 21 | same bodyshell, safe to carry |
+| Kon-Tiki, dimensions moved | 5 | width 2380 → 2390, MRO up 18–30kg; the 2027 spec cites an AL-KO conversion "with wide rear track" |
+| No 2026 equivalent | 13 | Merlin 9, Kon-Tiki 740 + 774, Trekker 500 505, Trekker XF |
+
+Reassuringly, "the all new Carrera" turns out to be all-new in *equipment* only —
+induction hob, lithium, no gas — with every dimension identical to 2026.
+
+### For the Merlin — a hand-sourced constant, because there is no baseline
+
+The flagged-no-op route has nothing to preserve for a brand-new product, so all nine
+Merlins would have stayed blank on every run. `_MANUALLY_SOURCED_HEIGHT_MM` holds the
+figures from a **pre-launch specification sheet Swift sent the requester in late July
+2026**, passed on 28 August. That sheet carries range, base vehicle and height and *no
+prices or weights*, so it is useful for this one field and nothing else — everything else
+still comes from the site, which by now has both.
+
+| Height | Models |
+|---|---|
+| 2720 mm | 144, 164, 174 |
+| 2790 mm | 244, 264, 274 |
+
+**The 70mm is the elevating roof**, and two independent things say so. The Merlin page
+lists "Elevating roof in Black with Mini-Heki skylight" as standard equipment on
+`212, 244, 264 & 274` only — exactly the `2xx` models. And the Carrera corroborates it
+from a different range: same Fiat Ducato panel van, same 2260mm width, **2720mm on its
+five plain models and 2790mm on the 244**, which is the one model its own page gives an
+elevating roof ("244 only").
+
+**112, 122 and 212 are deliberately absent.** They were not on the extract supplied, and
+the pattern predicts 2720 / 2720 / 2790 — but a predicted height is not a published one,
+so they are left blank and narrated rather than guessed.
+
+Same pattern and the same caveat as `auto_trail._MANUALLY_SOURCED_MTPLM_KG`: it **cannot
+refresh itself**, it is narrated on every run, and it must be re-verified at each
+model-year changeover.
+
+## An FMLV body type that looks wrong: Carrera 244
+
+Not fixed here, because `body_type` is not emitted (below) — but recorded, because the
+evidence is unambiguous and it is the same shape of error the
+[README](README.md) documents for Autoquest CV60, inverted.
+
+The Carrera page lists an elevating roof as **standard** on the 244: it appears twice,
+once in the range highlights ("Elevating roof system with pop-top double bed (244)") and
+once in Exterior & Construction ("Elevating roof in Black with Mini-Heki skylight (244
+only)"). It appears in **no** `optionalExtras` list on any of the 39 products, so it is
+not a cost option. Its 2790mm against the other Carreras' 2720mm is the roof hardware.
+
+FMLV holds Carrera 244 as `campervan_high_top`, not
+`campervan_high_top_elevating_roof`. By the README's rule — the word after the feature
+decides it, and here it is standard fitment restricted to one model — that looks wrong.
+
+FMLV gets the equivalent Trekker case right, which is what makes the Carrera one stand
+out: `Trekker X` (roof stated on the page) is held as
+`campervan_high_top_elevating_roof`, and `Trekker XF` (not stated) as
+`campervan_high_top`.
+
+## Counting: floorplans versus products
+
+The guides' range cards count **floorplans**; the site sells **variants**.
+
+- Escape's "3 Layouts" are 5 products: 684 and 694 each come 2-berth at 3500kg and
+  4-berth at 3700kg, which is exactly what the dual guide columns encode.
+- Merlin's "5 Layouts" are 9 products: the leading digit is the variant (112 is 2-berth,
+  212 is 4-berth) and the trailing pair is the floorplan.
+
+The two documents agree — they are counting different things.
+
+**Do not trust the range cards for berths.** The Voyager card says "4 / 6 Berth" while
+the Voyager 505 is a 2-berth. The per-layout data is right and the card is marketing
+rounding.
+
+## Other things that bit, each covered by a test
+
+1. **A model name isn't always a number.** The campervan Trekker's layouts are
+   `Trekker X` and `Trekker XF`, which share the prefix `Trekker X` — so a model cannot
+   be found by taking the common prefix of the titles on a page, which would make the
+   second model `F`. The page slug supplies the boundary instead. The *range* half is
+   taken from the title, not the slug, so Swift's own hyphenation survives (`Kon-Tiki`,
+   not `Kon Tiki`).
+2. **Three dead CMS nodes.** `/campervans/` links five range pages, but
+   `74769/merlin` and `79540/merlin` return HTTP 500 (they served empty bodies earlier
+   the same day). Only `75043/merlin` carries layouts. Narrated and skipped.
+3. **Footnote marks on weights**, `3500kg**` and `663kg*`, on MTPLM as well as payload.
+
+## First run
+
+Run #45, 28 August 2026 — and the first Swift run ever; there was no
+`data/snapshots/26/` before it.
+
+```
+baseline    31 products
+scraped     39 products
+classified  23 changed, 1 unchanged, 15 new, 7 disappeared
+proposed    222 changes for review, of which 21 are year bumps
+verified    135 fields checked and unchanged
+```
+
+Run #46, the same day, after adding the base vehicle and the Merlin heights: same
+classification, 243 proposed and 159 verified. The 21 extra proposals are the base vehicle
+on the 15 new products plus the 6 Merlin heights; the 24 extra verifications are
+`base_vehicle_manufacturer` **agreeing with FMLV on every single matched product**, which
+is the strongest corroboration in either run.
+
+**7 disappeared, all genuine roster changes and none a parse gap:** Escape 674, Monza S,
+Trekker S, Trekker XL, Voyager 475, 485, 494.
+
+**15 new:** Merlin ×9, Kon-Tiki 740, Kon-Tiki 774, Kon-Tiki 894 (with drop down bed),
+Escape 684 (2 berth), Escape 694 (2 berth), Trekker 500 505.
+
+Hand-checked against the source: Kon-Tiki 740 (6.99m / 1220kg payload / 4500kg MTPLM,
+matching the guide block exactly), Voyager 505 (2 berths, £75,995), Escape 640 (2 berth)
+(MTPLM 3700 → 3500, payload 500 → 370, £91,490 → £89,495).
+
+## Are the 15 "new" products really new? — audit, 28 August 2026
+
+The requester asked, because this project has twice found a "new" product that was a
+renamed old one (Bailey's `74-4T` vs `75-4t`, Etrusco's `6.6 SF` vs `6.8 SF`) and once
+found a kept name behind a changed vehicle (Chausson's 777 vs 797).
+
+Method: fingerprint every product on **length + width + MTPLM + MRO** — the four figures
+a rename cannot change — and compare the 15 new against the 7 disappeared. MRO is the
+discriminating one, because Swift publish it to the kilogram.
+
+**No renames. Not one of the 15 matches any of the 7.** The three closest approaches, and
+why each is a different vehicle:
+
+| New | Closest departing | Verdict |
+|---|---|---|
+| Kon-Tiki 774 | Escape 674 — same 8.22m, same 4500kg | 148kg heavier, £17,845 dearer, different range. Shares the Fiat AL-KO platform, which is expected across ranges. The Escape's only 4500kg slot moved up into the Kon-Tiki range; the vehicle is not the same one. |
+| Trekker 500 505 | Trekker XL — MRO within 5kg | **2070mm wide van against a 2370mm coachbuilt.** Different vehicle class; the name is the only thing they share. |
+| Merlin 144 | Trekker XL — MRO within 10kg | 20mm apart in length but again a different body: Ford Transit van vs Fiat Ducato. |
+
+**Variant pairing is correct where Swift now sell two builds of one layout.** This was the
+subtler risk — the matcher picking the wrong twin:
+
+| Baseline | Matched to | |
+|---|---|---|
+| Escape 684 — 4 berth, 3700kg, MRO 3300, £93,150 | `684 (4 berth)` | **identical on all four** |
+| Escape 694 — 4 berth, 3700kg, MRO 3350, £93,990 | `694 (4 berth)` | **identical on all four** |
+| Kon-Tiki 894 — 4 berth, MRO 3935 | `894` (4 berth, MRO 3965) | right twin; the 6-berth drop-down-bed 894 is genuinely a second product |
+
+So the new Escape 2-berths and the drop-down-bed 894 are real additional products, not
+duplicates of rows FMLV already holds.
+
+**Merlin and Carrera are fingerprint twins, and that is expected.** Merlin 244 sits 5kg
+from Carrera 144, and Merlin 274 within 15kg of Carrera 184 and 194 — same Ducato shell,
+same lengths, different fit-out. Neither can be a rename of the other because **both are
+on the 2027 site simultaneously**, and the prices differ by £8,000 (Merlin is the
+entry-level range). Worth knowing that FMLV will now hold near-identical weights and
+dimensions for two ranges.
+
+### The one genuine anomaly: Voyager 505
+
+| | Berths | Seats | MTPLM | MRO | Price |
+|---|---|---|---|---|---|
+| 2026 brochure | 4 | 2 | 3500 | 2837 | — |
+| FMLV baseline | 4 | 2 | 3500 | 2837 | £73,490 |
+| 2027 site | **2** | 2 | 3500 | **2837** | £75,995 |
+
+Two berths have gone and the **MRO is identical to the kilogram**, with the price up
+£2,505. Those do not sit together: removing a bed should change the weight. Either Swift
+have restated the berth count without changing the vehicle, or the layout changed and the
+old MRO was carried forward without re-weighing.
+
+It matters beyond berths. FMLV holds the 505 as `coach_built_over_cab_bed`, and **every
+other over-cab Voyager was discontinued for 2027** (475, 485, 494 — all three among the 7
+disappeared). If the 505 has lost its over-cab bed, its body type is now wrong too — and
+since this adapter does not propose `body_type`, nothing would ever correct it.
+
+**This is the one to put to Swift.** By contrast the other berth changes hang together:
+Escape 640 went 4 berths to 2 *with* MTPLM 3700→3500, MRO 3200→3130 and £1,995 off, and
+Carrera 144 and 194 went 3 berths to 2 with 10kg off — small, self-consistent changes.
+
+## Body type — added 28 August 2026, after the first review found it blank
+
+Both earlier versions of this adapter left `body_type` unset, on the grounds that the
+campervan rule needs a height and Swift publish none. **That reasoning only held for
+products FMLV already has.** For a new product there is no stored value to protect, so
+"leave it alone" means "leave it blank forever", and the first review of the 15 new
+products found exactly that. The requester asked why; this is the fix.
+
+It is settled two different ways, because the two halves of the roster ask different
+questions.
+
+### Motorhomes need no height at all
+
+Low profile against over-cab against A-class is about shape, not millimetres, and every
+2027 Swift coachbuilt range states its shape in the construction list — `GRP front low
+line pod` on the Voyager and Trekker 500, `AL-KO low line chassis conversion` on the
+Escape and Kon-Tiki. All 22 are `coach_built_low_profile`.
+
+**The trap, and it is a good one: `over-cab` on a Swift page does not mean an over-cab
+bed.** Both ranges that use the phrase mean *storage* — "Moulded over-cab storage
+compartments with Skyview opening sunroof" (Kon-Tiki), "Zip pocket storage on the overcab
+side lockers" (Trekker 500). Those are lockers in the low-profile pod. Swift's extra
+berths come from a **drop-down bed over the front lounge** ("Height adjustable electric
+drop-down bed over front lounge (505, 540 & 574)"), which is a low-profile feature. A
+keyword search for "over cab" classifies two low-profile ranges as Luton, so
+`_OVER_CAB_BED` requires the word *bed*, *double* or *island* after it, and there is a
+test for both directions.
+
+A range stating no profile comes back unset and narrated, rather than defaulting to low
+profile — which is what should happen the day Swift add an A-class.
+
+### Campervans need both halves of the 2×2
+
+Roof class from the height, elevating roof from the page. The Merlin has heights (above),
+so all nine classify:
+
+| | Models | |
+|---|---|---|
+| `campervan_high_top` | 112, 122, 144, 164, 174 | 2720mm, no elevating roof |
+| `campervan_high_top_elevating_roof` | 212, 244, 264, 274 | 2790mm, roof standard |
+
+Both figures clear the ~2680mm the [README](README.md) calls characteristic of an extended
+high top.
+
+**112, 122 and 212 have no height of their own and are still classified**, because a
+campervan range is one bodyshell — the shortest published height in the range decides the
+roof class for all of it. Their `mh_height_mm` still stays empty: this settles the body
+type, not the figure.
+
+**The Carrera and Trekker campervans get nothing**, and that is the rule working rather
+than failing. Swift publish no height for them, so the roof class is unanswerable, so
+FMLV's existing values are left untouched — including the Carrera 244 flag discussed
+above, which the requester is correcting by hand.
+
+### What it changed on the first run
+
+Fifteen new products got a body type, fifteen existing motorhomes had theirs confirmed
+unchanged, and **one real correction was proposed: Voyager 505,
+`coach_built_over_cab_bed` → `coach_built_low_profile`.** That is the change the rename
+audit predicted — every other over-cab Voyager was discontinued for 2027, and the 505's
+own range page states a low-line pod and a drop-down bed over the front lounge.
+
+## Not emitted, and why
+- **`year`** — a carry-through field only a human bumps
+  (`src/diff/year_rollover.py`). Today falls inside the June–September window, so the
+  review app offered 21 bumps. The site does say 2027.
+- **`base_vehicle_manufacturer`** — the range pages name the chassis in feature prose
+  ("Fiat chassis cab in Black Metallic"), which is range-level marketing copy, not a
+  per-layout field. Not worth the risk of attributing it per product.
+
+## Registry and naming
+
+`fmlv_manufacturer` **`Swift Group Ltd` is confirmed** against a real export — 96 of 97
+rows — and `fetch-export` against `ncc_supplier_name` `Swift` succeeded.
+
+**A data error on the NCC side, worth reporting to them:** the 97th row in Swift's own
+export is a *Sunlight* product.
+
+## Bessacarr and Ace Motorhomes
+
+`resources/manufacturers-full-list.csv` gives Swift Group Ltd three ids: **26** (Swift),
+**228** (Bessacarr), **264** (Ace Motorhomes). Only 26 is registered, deliberately.
+
+Both brands have **zero presence anywhere on swiftgroup.co.uk** — no page, no PDF, no nav
+entry, no sitemap entry. There is nothing to scrape and no adapter can refresh them;
+archiving them is a decision for the NCC side, not an adapter one.
+
+The requester noted (28 August 2026) that their Nova supplier names would be `Bessacarr`
+and `Ace Motorhomes`, and asked whether that breaks anything. **That part is harmless** —
+`ncc_supplier_name` is a separate column for exactly this reason, as
+[`src/fetch/ncc.py`](../../src/fetch/ncc.py) says.
+
+**What would break is giving them the same `fmlv_manufacturer`.** `ADAPTERS` is keyed on
+that string and `collect()` receives no brand identity, so all three rows would resolve
+to this adapter, scrape all 39 Swift vehicles, and diff them against their own baseline:
+every Swift product proposed as new for Bessacarr, every Bessacarr product reported
+disappeared. `cli.find_manufacturer` does refuse a name matching more than one row and
+asks for the `manufacturer_id`, but that only stops you typing the wrong thing — it does
+not stop the bad diff.
+
+If they are ever wanted, each needs its own `fmlv_manufacturer` matching what FMLV
+literally holds, plus an adapter scoped to that brand's ranges.
+
+## Re-verify after the NEC show
+
+Swift are mid-launch: the guides are stamped "Issued September 2026", three vehicles
+carry *New for 2027* badges, and prices are already up. Specs may still move.

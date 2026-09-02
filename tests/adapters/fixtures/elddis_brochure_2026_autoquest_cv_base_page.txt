@@ -1,0 +1,36 @@
+25 
+Autoquest CV 20 CV 40 CV 60 CV 80
+Berths
+Seatbelts 2 4 2 4
+Chassis
+Fiat 250 Ducato 
+Euro 6E 
+Van
+Fiat 250 Ducato 
+Euro 6E 
+Van
+Fiat 250 Ducato 
+Euro 6E 
+Van
+Fiat 250 Ducato 
+Euro 6E 
+Van
+Tyres Size 225/75 R16 CP118 225/75 R16 CP118 225/75 R16 CP118 225/75 R16 CP118
+Weights & Dimensions
+Exterior length 5.99m / 19’8" 5.99m / 19’8" 5.99m / 19’8" 5.99m / 19’8"
+Exterior width inc wing mirrors 2.50m / 8’2" 2.50m / 8’2" 2.50m / 8’2" 2.50m / 8’2"
+Body width exc wing mirrors 2.05m / 6’9" 2.05m / 6’9" 2.05m / 6’9" 2.05m / 6’9"
+Overall height inc aerial 2.67m / 8’9" 2.67m / 8’9" 2.67m / 8’9" 2.67m / 8’9"
+Max headroom 1.89m / 6’3" 1.89m / 6’3" 1.89m / 6’3" 1.89m / 6’3"
+Interior width 1.94m / 6’5" 1.94m / 6’5" 1.94m / 6’5" 1.94m / 6’5"
+Max technical permissible laden mass 3500KG 3500KG 3500KG 3500KG
+Mass in running order 2835KG 2905KG 2846KG 3035KG
+Max user payload 622KG 551KG 611KG 465KG
+Fresh water tank 90L 90L 90L 90L
+Waste water tank 45L 45L 45L 45L
+Leisure Battery 95Ah 95Ah 95Ah 95Ah
+Bed Sizes
+Front double - - - 2.14m x 1.43m 7’0” x 4’8”
+Front single - 1.64m x 0.60m 5’4” x 2’0” - -
+Rear double 1.85m x 1.34m 6’1” x 4’5” 1.90m x 1.34m 6'3" x 4'5" 11.87m x 1.30m 6’2” x 4’4” 1.85m x 1.30m 6’1” x 4’3”
+Rear 2 singles 1.88m x 0.67m 6’2” x 2’3” - - -

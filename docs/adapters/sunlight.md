@@ -54,7 +54,17 @@ visible where it is relied on rather than hidden in a shared utility.
 
 Price, permitted seats, berths, length/width/height, mass in running order, and
 technically permissible maximum laden mass — for every layout. Plus the base chassis
-(`Fiat Ducato`, `Ford Transit`, `VW`), which fills `base_vehicle_manufacturer`.
+(`Fiat Ducato`, `Ford Transit`, `VW`), which fills `base_vehicle_manufacturer` — the make
+is the cell's first word, and the whole cell is carried into the provenance snippet, since
+`Fiat` alone does not say which of Fiat's vans a layout sits on.
+
+> `base_vehicle_manufacturer` was set on the model but **not registered as provenance**
+> until it was fixed alongside the same omission in `burstner.py` and `morelo.py`. The
+> provenance dict is the pipeline's only record of what an adapter looked at —
+> `diff/compare.py` compares only the fields it names, and `store/changes.py` proposes
+> only those fields for a `NEW_PRODUCT` — so the value was silently dropped: correct-
+> looking on every product FMLV already held, blank on every genuinely new one, despite
+> being a REQUIRED field. See [`burstner.md`](burstner.md) for the full write-up.
 
 Three conversions worth knowing about:
 
@@ -142,3 +152,118 @@ better source every time. What Sunlight adds to [`README.md`](README.md)'s guida
 - **A downloads page usually lists more than the current document.** Both Morelo and
   Sunlight had a near-miss sitting next to the file actually wanted; Sunlight also had
   three superseded years of the right file. Match precisely, and prefer the newest.
+
+## MY27: Sunlight renamed the ranges, and matching couldn't follow
+
+The 27 August 2026 run proposed **17 of 26 layouts as new products**. Six were. The
+other eleven were vehicles FMLV already held, and the same run raised disappearance
+notices against the very rows it was proposing to duplicate — it asked for 6549 to be
+deactivated and for a second copy of it to be created, in one report.
+
+Sunlight changed two things at once for model year 2027:
+
+| MY26, as FMLV holds it | MY27 price list |
+|---|---|
+| `Van Adventure Edition` `V60` | `Van Adventure` `V 60` |
+| `Low Profiles Adventure` `T58` | `Low Profile Adventure` `T 58` |
+| `Coachbuilts` `A60` | `Coachbuilts Root` `A 60` |
+| `A Class Adventure Edition` `I67S` | `A Class Adventure` `I 67S` |
+
+Neither change on its own is fatal, but together they fall through
+`diff/matching.py`'s 0.5 threshold: `V 60` tokenises to `{v, 60}` and `V60` to `{v60}`,
+which share *nothing*, so the whole score rested on a range name that had also been
+edited. The scores landed at 0.20–0.43. The one layout in that family that did match —
+`T 66S` at 0.667 — matched only because FMLV's row 8268 happens to store the code with a
+space in it, which is the clearest possible demonstration that the spacing, not the
+vehicle, was deciding the outcome.
+
+`Coachbuilts Root` is not a parse artefact, incidentally: it is the literal heading run
+on page 43 of `reisemobile-mj27-uk.pdf`.
+
+The fix is in the matcher, not here — adjacent model-code fragments are now joined
+before scoring, and a layout code that disagrees on both sides blocks a match outright.
+Re-run against the same snapshots: **20 matched, 6 new.** See `src/diff/matching.py`.
+
+The six genuinely new: `Low Profile UNLTD` T 7003S / T 7033P / T 7433Q / T 7433S — a new
+Ford Transit range with no UNLTD counterpart in FMLV at all — plus `VW IBEX` 604D on the
+VW Crafter, and `CLIFF X` 602, the 602 layout extended into the X trim (FMLV held the X
+in 600 and 640 only).
+
+### The export is a history, not a line-up
+
+Chasing this turned up a second fault worth knowing about on every manufacturer.
+Sunlight's baseline export holds 105 rows for 38 live products: `Coachbuilts A60` is in
+there twice, as archived 2022 product 3524 and live 2026 product 6562, identical in
+range and model. Both score the same against a scraped `Coachbuilts Root A 60`, so the
+winner was whichever the export happened to list first — the archived one, in eight of
+the eleven recovered products. The model-year update would have landed on a dead row
+while the live one drifted out of date, which is a quieter failure than a duplicate and
+would not have shown up in a health check at all. `matching.py` now breaks ties toward
+the live row, newest year first.
+
+## The name FMLV renders
+
+FMLV builds a product's display name as manufacturer + range + model, so the price
+list's `CLIFF X` / `CLIFF 602` reads back as **"Sunlight CLIFF X CLIFF 602"**. The
+adapter now trims a leading model word the range already carries, via
+`base.model_without_range_prefix`.
+
+It only ever drops a *leading* word, only when the range genuinely contains it, and only
+when what remains still names the layout — so `CLIFF Vanlife`'s `CLIFF 540 V` becomes
+`540 V` and stays distinct from `CLIFF Adventure`'s `540`, and a hypothetical model of
+just `CLIFF` is left alone rather than emptied.
+
+This produces no churn on the products FMLV already holds: it stores the CLIFF layouts
+as `540`, `600`, `640` already, so the trim makes the adapter agree with the baseline
+rather than propose a rename. Only genuinely new products were carrying the doubled name,
+which is why `CLIFF X 602` surfaced it.
+
+The helper is deliberately **not** wired into every adapter. Bürstner's
+`Lyseo TD Harmony Line` holds both `TD 680 G` and `680 G` as separate FMLV rows, so the
+same rule there would collapse a distinction FMLV is currently making. Apply it per
+manufacturer, once that manufacturer's naming has been checked.
+
+## body_type
+
+Filled from the range name and the layout's series letter — Sunlight's naming carries it
+reliably, which not every manufacturer's does:
+
+| Source | Reads as | Evidence |
+|---|---|---|
+| `T` series | `coach_built_low_profile` | the range is *named* `Low Profile` |
+| `I` series | `a_class` | the range is *named* `A Class` |
+| `A` series | `coach_built_over_cab_bed` | not stated; all three live FMLV `Coachbuilts` layouts |
+| `V` series | `coach_built_low_profile` | not stated; all seven live FMLV `Van` layouts |
+| `CLIFF Adventure`, `CLIFF X` | `campervan_high_top` | FMLV precedent across both ranges |
+| `CLIFF RT` | `campervan_elevating_roof` | FMLV precedent |
+| `CLIFF Vanlife` | `campervan_high_top_elevating_roof` | FMLV precedent |
+
+**The `V` series is the trap.** `Van Adventure` reads like a panel-van conversion, and
+guessing that would put a `Yes` in the wrong one of eight mutually exclusive columns. It
+is a narrow-bodied (2140mm) low-profile coachbuilt, it sits in the *motorhome* price
+list, and FMLV classes every live V layout that way.
+
+Against the real baseline the rule **confirms all 20** products FMLV already holds and
+contradicts none — a stronger start than `burstner.py` got, where two of thirteen
+disagreed and turned out to be FMLV's own errors.
+
+`VW IBEX 604D` needed a second source. The price list is silent on the roof — it is the
+only van in the catalogue with no `Sleeping roof` row — and FMLV had no IBEX precedent to
+fall back on, so the adapter left it blank rather than guess. Sunlight's own model page
+settles it: *"the specially developed roof provides up to 1.98 m of standing height"*, a
+fixed fibreglass roof with no lifting section, and a rear transverse double rather than a
+roof bed. That is `campervan_high_top`, and it is now in the table.
+
+Worth knowing for the next one: the model is listed on the site as **IBEX VW**, while the
+price list heads its table **VW IBEX**. Searching the site for the price list's spelling
+finds nothing.
+
+Height is *not* the discriminator here, despite looking like one. The IBEX's 272cm sits
+between CLIFF's 261cm high tops and Vanlife's 281cm pop-top. What actually separates them
+is the `Sleeping roof` row and whether the roof bed is standard: Vanlife has one as
+standard (`high_top_elevating_roof`), CLIFF X has one as an option and FMLV records the
+base vehicle (`high_top`), and the IBEX has none at all.
+
+Anything genuinely unrecognised is still left blank on purpose. One wrong `Yes` among
+eight mutually exclusive columns is a silent error nothing downstream re-checks; a blank
+is an honest gap a reviewer fills in seconds.

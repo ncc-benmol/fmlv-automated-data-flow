@@ -67,6 +67,7 @@ from ..output import generate_upload
 from ..product_model import io
 from ..registry import loader
 from ..store.decisions import Action
+from . import choices
 from .reviewers import load_reviewers
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -78,11 +79,13 @@ _templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 # via these globals rather than the DB carrying that classification.
 _templates.env.globals["is_layout_field"] = lambda field: field in LAYOUT_FIELDS
 _templates.env.globals["is_year_field"] = lambda field: field == "year"
+_templates.env.globals["field_choices"] = choices.field_choices
+_templates.env.globals["choice_label"] = choices.label_for
 # A `MissingField` proposal (store.changes.persist_diff) always has `old_value ==
 # new_value` and this exact snippet — same "match on the snippet text" trick as the
 # archive/year-rollover proposals above, since there's no DB column for "why".
-_templates.env.globals["is_missing_field"] = (
-    lambda change: change.source_snippet == store.MISSING_FIELD_SNIPPET
+_templates.env.globals["is_missing_field"] = lambda change: (change.source_snippet or "").startswith(
+    (store.MISSING_FIELD_SNIPPET, store.UNDETERMINED_FIELD_SNIPPET)
 )
 
 
@@ -606,7 +609,7 @@ def create_app(
     ) -> HTMLResponse:
         run = _run_or_404(connection, run_id)
         try:
-            store.get_proposed_change(connection, change_id)
+            change = store.get_proposed_change(connection, change_id)
         except KeyError:
             raise HTTPException(
                 status_code=404, detail=f"no proposed change with id {change_id}"
@@ -615,11 +618,24 @@ def create_app(
         corrected_value = corrected_value.strip()
         reviewer_name = reviewer_name.strip()
         error = None
+        selectable = choices.field_choices(change.field)
         known_reviewers: set[str] = app.state.reviewer_names_lower
         if known_reviewers and reviewer_name.lower() not in known_reviewers:
             error = "Select your name from the reviewer list before deciding."
         elif action == "correct" and not corrected_value:
-            error = "Enter a corrected value before submitting a correction."
+            error = (
+                "Choose a value before submitting."
+                if selectable
+                else "Enter a corrected value before submitting a correction."
+            )
+        elif (
+            action == "correct"
+            and selectable
+            and not choices.is_valid_choice(change.field, corrected_value)
+        ):
+            # A `<select>` cannot submit this, but the endpoint is a plain POST and an
+            # unrecognised value would only fail later, in `build.apply_field`, at upload.
+            error = f"{corrected_value!r} is not one of the values {change.field} accepts."
         else:
             store.record_decision(
                 connection,

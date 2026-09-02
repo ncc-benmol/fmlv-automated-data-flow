@@ -256,26 +256,240 @@ all — confirmed 19 August 2026 by running `fmlv fetch-export` successfully, wh
 26 products (13 of them the current 2026 model year, the rest a 2022-dated prior
 generation the diff run does not compare against).
 
-## Deliberately not attempted: `body_type`
+## `mh_passenger_seats_inc_driver`: a ceiling, not fitted seats — unset for two ranges
 
-FMLV's own baseline shows two splits that do not line up with anything this document
-publishes:
+"Permitted number of seats (including driver)" is a **type-approval ceiling**. Footnote 3
+of every document says so: it is *"determined by the manufacturer in what is referred to as
+the type-approval procedure"*, and it exists to drive the 75kg-per-passenger mass
+calculation. Its lower bound is therefore not necessarily what is fitted as standard, and
+the FMLV baseline is what proves the difference:
 
-- **B66 TD 744 is `a_class`**; every other B66 TD and every Signature SFT layout is
-  `coach_built_low_profile` — despite TD 744 being *shorter* in height (2910mm) than
-  several of the `coach_built_low_profile` layouts (2950mm). Nothing in the technical-data
-  PDF marks this distinction.
-- **B66 C 644 has an elevating roof as standard** (`campervan_high_top_elevating_roof`);
-  its sibling C 600 does not (`campervan_high_top`) — but the PDF's `Sleeping roof` row,
-  the only candidate signal, prints values for the *first two* columns (600 C, 640 C) and
-  is blank for the third (644 C), the opposite of what baseline says.
+| Range | Published | FMLV holds | |
+|---|---|---|---|
+| B66 TD / C | `4` | `4` on all seven | agree — recorded |
+| Signature SFT | `4 - 5` | `2` on 7.0, 7.4, 7.5 — `4` on 7.1 | **disagree — not recorded** |
+| Habiton HM / HMX | `4` | `2` on both 6.0 | **disagree — not recorded** |
 
-Guessing a uniform rule from height or from the `Sleeping roof` row would risk proposing a
-wrong "correction" to an existing, correct classification. `body_type` is left unset for
-every Bürstner product — new and existing alike — so an existing classification is never
-touched, and a new layout (`C 640`, `HM 6.1`, `HMX 6.1`, all four `SMT`) surfaces as an
-honest gap for a reviewer to classify by eye rather than a guess. `mh_height_mm` is still
-collected for every layout, which is what that classification needs.
+The Signature ranges have a face-to-face lounge with no belted rear seats as standard. The
+belted seats come from an equipment item — *"Sofa convertible to L-shaped bench (4 belted
+seats in total), including folding table top and sliding table through floor rail
+system"* — which appears in the SFT document's own per-layout standard-equipment table.
+**But that table marks per-layout availability with glyphs `extract_text` drops**, leaving
+only the legend (`Standard equipment` / `Not possible`), so the document cannot say which
+layouts have it. FMLV holding `4` for SFT 7.1 alone is consistent with it being standard on
+that layout only. The SMT document does not mention the bench at all and still publishes
+`4 - 5`.
+
+So the field is **left unset for Signature and Habiton**, and unset means *unregistered* —
+registering it with a `None` value would propose *clearing* the figure FMLV already holds,
+which is worse than proposing a wrong one. An existing record keeps its value; a new layout
+(all four SMT, both 6.1) surfaces as a `missing_required` gap. The published figure is
+narrated on every run through `on_progress`, so the gap is visible rather than silent, and
+says where to get the real number.
+
+### What the documents can and cannot establish, checked against the live PDFs
+
+Re-checked 27 August 2026 by downloading all three PDFs fresh and running
+`extract_positioned_text` over the standard-equipment tables, to see whether the per-layout
+marks are recoverable. **They are not: there are zero text items in the column band on any
+of those pages** — the marks are vector graphics, not characters — so no text route,
+positioned or otherwise, can read them. Reading them would need the page rendered as an
+image.
+
+What each document does itemise, which is what survives extraction reliably:
+
+| Range | Belted-seat item named | Where | So standard belted seats are |
+|---|---|---|---|
+| B66 TD / C | none | — | `4`, and FMLV agrees on all seven |
+| Signature SFT | "Sofa convertible to L-shaped bench (**4 belted seats in total**)" | **standard** equipment | 4 on at least one layout — *which* is unreadable |
+| Signature SMT | none — **and it itemises no seating furniture at all** | — | **unknown**; absence proves nothing here |
+| Habiton | "Loungesitz einzeln mit Gurtgestell" (untranslated: single lounge seat with belt frame) | **standard** equipment | 3 on at least one layout |
+| Habiton | "Foldable seating area with Isofix (**4 seat belts total**)", part `721011_1` | **priced accessory** | so 4 is optional there |
+| Signature SFT / SMT | "Additional seat secured with a seatbelt and Isofix (Vario Seat)", part `793011` | **priced accessory** | so the 5th seat is optional |
+
+The trap in SMT is worth spelling out: it is tempting to conclude "no belted bench is listed,
+therefore 2". But SMT itemises **no** sofa, bench, dinette or seating at all — its Interior
+list is mattresses, beds and tables — so absence there is silence, not evidence. SFT is the
+opposite: it *does* itemise its sofa, so the bench appearing in its standard list is real
+information.
+
+**Conclusion: the figure cannot be derived, and a blanket value in either direction would be
+wrong.** FMLV's own per-layout values are the best available record — `2` on SFT 7.0/7.4/7.5
+and both Habiton 6.0, `4` on SFT 7.1 — and the SFT bench evidence is consistent with 7.1
+genuinely differing from its siblings. So a blanket `2` would be as wrong as the blanket `4`
+this adapter used to emit. Ask EHG for the six new layouts.
+
+### How this was found, and the mistake worth not repeating
+
+Run #11 proposed **`2 → 4` on all five** affected products. The requester challenged the
+figure on 27 August 2026 — *"can I check that this doesn't only apply with optional
+extras... they use the phrase 'permitted number of seats (including driver)' meaning the
+maximum number that COULD travel safely"* — which was exactly right.
+
+The first answer to that challenge was **wrong, and wrong in an instructive way**: it
+confirmed that the *fifth* seat is a priced accessory ("Additional seat secured with a
+seatbelt and Isofix (Vario Seat)", part 793011) and concluded from that that four must be
+standard. Those are different claims. Evidence that the upper bound is optional says
+nothing about whether the lower bound is fitted. A colleague's independent source then said
+two belted seats as standard, *"up to 4 or 5 by adding Bürstner's rotating/convertible
+bench"* — the same equipment item, from an unrelated direction — and the FMLV baseline had
+been saying the same thing all along, in the very column the run was proposing to overwrite.
+
+**The check that would have caught it: when a scrape proposes changing an existing value,
+the baseline is evidence, not just a target.** Five products disagreeing the same way is a
+signal about the parse, not five stale records. The same lesson as `body_type`, in the
+opposite direction — there the baseline was wrong and the site right, here the baseline was
+right — which is why neither can be assumed.
+
+## `body_type`: derived from the published width
+
+**Width, not height, separates the two families**, and it is the one measurement in these
+documents that does the job cleanly:
+
+| Width | Family | Ranges |
+|---|---|---|
+| 2040–2080mm | converted panel van | Habiton HM/HMX, B66 C |
+| 2300–2350mm | coachbuilt body | B66 TD, Signature SFT/SMT |
+
+Height cannot be used for it. FMLV's own stored heights are unusable — Habiton 1900mm,
+Signature 1980mm, which are headroom rather than overall — and the documents' real heights
+overlap heavily between the families (vans 2650–2850mm against coachbuilts 2800–2990mm).
+
+Campervans are `campervan_high_top`, never the elevating-roof variant: Bürstner's own B66
+van page prices the pop-up roof as an accessory ("Pop-up roof in Lanzarote Grey £420",
+"optionally available"), so it is standard on no layout. Coachbuilts are
+`coach_built_low_profile`, never A-class or over-cab: the B66 range nav offers exactly two
+categories, `Semi-integrated` and `Camper Vans`, "A class" appears nowhere in the visible
+text of either page, and the beds these documents publish are `Fold down bed` rows — a
+drop-down over the lounge, not an over-cab bed.
+
+**Checked against the real baseline export, 27 August 2026: the rule reproduces FMLV on 11
+of the 13 products it holds, proposes 2 changes and fills 7 new layouts.** Both proposals
+were confirmed by the requester to be FMLV errors, which is what unblocked this field:
+
+- **B66 TD 744, held as `a_class`** → `coach_built_low_profile`. *"The TD 744 is a low
+  profile not an A class, regardless of what FMLV currently says — it must be a mistake on
+  FMLV, even the photos on FMLV back that up."* TD 744 genuinely is its range's outlier in
+  the document — its own single-column table, a 4400kg chassis against its siblings' 3500 /
+  3650, 2990mm against their 2950mm — so the risk was reading "different" as "A-class".
+  Width settles it: an A-class body is wider than the semi-integrated it shares a range
+  with, and every B66 TD is 2300mm.
+- **B66 C 644, held as `campervan_high_top_elevating_roof`** → `campervan_high_top`.
+  *"This is a standard high top campervan, no elevating roof as standard."* C 644 sleeps 4
+  where its siblings sleep 2, which is the trap: the extra berths come from its own
+  floorplan, not from a roof.
+
+### Why this was left unset for the first eight days
+
+The original survey found both splits, could not reproduce either from the source, and
+concluded that guessing risked silently "correcting" a classification that was right. That
+was the correct call on the evidence then available — the missing piece was not a better
+rule but **a decision on which side was wrong**, and only the requester could give that.
+Worth remembering for the next brand whose baseline contradicts its own manufacturer: the
+blocker may be a question, not a parser.
+
+## `base_vehicle_manufacturer`: read from the document, cross-checked against the range
+
+Each of the five documents names its base vehicle **once**, in the engine/`Chassis
+Equipment` list rather than in the layout table — `Fiat Ducato Multijet 3 - 2.2l - 140 hp
+- Euro 6E` on the B66 and Signature SFT documents, `Mercedes Benz Sprinter 4,5 t - 417
+CDI` on Signature SMT, `Mercedes Benz Sprinter 317 CDI` on Habiton. So this is a
+document-level fact shared by every layout in it, unlike everything the layout tables
+carry, and it is read once per document by `published_chassis`.
+
+Two things that shape matters for:
+
+- **The make is anchored to the base vehicle's own model name, not just the make.** The
+  Habiton document carries `Mercedes Comfort Seats` and `Mercedes emergency call system`
+  in its equipment lists, the first of them only 34 lines from the real chassis line, so
+  a pattern matching `Mercedes` alone reads a seat trim option as the base vehicle.
+- **`DOCUMENTS` still records a per-range make, but as a cross-check rather than the
+  value.** The document is the live source and wins where the two disagree, per
+  [`README.md`](README.md); the displaced make is written into the provenance snippet so
+  a reviewer is told the adapter expected otherwise — because the competing reading of a
+  disagreement is that the document changed shape and the line was misread. All five
+  agreed as surveyed, so nothing changed value when this was introduced. Bürstner writes
+  `Mercedes Benz` unhyphenated, and **FMLV holds neither that nor `Mercedes-Benz` — it
+  holds `Mercedes`**, in all 35 of its Mercedes rows across four manufacturers. That is
+  what is recorded. The requester confirmed it 27 August 2026: "we say Mercedes not
+  Mercedes Benz in FMLV, meaning the same thing but shorter". The adapter shipped the
+  long form initially and nobody saw it, because the field was not registered as
+  provenance and so was never proposed; the same slip was in `coachman.py` (four
+  undecided proposals in the queue) and `morelo.py`.
+
+**Why this needed fixing at all.** The value was set on the model from the first run but
+never registered in the provenance dict, and that dict is the pipeline's only record of
+what an adapter looked at: `diff/compare.py` compares only the fields it names, and
+`store/changes.py` proposes only those fields for a `NEW_PRODUCT`. An unregistered value
+is therefore silently dropped — which is why the 13 layouts FMLV already held looked
+correct (their baseline value carried through untouched, never actually confirmed) while
+all seven new ones (`B66 C 640`, `Habiton HM 6.1`, `HMX 6.1`, all four `SMT`) reached the
+upload CSV with `base_vehicle_manufacturer` blank, a REQUIRED field. Setting a field is
+not enough; it has to be registered. The same omission was found and fixed in
+`morelo.py` and `sunlight.py` at the same time.
+
+## The habitation layout fields, and where the floorplans actually are
+
+**None of the habitation layout fields can be read from the technical-data PDFs.** Every
+one of them — sleeping area, bed types, kitchen location, bathroom layout, lounge location,
+heating, rear garage — lives in the same per-layout standard-equipment tables whose
+availability marks are vector graphics rather than text (see the `body_type` section).
+The item *names* extract fine, and they are mutually exclusive across a range: B66 C lists
+`Double bed drop-down above seating group`, `Double bed lengthwise with fold up slat
+frame`, `Double bed transverse with removable slat frame` **and** `Rear seating group
+convertible to bed`, with nothing readable to say which layout gets which. Note B66 C's
+legend has *three* states — `Standard equipment | Optional equipment | Not possible` — so
+even a readable mark would not by itself mean "standard".
+
+There are **no floorplan drawings in the PDFs either**: every image in them is a 160x160
+icon or a logo.
+
+What *can* be read from the documents, per layout:
+
+| Field | Source | Notes |
+|---|---|---|
+| `refrigeration` | `Refrigerator volume incl. freezer (approx. l)` | The bracketed figure is the freezer — but see the caveat below: **only B66 C is safe to record** |
+| `heating` | the optional-equipment list, by elimination | Signature sells `Hot water heating (Gas)` `794299` and `(Diesel)` `711045` as **options**, so wet is not standard. B66 C names `Truma Combi 6E` in standard equipment — blown air, stated outright |
+| `rear_garage` | standard-equipment item names | Signature lists `Lashing system in rear garage` and both side garage doors; B66 C lists no garage item at all |
+
+### `refrigeration`: safe for B66 C, not for Signature
+
+The bracketed figure in `Refrigerator volume incl. freezer` is the freezer compartment, so
+the row does establish that a freezer exists. Whether it is *standard* is a separate
+question, and the two documents answer it differently:
+
+* **B66 C — safe.** Its Kitchen standard-equipment list names the fridge twice over,
+  `Compressor refrigerator, 84 l (freezer 10l)` and `Compressor refrigerator, 84 l
+  (freezer 6l)`. **Both named variants include a freezer**, so whichever a layout gets it
+  is a fridge/freezer, and the three-state legend cannot change that — the technical-data
+  row states a figure, so a fridge is fitted.
+* **Signature — not safe.** The word "refrigerator" appears **exactly once in the whole
+  26-page document**: in that technical-data row. The standard-equipment lists never name a
+  fridge at all. And the row carries two numbered footnote markers, `1)` and `2)`, on every
+  column — while one of the seven conditions printed on that page is *"Only in conjunction
+  with Technology & Design package"*. So package-dependence is a live possibility.
+
+**The footnote numbering is not recoverable.** The markers (`1)`, `2)`) survive extraction
+as text, but the footnote *definitions* lose their leading number — it is a superscript
+glyph, and the definitions come through as lines beginning with a bare space
+(`" Only in conjunction with diesel heating"`). Positioned extraction does not recover
+them either. So a numbered footnote on any Bürstner row can be seen to exist but never
+read, which is worth knowing before trusting any single-figure row in these documents.
+
+**The floorplans are on the website, and they are gettable.** B66's range pages carry them
+in served HTML under `.../6-pdp-b66/neu/camper-van/grundrisse/`, and **stripping the
+`image-thumb__<id>__<variant>/` segment from the URL returns the 1440x1440 original** —
+easily readable by eye, e.g. `b66-c-details-02-640-grundriss.png`. Read that way, B66 C 640
+is unambiguous: swivel cab seats plus a side bench at the front, a Vario-type washroom with
+a swivelling partition mid-left, a two-burner hob and sink mid-right, and two longitudinal
+single beds at the rear.
+
+**Signature and Habiton floorplans are not in served HTML.** `/gb/signature` (which is the
+Fiat page; no Mercedes equivalent was found) carries interior, kitchen, bathroom and
+sleeping photographs but no `grundriss` asset, no layout codes, and no API or JSON blob —
+the layouts are rendered by the page's JS bundle. Getting them needs `BrowserFetcher`,
+which this adapter otherwise has no use for. Until then the Signature habitation fields
+have to come from the brochure or from EHG.
 
 ## What is still unconfirmed
 
@@ -302,11 +516,11 @@ themselves.
 | Range | Layouts | Prices | Chassis |
 |---|---|---|---|
 | Signature SFT | 4 (7.0, 7.1, 7.4, 7.5) | £94,895 – £99,395 | Fiat |
-| Signature SMT | 4 (7.0, 7.1, 7.4, 7.5) | £109,995 – £114,495 | Mercedes-Benz |
+| Signature SMT | 4 (7.0, 7.1, 7.4, 7.5) | £109,995 – £114,495 | Mercedes |
 | B66 (TD) | 5 (594, 644, 684, 690, 744) | £79,995 – £88,795 | Fiat |
 | B66 (C) | 3 (600, 640, 644) | £64,995 – £69,995 | Fiat |
-| Habiton (HM) | 2 (6.0, 6.1) | £88,995 / £92,395 | Mercedes-Benz |
-| Habiton X (HMX) | 2 (6.0, 6.1) | £96,795 / £102,995 | Mercedes-Benz |
+| Habiton (HM) | 2 (6.0, 6.1) | £88,995 / £92,395 | Mercedes |
+| Habiton X (HMX) | 2 (6.0, 6.1) | £96,795 / £102,995 | Mercedes |
 
 **Diff against the real FMLV baseline (run #11): 13 scraped matched 13 baseline products
 byte-identically on range and model — no fuzzy-match ambiguity anywhere, unlike Etrusco's

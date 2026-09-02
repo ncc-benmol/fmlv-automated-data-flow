@@ -579,9 +579,12 @@ def test_bump_year_proposes_a_year_change_on_an_otherwise_unchanged_product(
         connection.close()
 
 
-def test_without_bump_year_an_unchanged_product_proposes_nothing(
-    data_root: Path, export_path: Path
+def test_out_of_season_an_unchanged_product_proposes_nothing(
+    data_root: Path, export_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Nothing changed and no rollover is plausible, so there is nothing to ask about."""
+    monkeypatch.setattr("src.diff.classify.in_rollover_window", lambda _today=None: False)
+
     summary = run_once(
         data_root=data_root,
         export_path=export_path,
@@ -589,6 +592,31 @@ def test_without_bump_year_an_unchanged_product_proposes_nothing(
     )
 
     assert summary.persisted.proposed == 0
+    assert summary.persisted.verified == 2
+
+
+def test_in_season_an_unchanged_product_still_proposes_the_year_bump(
+    data_root: Path, export_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DESIGN.md §6.9 as amended 2026-08-29 — the requester's decision.
+
+    A model carried over unrevised is still on sale, so it still needs the rollover
+    question put. Before the amendment this proposed nothing at all, and the product
+    stayed on last year's `year` with nothing in the review queue to change it.
+
+    The date is pinned rather than left to the real clock: whether this run falls in
+    June-September otherwise decides the result.
+    """
+    monkeypatch.setattr("src.diff.classify.in_rollover_window", lambda _today=None: True)
+
+    summary = run_once(
+        data_root=data_root,
+        export_path=export_path,
+        adapter=FakeAdapter(products=[make_extracted()]),
+    )
+
+    assert summary.persisted.proposed == 1
+    assert summary.persisted.year_rollover_proposed == 1
     assert summary.persisted.verified == 2
 
 

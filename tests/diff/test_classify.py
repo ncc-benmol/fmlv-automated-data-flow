@@ -101,13 +101,47 @@ def test_changed_field_outside_rollover_window_is_not_flagged() -> None:
     assert diffs[0].year_rollover_eligible is False
 
 
-def test_unchanged_confirmed_is_never_flagged_even_in_season() -> None:
+def test_unchanged_confirmed_is_flagged_in_season() -> None:
+    """A model carried over unrevised is still a current model.
+
+    Amended 2026-08-29 (DESIGN.md §6.9): this used to assert the opposite. The old rule
+    offered a rollover only where a change had been detected, which excluded exactly the
+    products a manufacturer carries into the new season untouched — and those are the
+    likeliest to be left stale, because nothing else brings them to a reviewer's
+    attention. Swift's Carrera 122 was the case: unchanged for 2027, on the 2027 site,
+    and the only one of twenty-four matched products never offered a bump.
+    """
     baseline = make_baseline(rrp_pounds=75950)
     extracted = make_extracted(rrp_pounds=75950)
 
     diffs = diff_products([extracted], [baseline], today=date(2026, 7, 15))
 
     assert diffs[0].kind == ChangeKind.UNCHANGED_CONFIRMED
+    assert diffs[0].year_rollover_eligible is True
+
+
+def test_unchanged_confirmed_outside_the_window_is_not_flagged() -> None:
+    """The seasonal window still gates it — only the change condition was dropped.
+
+    An unchanged product in March is just a product that has not been revised, and
+    offering a bump on every one of them all year would be noise. `--bump-year` remains
+    the way to force the question out of season.
+    """
+    baseline = make_baseline(rrp_pounds=75950)
+    extracted = make_extracted(rrp_pounds=75950)
+
+    diffs = diff_products([extracted], [baseline], today=date(2026, 3, 15))
+
+    assert diffs[0].year_rollover_eligible is False
+
+
+def test_a_new_product_is_never_flagged_for_rollover() -> None:
+    # Nothing to advance: a new product has no baseline year at all.
+    extracted = make_extracted(rrp_pounds=75950)
+
+    diffs = diff_products([extracted], [], today=date(2026, 7, 15))
+
+    assert diffs[0].kind == ChangeKind.NEW_PRODUCT
     assert diffs[0].year_rollover_eligible is False
 
 

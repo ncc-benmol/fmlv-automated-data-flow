@@ -42,7 +42,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_positioned_text, extract_text
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.morelo-reisemobile.de"
 CATALOGUE_PAGE_URL = f"{BASE_URL}/en/buy-and-rent/catalogues-and-price-lists"
@@ -335,7 +335,10 @@ def parse_spec_page(
                 range_label=range_label,
                 model=name,
                 page_number=page_number,
-                base_vehicle_manufacturer=base_vehicle.group(1) if base_vehicle else None,
+                # The price list prints `Mercedes-Benz`; FMLV holds `Mercedes`.
+                base_vehicle_manufacturer=(
+                    fmlv_base_vehicle(base_vehicle.group(1)) if base_vehicle else None
+                ),
                 price_eur=prices[index] if len(prices) == len(names) else None,
                 mtplm_kilograms=value("mtplm_kilograms", index),
                 mro_kilograms=value("mro_kilograms", index),
@@ -372,6 +375,17 @@ def _build_extracted_motorhome(product: MoreloProduct, pdf_url: str) -> Extracte
     source = f"{pdf_url}#page={product.page_number}"
     label = f"{product.range_label} {product.model}"
     provenance: dict[str, Provenance] = {}
+
+    if product.base_vehicle_manufacturer is not None:
+        # A page-level fact, not a per-column one: one spec page's floorplans all sit
+        # on the chassis its own heading names, so every column on the page shares it.
+        provenance["base_vehicle_manufacturer"] = Provenance(
+            source_url=source,
+            snippet=(
+                f"{label} — {product.base_vehicle_manufacturer}, the chassis make named "
+                f"on this floorplan's own spec page in the price list"
+            ),
+        )
 
     if product.price_eur is not None:
         provenance["rrp_pounds"] = Provenance(

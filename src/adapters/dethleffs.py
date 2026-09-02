@@ -48,7 +48,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.dethleffs.co.uk"
 MANUFACTURER = "Dethleffs"
@@ -619,7 +619,11 @@ def parse_layout(url: str, page_html: str) -> DethleffsLayout | None:
         mtplm_kilograms=_kilograms(specs.get(LABEL_MTPLM, "")),
         mro_kilograms=_kilograms(mro_raw),
         mro_band=_band(mro_raw),
-        base_vehicle_manufacturer=chassis.split()[0] if chassis else None,
+        # Through the shared helper, never spelled locally: the make decides whether a run
+        # confirms `base_vehicle_manufacturer` or proposes a rename, so that call belongs in
+        # one place. It matters here — Dethleffs write `VW Crafter`, and `VW` is FMLV's base
+        # vehicle spelling precisely because `Volkswagen` is reserved for the manufacturer.
+        base_vehicle_manufacturer=fmlv_base_vehicle(chassis.split()[0] if chassis else None),
         poptop_published=specs.get(LABEL_BED_POPTOP) or None,
         card=parse_main_facts(page_html),
     )

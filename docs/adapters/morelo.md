@@ -44,6 +44,20 @@ That is MTPLM, MIRO, payload, length, width, height, base chassis and price — 
 extractable text, not images. It fills every numeric FMLV field the Adria adapter fills
 except berths and seats.
 
+The chassis is stated **per spec page, not per column**, so
+every floorplan on a page shares it and its provenance snippet points at the page rather
+than implying a per-floorplan row. The price list prints `IVECO` or `Mercedes-Benz`;
+**`Mercedes-Benz` is normalised to `Mercedes` before it is recorded**, because that is the
+only spelling FMLV holds — see [`README.md`](README.md). `IVECO` needs no mapping.
+
+> `base_vehicle_manufacturer` was set on the model but **not registered as provenance**
+> until it was fixed alongside the same omission in `burstner.py` and `sunlight.py`. The
+> provenance dict is the pipeline's only record of what an adapter looked at —
+> `diff/compare.py` compares only the fields it names, and `store/changes.py` proposes
+> only those fields for a `NEW_PRODUCT` — so the value was silently dropped: correct-
+> looking on every product FMLV already held, blank on every genuinely new one, despite
+> being a REQUIRED field. See [`burstner.md`](burstner.md) for the full write-up.
+
 **The URL is not stable and must not be hardcoded.** The filename carries both a model
 year and a publication date (`2027-2`, `260804`). The adapter reads the catalogues page
 each run and matches the link. One trap, caught by a test: the containing directory is

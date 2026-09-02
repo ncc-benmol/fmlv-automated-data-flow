@@ -35,16 +35,19 @@ Two things this shape needs that Auto-Trail's whole-page-per-model documents do 
   ones, differing only in the trailing slug, so the dated folder segment is read out of a
   linked B66 URL and reused to build the other three — see `_discover_document_urls`.
 
-Two things this adapter deliberately does **not** attempt, both from a real conflict
-found against the live FMLV baseline while surveying:
+**`body_type` is derived from the published width**, which is the one measurement here
+that separates a converted panel van (2040-2080mm) from a coachbuilt body (2300-2350mm);
+see `body_type_for`. It was deliberately left unset until 27 August 2026, because FMLV's
+baseline holds two Bürstner classifications that no rule derivable from the source
+reproduces, and proposing a "correction" to a record that was actually right is worse than
+an honest gap. The requester then confirmed both are FMLV's own errors — B66 TD 744 is a
+low profile, not an `a_class`, and B66 C 644 is a plain high top with no elevating roof as
+standard — so the field is now filled and those two are proposed rather than left for a
+manual edit. Against the real baseline the rule confirms 11 of 13 and proposes exactly
+those 2.
 
-* **`body_type`.** FMLV's own baseline classifies one B66 TD layout as `a_class` and the
-  rest of the range as `coach_built_low_profile`, and one B66 Campervan layout as having
-  an elevating roof as standard while its sibling does not — and neither split lines up
-  with anything this document publishes (dimensions, headings). Guessing a uniform rule
-  would risk silently "correcting" an existing product's classification to something
-  wrong. `mh_height_mm` is still collected, so a reviewer has what they need to classify
-  a new layout by eye.
+One thing this adapter deliberately does **not** attempt:
+
 * **The overview page's range-level "from" price.** It is not read at all — see the
   module-level `_PRICE_SOURCE_NOTE`.
 """
@@ -58,8 +61,9 @@ from pathlib import Path
 
 from ..fetch.http import Fetcher
 from ..fetch.pdf import extract_text
+from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.buerstner.com"
 MANUFACTURER = "Bürstner"
@@ -105,14 +109,61 @@ class _DocumentConfig:
     range_label: str
     token_order: str  # "number_first" | "letter_first"
     base_vehicle_manufacturer: str
+    #: Whether this document's seats row is a type-approval ceiling that overstates the
+    #: belted seats actually fitted as standard. See `_SEATS_ARE_A_CEILING_NOTE`.
+    seats_overstate_standard: bool = False
 
 
 DOCUMENTS: tuple[_DocumentConfig, ...] = (
     _DocumentConfig("b66-td", "B66", "number_first", "Fiat"),
     _DocumentConfig("b66-c", "B66", "number_first", "Fiat"),
-    _DocumentConfig("signature-sft", "Signature", "letter_first", "Fiat"),
-    _DocumentConfig("signature-smt", "Signature", "letter_first", "Mercedes-Benz"),
-    _DocumentConfig("habiton", "Habiton", "letter_first", "Mercedes-Benz"),
+    _DocumentConfig(
+        "signature-sft", "Signature", "letter_first", "Fiat", seats_overstate_standard=True
+    ),
+    _DocumentConfig(
+        "signature-smt", "Signature", "letter_first", "Mercedes", seats_overstate_standard=True
+    ),
+    _DocumentConfig(
+        "habiton", "Habiton", "letter_first", "Mercedes", seats_overstate_standard=True
+    ),
+)
+
+#: Why `mh_passenger_seats_inc_driver` is **not** filled for Signature or Habiton.
+#:
+#: "Permitted number of seats (including driver)" is a **type-approval ceiling**, not a
+#: count of belted seats fitted as standard — footnote 3 of every document says it is
+#: "determined by the manufacturer in what is referred to as the type-approval
+#: procedure". Reading its lower bound as the standard figure works for B66 and fails
+#: for these two ranges, and the FMLV baseline is what shows it failing:
+#:
+#:     range              published   FMLV holds
+#:     B66 TD / C         4           4  (all seven)  <- agree
+#:     Signature SFT      4 - 5       2  (7.0, 7.4, 7.5), 4 (7.1)
+#:     Habiton HM / HMX   4           2  (both 6.0)
+#:
+#: The Signature ranges have a face-to-face lounge with no belted rear seats as
+#: standard; the belted seats come from an equipment item, "Sofa convertible to L-shaped
+#: bench (4 belted seats in total)". That item appears in the SFT document's own
+#: per-layout standard-equipment table — but the table marks availability with glyphs
+#: that `extract_text` drops, leaving only the legend ("Standard equipment / Not
+#: possible"), so **the document cannot say which layouts have it**. FMLV holding 4 for
+#: SFT 7.1 alone is consistent with it being standard on that layout only. The SMT
+#: document does not mention the bench at all, yet still publishes `4 - 5`.
+#:
+#: So the field is left unset for both ranges rather than proposed: an existing record
+#: keeps its own value, and a new layout surfaces as a `missing_required` gap for a
+#: reviewer to fill from the equipment list or from EHG. The published figure is still
+#: narrated on every run so the gap is visible and not silent.
+#:
+#: Found 27 August 2026 when the requester challenged the figure and a colleague's
+#: source independently said two belted seats as standard, "up to 4 or 5 by adding
+#: Bürstner's rotating/convertible bench" — which is the same equipment item, from an
+#: unrelated source. Run #11 had proposed 2 -> 4 on all five affected products.
+_SEATS_ARE_A_CEILING_NOTE = (
+    "Bürstner publish a type-approval ceiling ('permitted number of seats'), not the "
+    "belted seats fitted as standard, and this range's belted rear seats come from an "
+    "equipment item whose per-layout availability the document does not state in "
+    "extractable form"
 )
 
 #: A layout code as each document order prints it. Letters are 2-4 chars (`C`, `TD`,
@@ -174,6 +225,62 @@ _LABELS: tuple[tuple[str, str | None, str], ...] = (
 #: Slack allowed on the printed mass-in-running-order tolerance band, in kg, for rounding
 #: — the same allowance `etrusco.py` uses for the identical device.
 _MRO_BAND_SLACK_KG = 3
+
+#: The priced accessory that buys the *upper* figure in a `4 - 5` seats row: an extra
+#: belted seat. Present in both Signature documents (part 793011, in the `Accessories`
+#: table beside a price and an added weight), absent from B66's and Habiton's.
+#:
+#: This is what settles a question the row's own label cannot: "Permitted number of
+#: seats (including driver)" is a **type-approval maximum** — footnote 3 says it is
+#: "determined by the manufacturer in what is referred to as the type-approval
+#: procedure" and is what the 75kg-per-passenger mass calculation uses — so `4 - 5`
+#: could in principle mean five seats are fitted as standard. It does not: the fifth is
+#: an option, and the document warns that "increasing the number of seatbelt-secured
+#: seats" deducts a further 85kg per seat from the special-equipment allowance.
+#: Recording the lower figure is therefore the base-vehicle figure, per
+#: `docs/adapters/README.md`, and this pattern is what lets the snippet say so.
+_EXTRA_BELTED_SEAT = re.compile(
+    r"Additional\s+seat\s+secured\s+with\s+a\s+seatbelt", re.IGNORECASE
+)
+
+#: A campervan taller than this is a high top. The same threshold as
+#: `auto_trail.HIGH_TOP_ABOVE_MM`, set by the NCC side on 16 August 2026.
+HIGH_TOP_ABOVE_MM = 2300
+
+#: A body no wider than this is a converted panel van; anything wider is a coachbuilt
+#: body. **Width, not height, is what separates the two here** — and it is the one
+#: measurement in these documents that does the job cleanly:
+#:
+#:     2040-2080mm   Habiton HM/HMX, B66 C     panel van
+#:     2300-2350mm   B66 TD, Signature SFT/SMT coachbuilt body
+#:
+#: Checked against the real FMLV baseline export 27 August 2026: this rule reproduces
+#: FMLV's own classification on **11 of the 13** products it holds, and the two it
+#: contradicts are both confirmed FMLV errors (see the `body_type` section of
+#: `docs/adapters/burstner.md`). Height cannot be used for this: FMLV's own stored
+#: heights are unusable (Habiton 1900mm, Signature 1980mm — headroom, not overall) and
+#: the documents' real heights overlap heavily between the two families (campervans
+#: 2650-2850mm against coachbuilts 2800-2990mm).
+_CAMPERVAN_WIDTH_AT_MOST_MM = 2100
+
+#: The base vehicle as each document's own engine list names it, e.g.
+#: `Fiat Ducato Multijet 3 - 2.2l - 140 hp - Euro 6E` or
+#: `Mercedes Benz Sprinter 4,5 t - 417 CDI`. Anchored to the base vehicle's own model
+#: name rather than just the make, because the make alone appears all over these
+#: documents on things that are not chassis — the Habiton document carries `Mercedes
+#: Comfort Seats` and `Mercedes emergency call system` in its equipment lists, and the
+#: first of those sits only 34 lines from the real chassis line.
+_CHASSIS_LINE = re.compile(
+    r"^(?:Fiat\s+Ducato|Mercedes[\s-]+Benz\s+(?:4wd\s+)?Sprinter)[^\n]*", re.MULTILINE
+)
+
+#: The chassis line's own opening word -> the make as the document itself names it.
+#: `fmlv_base_vehicle` then maps that onto FMLV's spelling, so `Mercedes Benz` becomes
+#: `Mercedes` in one place shared with every other adapter rather than here.
+_CHASSIS_MAKES: tuple[tuple[str, str], ...] = (
+    ("fiat", "Fiat"),
+    ("mercedes", "Mercedes Benz"),
+)
 
 
 def _label_pattern(label: str) -> re.Pattern[str]:
@@ -271,6 +378,62 @@ def _extract(kind: str, value_run: str, count: int) -> list[object | None]:
     return empty
 
 
+def published_chassis(text: str) -> tuple[str, str] | None:
+    """`(make, the line as printed)` for the base vehicle one document names, or `None`.
+
+    Every one of the five documents names its chassis in an engine/`Chassis Equipment`
+    list rather than in the layout table, so this is a **document-level** fact, not a
+    per-column one — which is why it is read once per document and shared by every
+    layout in it, unlike everything `_extract` handles.
+
+    `None` when no line matches, which is not a failure: the per-range make in
+    `DOCUMENTS` then stands on its own, as it did before this was read at all.
+    """
+    match = _CHASSIS_LINE.search(text)
+    if match is None:
+        return None
+    line = re.sub(r"\s+", " ", match.group(0)).strip(" -–")
+    lowered = line.lower()
+    for prefix, make in _CHASSIS_MAKES:
+        if lowered.startswith(prefix):
+            return fmlv_base_vehicle(make), line
+    return None
+
+
+def body_type_for(width_mm: int | None, height_mm: int | None) -> BodyType | None:
+    """FMLV's body type for one layout, from its own published width and height.
+
+    `None` when the width is missing — the family cannot be told apart without it, and a
+    guess here would propose a wrong classification onto an existing product, which is
+    what kept this field unset until 27 August 2026.
+
+    **Campervans are `campervan_high_top`, never the elevating-roof variant.** Bürstner's
+    own B66 van page prices the pop-up roof as an accessory — "Pop-up roof in Lanzarote
+    Grey £420" — and describes it as "optionally available", so it is not standard on any
+    layout. FMLV holding `campervan_high_top_elevating_roof` for `C 644` was confirmed by
+    the requester on 27 August 2026 to be an error; the roof is optional across the range.
+
+    **Coachbuilts are `coach_built_low_profile`, never A-class or over-cab.** Bürstner's
+    B66 range nav offers exactly two categories, `Semi-integrated` and `Camper Vans`, and
+    "A class" appears nowhere in either page's visible text; TD 744, which FMLV held as
+    `a_class`, is listed on the Semi-integrated page beside its four siblings and is the
+    same 2300mm width as all of them. Also confirmed an FMLV error by the requester. The
+    beds these documents publish are `Fold down bed` rows — a drop-down over the lounge,
+    not an over-cab bed, which is the other classification this could have been.
+    """
+    if width_mm is None:
+        return None
+    if width_mm <= _CAMPERVAN_WIDTH_AT_MOST_MM:
+        if height_mm is None:
+            return None  # a van whose roof height is unknown could be either
+        return (
+            BodyType.CAMPERVAN_HIGH_TOP
+            if height_mm > HIGH_TOP_ABOVE_MM
+            else BodyType.CAMPERVAN
+        )
+    return BodyType.COACH_BUILT_LOW_PROFILE
+
+
 def _band_reconciles(band: tuple[int, int, int] | None) -> bool:
     """Whether a mass-in-running-order figure agrees with its own printed ±5% band.
 
@@ -308,6 +471,22 @@ class BurstnerProduct:
     berths_published: str | None = None
     mh_passenger_seats_inc_driver: int | None = None
     seats_published: str | None = None
+    #: The base vehicle line as this layout's document prints it, e.g. `Fiat Ducato
+    #: Multijet 3 - 2.2l - 140 hp - Euro 6E`. `None` when the document names none, in
+    #: which case `base_vehicle_manufacturer` is the per-range make from `DOCUMENTS`
+    #: alone and the provenance snippet says so.
+    base_vehicle_published: str | None = None
+    #: Set only when the document's own chassis line contradicts the per-range make in
+    #: `DOCUMENTS` — carries the make that was expected, for the snippet to flag.
+    base_vehicle_expected: str | None = None
+    #: Whether this layout's seats row is a type-approval ceiling rather than the belted
+    #: seats fitted as standard. When set, `mh_passenger_seats_inc_driver` is deliberately
+    #: `None` even though `seats_published` has a figure — see `_SEATS_ARE_A_CEILING_NOTE`.
+    seats_overstate_standard: bool = False
+    #: Whether this layout's document sells an extra belted seat as a priced accessory,
+    #: which is what the upper figure of a `4 - 5` seats row costs. `False` does not mean
+    #: the upper figure is standard — only that this document does not price it.
+    extra_belted_seat_optional: bool = False
 
     @property
     def label(self) -> str:
@@ -319,6 +498,10 @@ class BurstnerProduct:
             return None
         return self.mtplm_kilograms - self.mro_kilograms
 
+    @property
+    def body_type(self) -> BodyType | None:
+        return body_type_for(self.mh_width_mm, self.mh_height_mm)
+
 
 def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerProduct], int]:
     """Every layout in one document, and how many candidate tables were found.
@@ -328,6 +511,22 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
     separately from a document with no tables at all.
     """
     blocks = _find_blocks(text, config.token_order)
+
+    # The chassis is named once per document, not per column, so it is read here and
+    # shared by every layout below. The document over-rules the per-range make in
+    # `DOCUMENTS` when the two disagree — `docs/adapters/README.md`'s rule that the
+    # manufacturer's own current publication wins — and the make it displaced is kept
+    # so the snippet can tell a reviewer the two did not agree.
+    extra_seat_optional = _EXTRA_BELTED_SEAT.search(text) is not None
+    chassis = published_chassis(text)
+    base_vehicle = chassis[0] if chassis else config.base_vehicle_manufacturer
+    published_line = chassis[1] if chassis else None
+    expected = (
+        config.base_vehicle_manufacturer
+        if chassis and chassis[0] != config.base_vehicle_manufacturer
+        else None
+    )
+
     products: list[BurstnerProduct] = []
     for codes, block in blocks:
         count = len(codes)
@@ -362,7 +561,7 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
                     BurstnerProduct(
                         range_label=config.range_label,
                         model=model,
-                        base_vehicle_manufacturer=config.base_vehicle_manufacturer,
+                        base_vehicle_manufacturer=base_vehicle,
                         mro_kilograms=-1,
                     )
                 )
@@ -373,15 +572,23 @@ def parse_document(text: str, config: _DocumentConfig) -> tuple[list[BurstnerPro
                 BurstnerProduct(
                     range_label=config.range_label,
                     model=model,
-                    base_vehicle_manufacturer=config.base_vehicle_manufacturer,
+                    base_vehicle_manufacturer=base_vehicle,
+                    base_vehicle_published=published_line,
+                    base_vehicle_expected=expected,
+                    extra_belted_seat_optional=extra_seat_optional,
                     rrp_pounds=values.get("rrp_pounds", [None] * count)[column],
                     mh_length_mm=values.get("mh_length_mm", [None] * count)[column],
                     mh_width_mm=values.get("mh_width_mm", [None] * count)[column],
                     mh_height_mm=values.get("mh_height_mm", [None] * count)[column],
                     mtplm_kilograms=values.get("mtplm_kilograms", [None] * count)[column],
                     mro_kilograms=band[0] if band is not None else None,
-                    mh_passenger_seats_inc_driver=seats_pair[0] if seats_pair else None,
+                    mh_passenger_seats_inc_driver=(
+                        seats_pair[0]
+                        if seats_pair and not config.seats_overstate_standard
+                        else None
+                    ),
                     seats_published=seats_pair[1] if seats_pair else None,
+                    seats_overstate_standard=config.seats_overstate_standard,
                     berths=berths_pair[0] if berths_pair else None,
                     berths_published=berths_pair[1] if berths_pair else None,
                 )
@@ -405,7 +612,7 @@ def _build_extracted_motorhome(product: BurstnerProduct, source_url: str) -> Ext
         mh_height_mm=product.mh_height_mm,
         mh_passenger_seats_inc_driver=product.mh_passenger_seats_inc_driver,
         berths=product.berths,
-        # body_type deliberately left unset — see the module docstring.
+        body_type=product.body_type,
     )
 
     provenance: dict[str, Provenance] = {}
@@ -414,6 +621,66 @@ def _build_extracted_motorhome(product: BurstnerProduct, source_url: str) -> Ext
             source_url=source_url,
             snippet=f"{product.label} — Price: £{product.rrp_pounds:,}. Read from {_PRICE_SOURCE_NOTE}.",
         )
+    if product.body_type is not None:
+        family = (
+            "a converted panel van"
+            if product.mh_width_mm and product.mh_width_mm <= _CAMPERVAN_WIDTH_AT_MOST_MM
+            else "a coachbuilt body"
+        )
+        if product.body_type in (BodyType.CAMPERVAN_HIGH_TOP, BodyType.CAMPERVAN):
+            detail = (
+                f"roof {product.mh_height_mm}mm, above the {HIGH_TOP_ABOVE_MM}mm "
+                f"high-top threshold. Bürstner price the pop-up roof as an optional "
+                f"accessory rather than fitting it as standard, so this is a plain high "
+                f"top"
+            )
+        elif product.range_label == "B66":
+            detail = (
+                "Bürstner's own B66 range nav offers exactly two categories, "
+                "'Semi-integrated' and 'Camper Vans', and 'A class' appears nowhere in "
+                "either page - so a B66 coachbuilt is a low profile"
+            )
+        else:
+            detail = (
+                f"this range's own page was not read, so the classification rests on the "
+                f"width plus the document publishing a 'Fold down bed' (a drop-down over "
+                f"the lounge) and no over-cab bed. The same rule reproduces FMLV's "
+                f"existing classification for every {product.range_label} layout it "
+                f"already holds"
+            )
+        provenance["body_type"] = Provenance(
+            source_url=source_url,
+            snippet=(
+                f"{product.label} — {product.body_type.value}: Overall width (approx. cm) "
+                f"{product.mh_width_mm // 10 if product.mh_width_mm else '?'} means "
+                f"{family}; {detail}"
+            ),
+        )
+
+    if product.base_vehicle_manufacturer is not None:
+        if product.base_vehicle_published is None:
+            basis = (
+                f"the base vehicle every layout in the {product.range_label} range is "
+                f"built on — this document names no chassis line of its own"
+            )
+        elif product.base_vehicle_expected is not None:
+            basis = (
+                f"read from this document's own chassis list, '"
+                f"{product.base_vehicle_published}'. NOTE: the adapter expected "
+                f"{product.base_vehicle_expected} for this range, so the range has "
+                f"changed chassis or the document has changed shape — do not accept "
+                f"this blind"
+            )
+        else:
+            basis = (
+                f"read from this document's own chassis list, '"
+                f"{product.base_vehicle_published}'"
+            )
+        provenance["base_vehicle_manufacturer"] = Provenance(
+            source_url=source_url,
+            snippet=f"{product.label} — {product.base_vehicle_manufacturer}: {basis}",
+        )
+
     numeric_snippets = {
         "mh_length_mm": ("Overall length (approx. cm)", product.mh_length_mm, 10),
         "mh_width_mm": ("Overall width (approx. cm)", product.mh_width_mm, 10),
@@ -436,12 +703,37 @@ def _build_extracted_motorhome(product: BurstnerProduct, source_url: str) -> Ext
                 f"running order = {product.mh_payload_kilograms}kg (not published directly)"
             ),
         )
-    if product.seats_published is not None:
+    if product.seats_overstate_standard:
+        # Deliberately NOT registered: registering it with a None value would propose
+        # clearing the figure FMLV already holds, which is the opposite of the intent.
+        # The published figure reaches a reviewer through `collect`'s narration instead.
+        pass
+    elif product.seats_published is not None:
+        # The label is a type-approval *maximum*, so a range needs explaining: the lower
+        # figure is what the vehicle has without options, which is what FMLV records.
+        if "-" not in product.seats_published:
+            basis = "a single published figure, so standard and maximum are the same"
+        elif product.extra_belted_seat_optional:
+            basis = (
+                f"a range, and the upper figure is optional: this document sells an "
+                f"'Additional seat secured with a seatbelt and Isofix (Vario Seat)' as a "
+                f"priced accessory, and warns that each added belted seat deducts a "
+                f"further 85kg from the special-equipment allowance. "
+                f"{product.mh_passenger_seats_inc_driver} is the base-vehicle figure"
+            )
+        else:
+            basis = (
+                f"a range, and {product.mh_passenger_seats_inc_driver} is recorded as the "
+                f"standard figure per the lower-figure rule — but NOTE this document "
+                f"prices no extra belted seat, so what the upper figure costs is not "
+                f"stated here; worth confirming with the manufacturer"
+            )
         provenance["mh_passenger_seats_inc_driver"] = Provenance(
             source_url=source_url,
             snippet=(
                 f"{product.label} — Permitted number of seats (including driver): "
-                f"{product.seats_published}"
+                f"{product.seats_published}. That row is a type-approval maximum, not a "
+                f"count of fitted seats ({basis})"
             ),
         )
     if product.berths_published is not None:
@@ -567,6 +859,13 @@ def collect(
                     f"+/-5% band, so this table's columns may be misaligned"
                 )
                 continue
+            if product.seats_overstate_standard and product.seats_published is not None:
+                on_progress(
+                    f"[{config.key}] {product.label} — mh_passenger_seats_inc_driver "
+                    f"LEFT UNSET: the document publishes "
+                    f"'{product.seats_published}' but {_SEATS_ARE_A_CEILING_NOTE}. "
+                    f"Fill it from the range's equipment list or from EHG"
+                )
             results.append(_build_extracted_motorhome(product, url))
             kept += 1
         on_progress(f"[{config.key}] {kept} layout(s) collected from {table_count} table(s)")

@@ -26,6 +26,7 @@ from pathlib import Path
 from src.adapters.morelo import (
     EUR_TO_GBP_RATE,
     MoreloProduct,
+    _build_extracted_motorhome,
     _reconciles,
     find_price_list_url,
     model_names_in_column_order,
@@ -120,7 +121,8 @@ def test_parse_spec_page_assigns_each_column_to_the_right_floorplan() -> None:
     assert (shorter.mh_length_mm, longer.mh_length_mm) == (10850, 11280)
     assert (shorter.mro_kilograms, longer.mro_kilograms) == (8910, 8995)
     assert (shorter.price_eur, longer.price_eur) == (484950, 495050)
-    assert shorter.base_vehicle_manufacturer == "Mercedes-Benz"
+    # Normalised to FMLV's spelling; the price list itself prints "Mercedes-Benz".
+    assert shorter.base_vehicle_manufacturer == "Mercedes"
 
 
 def test_parse_spec_page_reads_weights_past_a_non_digit_footnote_marker() -> None:
@@ -250,3 +252,36 @@ def test_find_price_list_url_picks_the_english_price_list() -> None:
 def test_find_price_list_url_returns_none_when_the_link_format_changes() -> None:
     # Better to report "the page changed" than to fetch a catalogue and find no specs.
     assert find_price_list_url("<a href='/en/contact'>Contact us</a>") is None
+
+
+# --------------------------------------------------------------------------- #
+# The base vehicle
+#
+# A value set on the model but never registered as provenance cannot reach FMLV:
+# `diff/compare.py` compares only the fields the provenance dict names, and
+# `store/changes.py` proposes only those fields for a NEW product. So an unregistered
+# base vehicle looks correct on every product FMLV already holds — the baseline value
+# carries through untouched — and lands blank on every genuinely new one, even though
+# it is a REQUIRED field.
+# --------------------------------------------------------------------------- #
+
+
+def test_base_vehicle_is_registered_as_provenance_so_a_new_product_keeps_it() -> None:
+    extracted = _build_extracted_motorhome(_product(), "https://example/price-list.pdf")
+
+    assert extracted.motorhome.base_vehicle_manufacturer == "IVECO"
+    assert "base_vehicle_manufacturer" in extracted.provenance
+
+
+def test_the_base_vehicle_snippet_points_at_the_page_it_was_read_from() -> None:
+    # Morelo states the chassis per spec page, not per column, so the snippet must send
+    # a reviewer to that page rather than implying a per-floorplan row.
+    extracted = _build_extracted_motorhome(
+        _product(base_vehicle_manufacturer="Mercedes", page_number=54),
+        "https://example/price-list.pdf",
+    )
+    entry = extracted.provenance["base_vehicle_manufacturer"]
+
+    assert entry.source_url.endswith("#page=54")
+    assert "Mercedes" in entry.snippet
+    assert "spec page" in entry.snippet

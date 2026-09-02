@@ -65,8 +65,58 @@ option* does not change what the vehicle is — Auto-Trail's Expedition Van list
 while the Adventure lists the same line as `Included` and is therefore
 `campervan_high_top_elevating_roof`. The word after the feature decides it.
 
+**And silence means "option", not "standard".** Rule from the NCC side, 21 August 2026: if a
+model's page does not state that the elevating roof is *included*, assume it is an option and
+therefore not part of the standard specification. A pop-top is a headline selling feature —
+a manufacturer fitting one as standard says so, and usually more than once — so an
+unmentioned roof is a missing feature, not an undocumented one.
+
+This is the opposite default to the missing-data rule below, and deliberately so. The
+question is not "what is this vehicle's roof height?", which is unknown when unstated; it is
+"does the standard specification include an elevating roof?", and *that* has a safe default,
+because the base vehicle is the vehicle without the extras. Elddis is the worked example:
+the CV20, CV40 and CV60 layouts mention a pop-top **zero** times and are plain high tops,
+while the three CV80s say "comes with a pop-top" and get the elevating variant. FMLV held
+Autoquest CV60 as `campervan_high_top_elevating_roof`; that was wrong, and the absence of
+any mention is sufficient grounds to correct it.
+
+Note the corollary: a model that prices the pop-top as an *alternative configuration* — its
+own weights, its own berth count — is also offering an option, however prominently. The
+three Whirlwind GTVs mention a pop-top six to eleven times each and still take the
+fixed-roof body type and the fixed-roof berth count. The GTV 554 puts it in the label:
+
+```
+Overall Height Excluding Aerial: 2.61m
+Overall Height Including Pop Top (If option is selected): 2.81m
+```
+
+**Which is also the rule for the height itself:** record 2610, not 2810. Where a
+manufacturer publishes a second, taller figure conditional on an option, the base vehicle's
+figure is the one FMLV holds — the same reasoning that takes the mirrors-excluded width and
+the lower berth count. A raised pop-top is not the vehicle's height any more than an
+extended awning is its width. Confirmed for Elddis on 21 August 2026, where the requester
+also settled the classification: 2610 mm on a Peugeot Boxer **is** a high top, so the shared
+`HIGH_TOP_ABOVE_MM = 2300` needed no adjustment — worth knowing, because 2610 sits below the
+"around 2680 mm" figure quoted above and the temptation was to treat it as a plain campervan.
+
 **Where the body height cannot be established, leave `body_type` unset** rather than
 assuming a high top. The missing-data rule applies here as it does to any other field.
+
+**And how the body is *built* is not the test — how it looks and what it measures are.**
+Rule from the NCC side, 26 August 2026, on Wingamm's City Pro. That vehicle's own catalogue
+says the bodywork "is not the sheet metal of the van, but a fiberglass monocoque", which by
+construction makes it a coachbuilt exactly like the Oasi it sits beside; the requester
+classified it `campervan_high_top` from the photograph and the copy, which calls it "a
+camper live in, a van to drive" and says "the van" throughout. It is van-shaped, on van
+external measures, and 2050 mm wide against the coachbuilts' 2240 mm.
+
+So a moulded or composite body does not promote a van-shaped vehicle to a coachbuilt, and
+the practical division of labour is: **whether it is a campervan is a judgement about shape
+and proportions that an adapter should take as declared, while high top and elevating roof
+stay derived** from the published height and the standard-fit wording. `wingamm.py`'s
+`WingammProduct.body_type` is the worked example. Read the manufacturer's photograph before
+reasoning from its construction paragraph — they can point opposite ways, and the picture
+wins.
 
 ### Price is a guide price, so a consistent basis is preferred but not required
 
@@ -143,7 +193,100 @@ Fixing it means separating two cases the model currently conflates: **"never att
 values — this is why the present design exists) versus **"attempted and not found"** (the
 weight was searched for and is absent). Only the second should propose a blank. New
 products already behave correctly, since there is no baseline to inherit from, and
-`validation.py` flags the blank as `missing_required`.
+`validation.py` flags the blank as `missing_required` — but only for a field the adapter
+attempted at all; see the next section for the third case, which is silent.
+
+### Spell the base vehicle FMLV's way, not the manufacturer's
+
+`base_vehicle_manufacturer` is compared against FMLV's own stored string, so the spelling
+decides whether a run confirms the field or proposes a rename. **FMLV holds `Mercedes` —
+never `Mercedes-Benz`** (35 rows across Adria, Bürstner, Coachman and Moto-Trek; the
+requester confirmed it 27 August 2026: "we say Mercedes not Mercedes Benz in FMLV, meaning
+the same thing but shorter"). The full legal name proposes a pointless rename on every
+existing product and leaves every new one inconsistent with the rest of the database.
+
+The second rule, confirmed the same day: **`Citroën` with the diaeresis, for Chausson and
+every other brand.** Chausson reads its make from a CSS class (`porteur picto citroen`),
+which cannot carry the accent, so nothing but an explicit mapping can recover it.
+
+**Match the source's spelling, then record FMLV's — and do it in one place.**
+`base.fmlv_base_vehicle` holds the whole mapping and every adapter routes its make
+through it, so the decision is made once rather than thirteen times. That is precisely
+what went wrong: four adapters each picked a spelling locally, and every choice was
+reasonable in isolation. An unrecognised make passes through **unchanged rather than
+blanked** — a chassis nobody has met yet is likelier than a parse error, and this is a
+`schema.REQUIRED` field.
+
+The makes in the baseline exports as of August 2026 are `Fiat`, `Peugeot`, `Ford`,
+`Mercedes`, `Citroën`, `Renault`, `MAN` and `IVECO`. Add a new spelling to the map, not to
+an adapter.
+
+`tests/adapters/test_registry_wiring.py` asserts the mapping and, separately, that **no
+adapter setting `base_vehicle_manufacturer` bypasses the helper** — so a new adapter
+picking its own spelling fails a test rather than reaching a reviewer.
+
+**Still unreconciled:** `bailey.py` once proposed `AL-KO` — a chassis maker, not a base
+vehicle — which was correctly rejected and is recorded in [`bailey.md`](bailey.md). It is
+deliberately *not* in the map: mapping it would legitimise it.
+
+### A "permitted" figure is a ceiling, and the baseline is evidence
+
+Two rules that came out of the same mistake, Bürstner 27 August 2026.
+
+**"Permitted number of seats (including driver)" is not `mh_passenger_seats_inc_driver`.**
+It is a type-approval ceiling — the manufacturer's own footnote says it is "determined by
+the manufacturer in what is referred to as the type-approval procedure", and it exists to
+drive the 75kg-per-passenger mass calculation. FMLV records the belted seats **fitted as
+standard**. Those coincide on a conventional layout with a belted rear bench, and come
+apart on a lounge layout where the belted rear seats are an equipment item: Bürstner
+publish `4 - 5` for every Signature layout where FMLV holds `2` on three of four.
+
+So the lower-figure rule for **berths** does not transfer to seats by analogy. It is safe
+for berths because that row is explicitly labelled `standard / max`. Where a seats row is
+labelled "permitted", the lower bound is a homologation minimum, not a fitment claim —
+corroborate it before recording it, and leave the field unset (and *unregistered*) if you
+cannot. See [`burstner.md`](burstner.md).
+
+**And when a scrape proposes changing a value FMLV already holds, treat the baseline as
+evidence, not just as a target.** Several products disagreeing *the same way* is a signal
+about the parse, far more often than it is several stale records. Bürstner's run proposed
+`2 → 4` on five products at once; that shape was the tell, and it was missed because the
+question being asked was "is the adapter's reading defensible?" rather than "why does the
+customer's own data disagree five times?".
+
+Note this cuts both ways and neither side can be assumed: on `body_type` the same brand's
+baseline was **wrong** and the manufacturer right. The rule is not "trust the baseline" —
+it is that a systematic disagreement is a question to answer, and often only the requester
+can answer it.
+
+### A field is only real if it has provenance
+
+`ExtractedMotorhome` carries the value and the provenance separately, and **the provenance
+dict is the pipeline's only record of what the adapter looked at.** Both consumers key off
+it, not off the model:
+
+- `diff/compare.py` compares only the fields the dict names. A value set on the model but
+  not registered is never compared against the baseline and never proposed — so on an
+  existing product it is also never *confirmed*, and the baseline's own value carries
+  through untouched however wrong it has become.
+- `store/changes.py` proposes only those fields for a `NEW_PRODUCT`, and `output/build.py`
+  seeds a new product's row with nothing but `manufacturer`, `manufacturer_display_name`,
+  `manufacturer_range` and `model`. Anything else that is not proposed lands **blank**.
+
+So an unregistered field fails in the way that is hardest to notice: correct-looking on
+every product FMLV already holds, blank on every genuinely new one. Bürstner 27 August
+2026 — `base_vehicle_manufacturer` was set for all 20 layouts from the first run and
+registered for none, so run #11 proposed it 0 times; the 13 with a baseline row looked
+right and all 7 new layouts arrived with a REQUIRED field empty. The same omission was
+sitting in `morelo.py` and `sunlight.py`.
+
+**Register every field you set, including the ones that come from a per-range constant
+rather than a parsed cell.** A constant is still a claim about the vehicle, and a reviewer
+needs to see what it rests on — and where the document does state it somewhere, read it
+from there and keep the constant as a cross-check, so a chassis change is caught rather
+than asserted over. Note the qualification this puts on the section above: new products
+behave correctly only for a field the adapter *attempted*. Set-but-unregistered is a third
+case, and it is silent in both directions.
 
 ### Model year rolls over gradually, July to early September
 
@@ -178,6 +321,18 @@ Two practical consequences, from the NCC side on 19 August 2026:
 
 ### The website overrules the PDF, and a document's year is what the page says
 
+> **One documented exception, Elddis, 25 August 2026.** The rule below rests on a reason —
+> a PDF is usually the last thing updated, so it is usually the stale one. Where that
+> reason demonstrably does not hold, the rule does not either. Elddis's website publishes
+> the *base* range's weights on every Evolve page, byte for byte, while its current 2026
+> brochure gives the real figures, internally consistent and matching the equipment
+> difference. There the PDF wins, and `elddis.py` says why in `apply_brochure_weights`.
+>
+> The test to apply is not "which source is newer" but **"can I show one of them is
+> wrong?"** — here, that the Evolve figures are a different vehicle's, and that every
+> non-Evolve range agrees between the two sources exactly. Diverge from a rule only with
+> that kind of evidence, and write it down where the next person will see it.
+
 Where a site and its downloadable documents disagree, **the site wins**. A PDF is usually the
 last thing on a website to be updated, so a price list can be a model year behind the pages
 around it. Rule from the NCC side, 19 August 2026.
@@ -191,6 +346,105 @@ figures on the whole range while missing a tenth of it.
 
 When checking, read what a **customer** sees. The year sat in the card's title element; the
 text inside the `<a>` tag was only the word "Download".
+
+### "I know what this is, but not which one" is now something an adapter can say
+
+Added 29 August 2026, on the requester's suggestion, after the first Swift review found
+fifteen new products with no `body_type` and nothing to act on.
+
+Normally an adapter records provenance only for fields it filled, and a field it left
+empty is invisible — which is right for the ~40 layout flags nobody attempts. But there
+is a middle case: **the adapter can identify a product's family without resolving the
+exact value.** Swift's Carrera is certainly a campervan; which of the four campervan types
+it is cannot be told from a site that publishes no height.
+
+An adapter says that by **recording provenance for the field with no value on it**:
+
+```python
+provenance = {
+    name: Provenance(source_url=url, snippet=...)
+    for name, value in values.items()
+    if value is not None or name in {"body_type"}
+}
+```
+
+What happens next depends on whether the product already exists, and both are safe:
+
+- **New product** — `store.changes.persist_diff` proposes every field in `provenance`,
+  value or not, so it reaches the review queue as a choice.
+- **Existing product** — `diff.compare.compare_fields` turns it into a `MissingField`,
+  the same confirm-or-replace offer an unfound in-scope field gets. **It never becomes a
+  change proposing `None`**, which would offer a reviewer an "accept" that silently blanks
+  a good stored value. That guard is the whole reason this is pipeline behaviour rather
+  than something each adapter improvises.
+
+For the single-select fields (`body_type`, `sleeping_area`, `heating`, …) the review form
+renders a grouped dropdown rather than the free-text box — `webapp/choices.py`. Before
+this, correcting one meant typing `type_campervan_high_top_elevating_roof` exactly, and a
+typo only failed later, at upload, in `output.build.apply_field`.
+
+**Put the manufacturer's own words in the snippet, not your reasoning about them.** The
+provenance travels all the way to the review form, link included, and it is what a
+reviewer uses to settle the value — so quote the page. Swift's undetermined campervans
+carry the source URL of the range page and the line that identifies them:
+
+> Swift describe this as a campervan — it is listed under `/campervans/` on their site and
+> its range page says so. Swift's own words for it: *"Fiat Ducato panel van in Artense
+> Grey, with body coloured grille and front bumper"*. Which of the four campervan types it
+> is cannot be settled from the site … Open the source link to see the vehicle, then choose.
+
+Quote from **inside one element**, by splitting the HTML on tags rather than stripping
+them. Flattening a page runs one feature bullet into the next, and the quote ends up
+finishing mid-sentence in the following bullet — `swift.find_family_evidence` has the
+worked example.
+
+**Use it where the family is genuinely certain and the value genuinely is not.** It is not
+a way to defer work an adapter could do: a field the source *does* answer should be
+parsed, not passed to a reviewer.
+
+### A source can be retired outright, and a clean skip hides it
+
+Every rule above is about choosing between sources that exist. Swift, 28 August 2026, is
+the first case of a source simply **ceasing to exist mid-life**, and the failure mode is
+worth knowing before it happens to another adapter.
+
+Swift retired the annual brochure. For 2027 the motorhome, campervan and caravan
+catalogues were all replaced by a two-page *quick guide*, and the per-layout data moved
+onto the website. `swift.py` had been built on the brochure's "Specification at a glance"
+table, matched `_brochure.pdf`, and so collected **zero products**:
+
+```
+[Motorhomes] SKIPPED: no brochure link found on https://www.swiftgroup.co.uk/motorhomes/
+0 product(s) collected
+```
+
+Three things follow, none of them about parsing.
+
+**A zero-product run is a *successful* run.** Narrated skips, no exception, status
+`succeeded`. That default is right — on any given run a missing link is usually a
+transient site change, and raising would be worse — but it means a permanently dead
+source is indistinguishable from a quiet week. When adding a manufacturer, note its
+expected product count somewhere a human will compare against, which is what
+`config/manufacturers.csv`'s `notes` is for.
+
+**Presence in the review app's trigger dropdown is not health.** That list is filtered by
+`adapter_for()`, which only checks a module is registered under the manufacturer name.
+Swift stayed in the dropdown throughout, and looked entirely normal.
+
+**The superseded document usually stays live**, which makes the obvious fix the wrong
+one. Swift's 2026 brochure still resolves — 20MB — and is still linked from
+`/brochures/` beside 69 other archived PDFs. Loosening the pattern enough to match
+`2027-swift-motorhome-quick-guide.pdf` also matches
+`2026_swift_motorhome_brochure.pdf`, and would have proposed last season's whole range
+as current: plausible, internally consistent, entirely stale, and nothing downstream
+would flag it.
+
+So when a document pattern stops matching, **do not widen it**. Establish what the
+manufacturer publishes *now*, from the pages a customer sees, and anchor the new pattern
+on whatever distinguishes the current document from the archive — for Swift,
+`quick-guide` rather than `.pdf`. Then add a negative test that feeds the adapter the
+superseded URL and asserts it is not matched; `test_swift.py` has one, and it is the most
+valuable test in that file.
 
 ### No single menu is a complete roster
 
@@ -245,6 +499,27 @@ example: FMLV holds the XL layouts as range `Adamo XL` + model `I`, the site as 
 baseline's `I` in place and wrote back **`Adamo I`** — the XL gone from the vehicle's name
 altogether.
 
+**And some renames cannot be delivered at all.** A rename that removes most of the
+identity's words takes the product below the matching threshold, so the run proposes it as
+*new* and reports the original as *disappeared* — an upload would then create a duplicate
+of a product the NCC already holds. Wingamm 26 August 2026: FMLV files its Brownie under
+range `Coach Built low profile`, a body type in the range column, and correcting it to
+`Brownie` scores `{brownie}` against `{coach, built, low, profile, brownie}` — **0.200**.
+Run #30 orphaned `product_id` 5855 exactly as arithmetic predicts.
+
+**So check the score before proposing an identity change, and where it fails, emit the
+baseline's own wrong value with no provenance on either half.** Nothing is then proposed,
+the product matches at 1.000, and its weights and dimensions update normally; the rename
+becomes a one-line manual edit on the FMLV site, narrated every run until someone makes it.
+Wingamm's City Pro is the same class of error and *is* proposed, because `Campervan` +
+`City Pro` to `City Pro` + `City Pro` scores 0.667 — the asymmetry is the matcher's, not the
+manufacturer's.
+
+Note this closes the other door too: Etrusco shows `DEFAULT_THRESHOLD` cannot be *raised*
+to reject its bad matches, and 0.200 is far below anything that could be *lowered* to admit
+this one while still separating real vehicles. A rename is a different operation from a
+match, and the token bag cannot express it.
+
 **And `model` will not warn you.** `compare_fields` walks only fields that *have
 provenance*, while the in-scope missing-field check fires only where the adapter found
 **nothing at all** — so a `model` that was read but never given a provenance entry is
@@ -273,6 +548,21 @@ name lines up.
 number. Anything high enough to reject the Etrusco pairs orphans Adria's product ID. A
 per-manufacturer threshold would work (Etrusco's good matches are all 1.000) and is the shape to
 reach for if a third brand hits this.
+
+**Knaus was that third brand, 1 September 2026, and the hook now exists.** An adapter may
+declare a module-level `MATCH_THRESHOLD`; `cli.match_threshold` reads it with the same `getattr`
+opt-in as `DEFAULT_RANGES` and `baseline_in_scope`, so declaring one affects nobody else.
+Knaus's 2027 SKY TI moved from Fiat to VW and replaced its `700 MEG` layout with a `700 DEG`;
+that pair scores exactly **0.500** against FMLV's old row and was being offered as a revision,
+which would have rewritten a Fiat coachbuilt into a VW one *and* hidden the 700 MEG's
+discontinuation — a claimed baseline row cannot also be reported as disappeared.
+
+`knaus.MATCH_THRESHOLD = 0.55` works because that brand's own matches are separable, which is
+the precondition and is **not** general: Knaus's lowest legitimate score is 0.600 (five
+`Boxlife` -> `BOXLIFE PLATINUM SELECTION` renames) and its only 0.500 is the bad pair. Before
+reaching for this, check the same thing — list every score in a real run and look for a gap. If
+the good and bad matches interleave, as Adria's and Etrusco's do, no threshold helps and the
+answer is still a human reading the proposal.
 
 **A wrong match also hides a discontinuation**, which is easy to miss when reading the counts: a
 claimed baseline row cannot also be reported as disappeared. Etrusco's run said 4 new and 3
@@ -366,6 +656,20 @@ Two follow-on questions the later surveys added:
   directory called `kataloge_preislisten`, Swift's opaque media key, Sunlight's three
   superseded model years *and* a differently-named glossy catalogue. Match precisely,
   prefer the newest, and rediscover per run rather than hardcoding.
+- **Ask the PDF question against the `sitemap.xml`, not against the pages you have
+  fetched.** Elddis's survey concluded "there is no PDF anywhere on the site" on the
+  strength of finding no `.pdf` link on any page it had fetched. That was wrong: the
+  downloads page holds 30+ PDFs, and it is an **orphan** — in no menu, linked from nothing,
+  reachable only from the sitemap or a search engine. A link-following search cannot find
+  an unlinked page by construction, so absence of a link is not absence of a document.
+  Grep the sitemap for `brochure`, `download`, `specification` and `price` before concluding
+  a manufacturer publishes nothing. It cost a wrong conclusion in the write-up and, worse,
+  nearly cost 17 products their correct weights.
+
+  Elddis has three such orphans — `/help-support/brochures` and two `*-specification`
+  comparison pages listing every layout with its price. Orphan pages are *useful*: they are
+  often exactly the roster or comparison view an adapter wants, and nobody links to them
+  because they are not part of the sales funnel.
 
 ### If the document is behind a name/email form
 
@@ -524,3 +828,32 @@ as a generic capability, not something specific to Adria.
 - **Does your verification probe fail where the adapter fails?** A throwaway script with a
   fallback the adapter lacks will report a healthy parse while the adapter collects nothing.
   Etrusco's first live run returned zero products for exactly this reason.
+- **Does the same site label the same field differently per vehicle type?** Elddis heads its
+  spec block `Technical Specification` on motorhomes and `Technical Specifications` on
+  campervans, with `NOTES` against `Notes` — one plural away from silently dropping all 15
+  campervans while collecting all 34 motorhomes. A count that looks plausible is the only
+  symptom. Check one page of *each* type before trusting a label, and prefer the roster's
+  own count over "it parsed" as the success condition.
+- **Check the units per range, not per site.** Elddis publishes millimetres everywhere
+  except its three newest campervans, which use metres to two decimal places — so a
+  pattern anchored on `mm` returns nothing for those three, and their dimensions are
+  genuinely only good to the nearest 10mm. A brand-new range is where a template
+  convention breaks.
+- **If a `--range` selector is not an FMLV range, declare `baseline_in_scope`.**
+  `cli.baseline_scope` matches the selector against `manufacturer_range` by default, which
+  is right whenever the two coincide. Wingamm's don't: three of its five documents are one
+  range (`Oasi`) and `cli.resolve_ranges` keys on a *unique* label, so the labels must name
+  documents (`Oasi 690`) instead. The default then scoped a two-product run to **zero**
+  baseline rows and proposed both as new. Scope on `model` where the range column is the
+  thing you are proposing to change — scoping on a column mid-rename misses the row you are
+  renaming and duplicates it.
+- **Run `--range` before calling an adapter done.** A completeness check that compares a
+  run against the manufacturer's full published roster will cry wolf on every legitimate
+  single-range run unless it is gated on what was actually *requested*. Elddis's did, and a
+  check that fires on correct runs trains a reviewer to ignore it — which is worse than not
+  having one.
+- **Read the export's `year` column before writing up "disappeared".** Elddis's export has
+  77 un-archived rows against 49 products on sale, which reads as 48 discontinued vehicles
+  — but `cli._is_current_model_year` already drops them, because they carry 2024 and 2022.
+  The baseline the diff sees was 29 and nothing disappeared. Count against the *filtered*
+  baseline, not the raw export.

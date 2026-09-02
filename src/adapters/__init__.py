@@ -22,11 +22,15 @@ from . import (
     chausson,
     coachman,
     dethleffs,
+    elddis,
     etrusco,
+    knaus,
     morelo,
+    moto_trek,
     rimor,
     sunlight,
     swift,
+    wingamm,
 )
 from .base import Adapter, ExtractedMotorhome, Provenance
 
@@ -38,11 +42,15 @@ ADAPTERS: dict[str, Adapter] = {
     chausson.MANUFACTURER: chausson,
     coachman.MANUFACTURER: coachman,
     dethleffs.MANUFACTURER: dethleffs,
+    elddis.MANUFACTURER: elddis,
     etrusco.MANUFACTURER: etrusco,
+    knaus.MANUFACTURER: knaus,
     morelo.MANUFACTURER: morelo,
+    moto_trek.MANUFACTURER: moto_trek,
     rimor.MANUFACTURER: rimor,
     sunlight.MANUFACTURER: sunlight,
     swift.MANUFACTURER: swift,
+    wingamm.MANUFACTURER: wingamm,
 }
 
 __all__ = [
@@ -58,11 +66,15 @@ __all__ = [
     "chausson",
     "coachman",
     "dethleffs",
+    "elddis",
     "etrusco",
+    "knaus",
     "morelo",
+    "moto_trek",
     "rimor",
     "sunlight",
     "swift",
+    "wingamm",
 ]
 
 

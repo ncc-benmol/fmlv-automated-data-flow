@@ -109,6 +109,12 @@ class MissingField:
 
     field: str
     old_value: Any
+    #: The adapter's own evidence, when it recorded some. Populated only for a field the
+    #: adapter *attempted* and could not fill — an unfound in-scope field has no
+    #: provenance by construction, so this stays `None` there. It is what lets the review
+    #: form show a reviewer the page and the wording that identify what kind of product
+    #: this is, so they can settle the value themselves. Requested 2026-08-29.
+    provenance: Provenance | None = None
 
 
 def compare_fields(
@@ -133,6 +139,22 @@ def compare_fields(
         new_value = field_value(extracted.motorhome, field_path)
         if old_value == new_value:
             confirmed.append(field_path)
+            continue
+        if new_value is None and old_value is not None:
+            # The adapter looked and came back empty-handed — it recorded provenance
+            # saying so. Proposing `None` over a good baseline value would offer a
+            # reviewer an "accept" that silently blanks the field, so this takes the
+            # same confirm-or-replace route as an unfound in-scope field instead.
+            # Reached when an adapter can identify a field's *family* but not its value
+            # (`swift._body_type_basis`); before 2026-08-29 no adapter recorded
+            # provenance for an empty field, so this branch was unreachable.
+            missing.append(
+                MissingField(
+                    field=field_path,
+                    old_value=old_value,
+                    provenance=extracted.provenance.get(field_path),
+                )
+            )
             continue
         priority = _priority(field_path)
         changes.append(

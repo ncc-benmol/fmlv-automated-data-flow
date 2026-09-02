@@ -1,0 +1,28 @@
+﻿site_range,site_model,site_price,site_berths,site_length_mm,site_mro_kg,fmlv_product_id,fmlv_range,fmlv_model,fmlv_price,fmlv_berths,fmlv_length_mm,fmlv_mro_kg,basis,other_candidates,note
+Low profiles,627,69290,3,6990,2960,8317,Titanium,627,69290,5,6990,2995,only candidate,,
+Low profiles,630,67290,4,6990,3026,1636,Titanium,630,67290,4,6990,3061,only candidate,,
+Low profiles,640,,2,6990,3007,5554,Titanium,640,67290,4,6990,3042,CHECK — cheapest of several,"Ultimate 640 (id 1612, £69290)",
+Low profiles,650,66590,4,6390,2896,1648,Titanium,650,66590,4,6390,2934,only candidate,,
+Low profiles,660,67290,4,6990,3023,5558,Titanium,660,67290,4,6990,3058,only candidate,,
+Low profiles,720,69290,6,7190,3030,1652,Titanium,720,69290,5,7190,3068,only candidate,,
+Low profiles,777,69990,3,7190,3137,,,,,,,,NO FMLV ROW — genuinely new,,
+Low profiles,788,69290,3,7190,3069,5557,Titanium,788,69290,4,7190,3107,only candidate,,
+Low profiles,798,69990,3,7390,3105,8318,Titanium,798,69990,4,7390,3143,price matches exactly,"Ultimate 798 (id 8319, £71990)",
+Overcab,C514,57990,4,5990,2738,5563,First,C514,57990,5,5990,2770,only candidate,,
+Overcab,C656,62990,7,6960,2910,6875,First,C656,62990,7,6960,2910,only candidate,,
+Overcab,C727,65490,7,7360,2910,7776,First,C727,65490,6,7360,2991,only candidate,,
+S Low Profiles,S514,55790,2,5990,2573,5559,First,S514,55790,3,5990,2586,price matches exactly,"Sport S514 (id 5560, £58290)",
+S Low Profiles,S614,58790,4,6590,2731,8320,First,S614,58790,4,6590,2745,price matches exactly,"Sport S614 (id 8321, £61290)",
+S Low Profiles,S697,58790,2,6590,2651,5561,First,S697,58790,3,6590,2675,price matches exactly,"Sport S697 (id 5562, £61290)",
+Vans,V594,57490,2,5990,2951,7422,Sport,V594,57490,3,5990,2951,only candidate,,
+X,X550,73990,4,5990,2822,7419,Exclusive,X550,73990,4,5990,2860,only candidate,,
+X,X640,74990,4,6550,2822,,,,,,,,NO FMLV ROW — genuinely new,,
+,,,,,,1612,Ultimate,640,69290,4,6960,3017,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"
+,,,,,,5560,Sport,S514,58290,3,5990,2605,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"
+,,,,,,5562,Sport,S697,61290,3,6590,2683,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"
+,,,,,,7420,Exclusive,X650,74990,4,6360,2961,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"
+,,,,,,8315,Titanium,797,69990,4,7390,3106,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"
+,,,,,,8316,Ultimate,797,71990,4,7360,3094,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"
+,,,,,,8319,Ultimate,798,71990,4,7360,3104,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"
+,,,,,,8321,Sport,S614,61290,4,6590,2763,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"
+,,,,,,8322,Sport,V691,60990,2,6360,3015,NOT ON THE SITE,,"decide: deactivate, or keep if the site page is merely broken"

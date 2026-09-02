@@ -17,12 +17,14 @@ is exactly when it is needed.
 from __future__ import annotations
 
 import inspect
+import pathlib
 import pkgutil
 from types import ModuleType
 
 import pytest
 
 from src import adapters, paths, registry
+from src.adapters.base import fmlv_base_vehicle
 
 #: Modules in `src/adapters/` that are infrastructure rather than a manufacturer.
 _NOT_ADAPTERS = {"base"}
@@ -151,3 +153,111 @@ def test_default_ranges_is_well_formed(name: str) -> None:
         assert all(isinstance(part, str) and part.strip() for part in entry), (
             f"{name}.DEFAULT_RANGES entries must be two non-empty strings, got {entry!r}"
         )
+
+
+# --------------------------------------------------------------------------- #
+# Base-vehicle spelling
+#
+# `base_vehicle_manufacturer` is compared against FMLV's own stored string, so the
+# spelling decides whether a run *confirms* the field or proposes a rename. Two rules
+# the requester confirmed on 27 August 2026:
+#
+# * `Mercedes`, never `Mercedes-Benz`. `Mercedes-Benz` is a real manufacturer in FMLV,
+#   with its own row in the manufacturer list — but as a base *vehicle* the value is
+#   always the short form. "There is a manufacturer called Mercedes Benz and its base
+#   vehicle name that we use is Mercedes."
+# * `Citroën` with the diaeresis, for Chausson and every other brand.
+#
+# Bürstner, Coachman and Morelo all emitted `Mercedes-Benz`, and Chausson `Citroen`,
+# because each adapter decided the spelling for itself. They now all route through
+# `base.fmlv_base_vehicle`, and these tests keep it that way.
+# --------------------------------------------------------------------------- #
+
+
+def test_the_makes_fmlv_holds_survive_every_spelling_a_source_uses() -> None:
+    assert fmlv_base_vehicle("Mercedes-Benz") == "Mercedes"
+    assert fmlv_base_vehicle("Mercedes Benz") == "Mercedes"
+    assert fmlv_base_vehicle("mercedes") == "Mercedes"
+    # Chausson's CSS class is `porteur picto citroen` and cannot carry the accent.
+    assert fmlv_base_vehicle("citroen") == "Citroën"
+    assert fmlv_base_vehicle("Citroen") == "Citroën"
+    assert fmlv_base_vehicle("Citroën") == "Citroën"
+    # An all-caps PDF heading and a title-cased class land on the same string.
+    assert fmlv_base_vehicle("FIAT") == "Fiat"
+    assert fmlv_base_vehicle("Iveco") == "IVECO"
+    assert fmlv_base_vehicle("man") == "MAN"
+
+
+def test_a_company_that_is_both_supplier_and_manufacturer_keeps_two_names() -> None:
+    """The naming protocol, from the requester on 27 August 2026.
+
+    Where one company supplies base vehicles *and* builds complete leisure vehicles, FMLV
+    names the two roles differently on purpose: the **abbreviated** form is the base
+    vehicle, the **full** form is the manufacturer. Volkswagen and Mercedes-Benz are the
+    two cases, and both build campervans of their own, so both roles are real.
+
+    It exists for the customer-facing filters — a buyer must not have to guess between
+    "VW" and "Volkswagen". One name per company per role.
+    """
+    assert fmlv_base_vehicle("VW") == "VW"
+    assert fmlv_base_vehicle("vw") == "VW"
+    assert fmlv_base_vehicle("Mercedes-Benz") == "Mercedes"
+
+
+def test_vw_is_not_normalised_to_volkswagen() -> None:
+    """Guards a "correction" that looks right and is wrong.
+
+    The base-vehicle column of every export this project holds shows eight spellings and
+    `VW` is not among them, because none of the manufacturers surveyed so far builds on a
+    Crafter until Sunlight's VW IBEX. That is a gap in the sample, not a fact about FMLV,
+    which holds over a hundred VW base vehicles. Reasoning from the exports alone nearly
+    produced exactly this wrong change.
+    """
+    assert fmlv_base_vehicle("VW") != "Volkswagen"
+    assert fmlv_base_vehicle("Volkswagen") != "VW", (
+        "'Volkswagen' is the manufacturer's name, so it is deliberately not mapped onto "
+        "the base vehicle's; if a source ever spells the chassis in full, add it to the "
+        "map rather than letting it pass through as the manufacturer string"
+    )
+
+
+def test_an_unknown_make_is_passed_through_rather_than_blanked() -> None:
+    """A chassis nobody has met yet is far likelier than a parse error, and this is a
+    `schema.REQUIRED` field — blanking it would lose more than it protects."""
+    assert fmlv_base_vehicle("Opel") == "Opel"
+    assert fmlv_base_vehicle("  Ford  ") == "Ford"
+    assert fmlv_base_vehicle(None) is None
+    assert fmlv_base_vehicle("") is None
+    assert fmlv_base_vehicle("   ") is None
+
+
+@pytest.mark.parametrize("name", sorted(_adapter_module_names()))
+def test_no_adapter_decides_the_base_vehicle_spelling_for_itself(name: str) -> None:
+    """An adapter that sets the field must route it through the shared helper.
+
+    This is the check that would have caught all four: each had picked a spelling
+    locally, and every one of them was reasonable in isolation.
+    """
+    source = pathlib.Path(inspect.getfile(getattr(adapters, name))).read_text(
+        encoding="utf-8"
+    )
+    if "base_vehicle_manufacturer=" not in source:
+        pytest.skip(f"{name} does not set base_vehicle_manufacturer")
+
+    assert "fmlv_base_vehicle" in source, (
+        f"{name} sets base_vehicle_manufacturer without routing it through "
+        f"base.fmlv_base_vehicle, so it decides FMLV's spelling for itself"
+    )
+
+
+def test_the_per_range_base_vehicle_tables_are_spelled_fmlvs_way() -> None:
+    """The two adapters holding a make as a constant a human edits at a changeover."""
+    from src.adapters import burstner, coachman
+
+    assert {
+        fmlv_base_vehicle(config.base_vehicle_manufacturer)
+        for config in burstner.DOCUMENTS
+    } == {"Fiat", "Mercedes"}
+    assert {
+        fmlv_base_vehicle(make) for make in coachman._BASE_VEHICLE_BY_RANGE.values()
+    } == {"Fiat", "Mercedes"}

@@ -1,0 +1,11 @@
+8 
+54
+ 9 
+AVALON EVOLVE 250 255 285 295
+WEIGHTS
+Max technical permissible laden mass 3500KG 3500KG 3500KG 3500KG
+Mass in running order 3131KG 3127KG 3127KG 3091KG
+Max user payload 369KG 373KG 373KG 363KG
+Fresh water tank 100L 100L 100L 100L
+Waste water tank 60L 100L 100L 100L
+Leisure Battery 95Ah 95Ah 95Ah 95Ah

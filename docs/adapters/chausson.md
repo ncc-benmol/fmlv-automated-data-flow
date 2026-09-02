@@ -221,6 +221,13 @@ So between the card and the model page, the record is essentially complete:
 **The base vehicle varies by model and is worth having**: Ford for most, **Citroën** for the
 big overcabs (C656, C727), **Fiat** for the V594 van and the whole X line.
 
+The make is read from the picto's own CSS class — `porteur picto citroen` — which is ASCII
+and **cannot carry the diaeresis FMLV holds**. `.title()` alone therefore produced
+`Citroen`, which matches nothing in FMLV and proposed a rename on both overcabs every run.
+The make now goes through `base.fmlv_base_vehicle`, which restores `Citroën`; the requester
+confirmed on 27 August 2026 that every brand uses the accented spelling and corrected the
+FMLV rows to match. See [`README.md`](README.md).
+
 ### The price is a per-model "From", which is usable
 
 Ruling from the NCC side, 19 August 2026: **a "From" price shown against one specific model
@@ -389,18 +396,47 @@ each layout and no more.
 - Because prices are quoted in sterling on the UK site, **there is no currency to convert** —
   Morelo's fixed exchange rate has no equivalent here.
 
-- **OPEN DECISION: how the finish lines should be modelled.** Until this is settled, a Chausson
-  run cannot produce a usable diff. Four routes, for the NCC side to choose between:
+- ~~**OPEN DECISION: how the finish lines should be modelled**~~ — **settled on 21 August 2026:
+  FMLV was migrated to the site's body-style names, and the adapter left alone.** None of the
+  four routes originally listed was taken. Instead the NCC side renamed their own products, so
+  `Titanium 650` became `Low profiles 650` and so on, keeping every existing product ID.
 
-  1. **Emit range = finish line, entry line only.** Matches roughly 18 of FMLV's 25 rows and
-     leaves the higher-line rows reported as disappeared every run, which is noise a reviewer
-     would have to learn to ignore.
-  2. **Emit one product per (layout, line) the site lists**, carrying the entry price for all of
-     them. Reaches all 25, at the cost of a knowingly wrong price on the dearer lines - which
-     the guide-price rule in [README.md](README.md) may or may not tolerate.
-  3. **Ask Trigano for a price list per line.** No PDF price list exists anywhere on the UK site,
-     so this is the only route to real per-line prices.
-  4. **Leave Chausson scrape-only** until FMLV's own trim-level modelling is revisited.
+  How it was done, because the mechanics are the transferable part:
+
+  1. **A mapping from the site's roster to the live FMLV products, matched on model number**,
+     with the **price as the discriminator** where FMLV held two trim rows for one layout — the
+     site quotes only the entry line, so `S514` at £55,790 identified the `First` row against
+     the `Sport` one at £58,290. 16 of 18 matched; 2 were genuinely new.
+
+     **That mapping is kept, at
+     [`resources/chausson-id-mapping-2026-08-20.csv`](../../resources/chausson-id-mapping-2026-08-20.csv).**
+     It is the only record of which FMLV `product_id` each site layout was judged to be, and
+     its `basis` column says *why* each row was decided — `only candidate`,
+     `price matches exactly`, `CHECK — cheapest of several` with the runners-up named in
+     `other_candidates`, `NO FMLV ROW — genuinely new`, and `NOT ON THE SITE` for the FMLV
+     rows that had no counterpart. Nothing in the codebase reads it and nothing regenerates
+     it: it is a human judgement, so it is evidence rather than output. Keep it if the
+     Chausson identities are ever questioned, and read the `CHECK` rows first.
+  2. **A rename upload carrying the existing IDs**, built by copying the export's cells
+     verbatim and changing only `manufacturer_range` and `model`.
+  3. **The dearer trim twins archived** — five layouts had two, and once renamed they would
+     have shared one name. Archived rows leave the baseline, so the ambiguity goes with them.
+     Nova's *inactive* is not the same flag as *archived*: only the latter shows in the export.
+  4. **`797` archived and `777` accepted as new**, once its specs showed a different vehicle
+     rather than a renamed one — a 7.19m Ford with 3 berths against a 7.36m Fiat with 4.
+
+  The result: 16 products matched at 1.000, two new, and the disappeared list down to `X650`
+  and `V691`. Two gaps a reviewer has to fill by hand on a new product, both inherent: the site
+  states **no model year**, so nothing is proposed for it, and the **habitation fields** the
+  adapter never reads stay blank.
+
+  Two things went wrong on the way, both recorded in full in the commits: uploading a row built
+  by round-tripping through `Motorhome` **cleared flags the model cannot represent** (FMLV holds
+  both `fridge` and `fridge_freezer` on 37 rows), and a rename **crashed the run** on the
+  `product` table's unique constraint. Both are fixed in code. The lesson for any future
+  migration is to verify an upload **raw cell against raw cell**, not against the model that
+  produced it: comparing a written row to `motorhome_to_row` output cannot detect anything the
+  *read* dropped.
 
 ## Traps found while surveying
 

@@ -140,3 +140,52 @@ def test_in_scope_field_extracted_without_provenance_is_never_reported_missing()
     )
     _changes, _confirmed, missing = compare_fields(BASELINE, extracted)
     assert all(m.field != "manufacturer_range" for m in missing)
+
+
+def test_an_attempted_but_unfilled_field_never_proposes_blanking_the_baseline() -> None:
+    """An adapter can record provenance for a field it looked at and could not fill.
+
+    Before 2026-08-29 no adapter did, so this could not arise. Swift now does it for
+    `body_type` when it can tell a product is a campervan but not which of the four
+    types — so that the field reaches the reviewer as a choice instead of as silence.
+
+    On a *matched* product that must never become a change proposing `None`, because
+    accepting it would silently blank a correct stored value. It takes the same
+    confirm-or-replace route as an unfound in-scope field instead.
+    """
+    extracted = ExtractedMotorhome(
+        motorhome=Motorhome(body_type=None),
+        provenance={
+            "body_type": Provenance(source_url="https://example.com", snippet="choose one")
+        },
+    )
+
+    changes, confirmed, missing = compare_fields(BASELINE, extracted)
+
+    assert all(change.field != "body_type" for change in changes)
+    assert "body_type" not in confirmed
+
+    (entry,) = [m for m in missing if m.field == "body_type"]
+    assert entry.old_value == BASELINE.body_type
+    # The adapter's evidence travels with it, so the review form can link to the page
+    # and quote the wording that says what kind of product this is.
+    assert entry.provenance is not None
+    assert entry.provenance.source_url == "https://example.com"
+    assert entry.provenance.snippet == "choose one"
+
+
+def test_an_attempted_unfilled_field_is_ignored_when_the_baseline_is_empty_too() -> None:
+    # Nothing to confirm and nothing to lose, so there is nothing worth asking about.
+    baseline = BASELINE.model_copy(update={"body_type": None})
+    extracted = ExtractedMotorhome(
+        motorhome=Motorhome(body_type=None),
+        provenance={
+            "body_type": Provenance(source_url="https://example.com", snippet="choose one")
+        },
+    )
+
+    changes, confirmed, missing = compare_fields(baseline, extracted)
+
+    assert all(change.field != "body_type" for change in changes)
+    assert "body_type" in confirmed  # both None, so it compares equal
+    assert all(m.field != "body_type" for m in missing)

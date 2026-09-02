@@ -41,7 +41,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.etrusco.com"
 MANUFACTURER = "Etrusco"
@@ -371,7 +371,7 @@ def parse_layouts(family: str, range_label: str, family_html: str) -> list[Etrus
                 mtplm_kilograms=_kilograms(spec.get(LABEL_MTPLM, "")),
                 mro_kilograms=_kilograms(mro_raw),
                 mro_band=_band(mro_raw),
-                base_vehicle_manufacturer=chassis.split()[0] if chassis else None,
+                base_vehicle_manufacturer=fmlv_base_vehicle(chassis.split()[0]) if chassis else None,
             )
         )
     return layouts

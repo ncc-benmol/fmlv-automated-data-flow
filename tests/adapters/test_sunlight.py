@@ -20,10 +20,12 @@ from pathlib import Path
 
 from src.adapters.sunlight import (
     SunlightProduct,
+    _build_extracted_motorhome,
     _reconciles,
     find_price_list_urls,
     parse_technical_page,
 )
+from src.product_model.enums import BodyType
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -279,3 +281,136 @@ def test_the_glossy_catalogue_is_not_mistaken_for_a_price_list() -> None:
     catalogue_only = '<a href="https://www.dropbox.com/s/eee/Sunlight-Kat-RM-2024-UK-IRL.pdf?dl=1">x</a>'
 
     assert find_price_list_urls(catalogue_only, "reisemobile") is None
+
+
+# --------------------------------------------------------------------------- #
+# The base vehicle
+#
+# A value set on the model but never registered as provenance cannot reach FMLV:
+# `diff/compare.py` compares only the fields the provenance dict names, and
+# `store/changes.py` proposes only those fields for a NEW product. So an unregistered
+# base vehicle looks correct on every product FMLV already holds — the baseline value
+# carries through untouched — and lands blank on every genuinely new one, even though
+# it is a REQUIRED field.
+# --------------------------------------------------------------------------- #
+
+
+def test_the_chassis_cell_is_kept_verbatim_beside_the_make() -> None:
+    # "Fiat" alone does not tell a reviewer which of Fiat's vans this is, so the cell
+    # is carried through the way berths_text and seats_text already are.
+    fiats = parse_technical_page(VAN_ADVENTURE, 4)
+    fords = parse_technical_page(LOW_PROFILE_UNLTD, 24)
+
+    assert fiats[0].base_vehicle_manufacturer == "Fiat"
+    assert fiats[0].base_vehicle_text == "Fiat Ducato"
+    # Two makes across two real pages, so neither is a constant the parser invented.
+    assert fords[0].base_vehicle_manufacturer == "Ford"
+    assert fords[0].base_vehicle_text == "Ford Transit"
+
+
+def test_base_vehicle_is_registered_as_provenance_so_a_new_product_keeps_it() -> None:
+    product = parse_technical_page(LOW_PROFILE_UNLTD, 24)[0]
+
+    extracted = _build_extracted_motorhome(product, "https://example/price-list.pdf")
+
+    assert extracted.motorhome.base_vehicle_manufacturer == "Ford"
+    assert "base_vehicle_manufacturer" in extracted.provenance
+    snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
+    assert "Standard chassis: Ford Transit" in snippet  # the row's own label and value
+
+
+# --------------------------------------------------------------------------- #
+# The name FMLV renders, and the body type
+# --------------------------------------------------------------------------- #
+
+
+def test_a_model_repeating_its_range_name_is_trimmed() -> None:
+    # FMLV renders manufacturer + range + model, so range "CLIFF Adventure" with model
+    # "CLIFF 540" would read back as "Sunlight CLIFF Adventure CLIFF 540".
+    products = parse_technical_page(CLIFF_ADVENTURE, page_number=4)
+
+    assert [product.model for product in products][0] == "CLIFF 540"
+    assert [product.fmlv_model for product in products] == [
+        "540",
+        "600",
+        "601",
+        "602",
+        "640",
+    ]
+
+
+def test_trimming_the_range_name_keeps_a_trailing_letter() -> None:
+    # CLIFF Vanlife's "CLIFF 540 V" must not collapse onto CLIFF Adventure's "540".
+    (product,) = parse_technical_page(CLIFF_VANLIFE, page_number=25)
+
+    assert product.model == "CLIFF 540 V"
+    assert product.fmlv_model == "540 V"
+
+
+def test_a_model_that_is_only_the_range_name_is_left_alone() -> None:
+    # Trimming here would leave the product with no model at all.
+    product = SunlightProduct(range_label="CLIFF X", model="CLIFF", page_number=1)
+
+    assert product.fmlv_model == "CLIFF"
+
+
+def test_a_model_not_repeating_its_range_is_untouched() -> None:
+    products = parse_technical_page(VAN_ADVENTURE, page_number=4)
+
+    assert [product.fmlv_model for product in products] == ["V 60", "V 66", "V 67S"]
+
+
+def test_body_type_comes_from_the_series_letter_for_coachbuilts() -> None:
+    products = parse_technical_page(LOW_PROFILE_UNLTD, page_number=24)
+
+    assert {product.body_type for product in products} == {
+        BodyType.COACH_BUILT_LOW_PROFILE
+    }
+
+
+def test_the_v_series_is_a_coachbuilt_not_a_van_conversion() -> None:
+    # The trap: "Van Adventure" reads like a panel-van conversion, but the V-series is a
+    # narrow-bodied low profile and sits in the *motorhome* price list. FMLV holds all
+    # seven live V layouts that way.
+    products = parse_technical_page(VAN_ADVENTURE, page_number=4)
+
+    assert {product.body_type for product in products} == {
+        BodyType.COACH_BUILT_LOW_PROFILE
+    }
+
+
+def test_body_type_comes_from_the_range_name_for_camper_vans() -> None:
+    (vanlife,) = parse_technical_page(CLIFF_VANLIFE, page_number=25)
+    cliff = parse_technical_page(CLIFF_ADVENTURE, page_number=4)
+
+    # "CLIFF Vanlife" in the price list is FMLV's "Vanlife" — matched as a substring, so
+    # the leading CLIFF does not drag it into the plain high-top bucket.
+    assert vanlife.body_type is BodyType.CAMPERVAN_HIGH_TOP_ELEVATING_ROOF
+    assert {product.body_type for product in cliff} == {BodyType.CAMPERVAN_HIGH_TOP}
+
+
+def test_the_ibex_is_a_fixed_high_top() -> None:
+    # The price list is silent on the roof; Sunlight's model page settles it ("the
+    # specially developed roof provides up to 1.98 m of standing height", fixed
+    # fibreglass, no lifting section). FMLV had no precedent to fall back on.
+    product = SunlightProduct(range_label="VW IBEX", model="604D", page_number=35)
+
+    assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
+
+
+def test_an_unrecognised_range_is_left_blank_rather_than_guessed() -> None:
+    # One wrong Yes among eight mutually exclusive columns is a silent error; a blank is
+    # an honest gap a reviewer fills in seconds.
+    product = SunlightProduct(range_label="Sunlight Somethingnew", model="900Z", page_number=1)
+
+    assert product.body_type is None
+    assert "body_type" not in _build_extracted_motorhome(product, "http://x").provenance
+
+
+def test_body_type_is_registered_as_provenance() -> None:
+    product = SunlightProduct(range_label="Low Profile UNLTD", model="T 7003S", page_number=24)
+
+    extracted = _build_extracted_motorhome(product, "http://x")
+
+    assert extracted.motorhome.body_type is BodyType.COACH_BUILT_LOW_PROFILE
+    assert "type_coach_built_low_profile" in extracted.provenance["body_type"].snippet

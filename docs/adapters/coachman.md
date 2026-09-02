@@ -408,7 +408,9 @@ writing any code, re-run the survey probes and settle these four:
 - ~~**No base vehicle manufacturer published**~~ — **resolved 17 August 2026, manually.**
   Coachman publish it nowhere on the site, but the 2027 preview spec sheet states it, so it
   is transcribed into `_BASE_VEHICLE_BY_RANGE`: Fiat for Avventura and Veloce,
-  Mercedes-Benz for Sportivo, Travel Master and Travel Master Imperial. Held **per range**,
+  Mercedes for Sportivo, Travel Master and Travel Master Imperial (FMLV's spelling — the
+  spec sheet says `Mercedes-Benz`, which is normalised away rather than proposed as a
+  rename; see [`README.md`](README.md)). Held **per range**,
   which is how Coachman state it, is the safer assumption, and means the three unpublished
   2027 models inherit the right chassis with no edit — the Sportivo 565 TRAQ stays a
   Mercedes despite its different weight and 4x4 engine, which is the case a per-model table

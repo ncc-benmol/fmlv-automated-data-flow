@@ -48,7 +48,7 @@ from pathlib import Path
 from ..fetch.http import Fetcher
 from ..product_model.enums import BodyType
 from ..product_model.model import Motorhome
-from .base import ExtractedMotorhome, Provenance
+from .base import ExtractedMotorhome, Provenance, fmlv_base_vehicle
 
 BASE_URL = "https://www.motorhomes-chausson.co.uk"
 MANUFACTURER = "Trigano VDL Chausson"
@@ -323,7 +323,9 @@ def parse_cards(ranges_html: str) -> dict[str, ChaussonCard]:
             berths_published=figure("couchages"),
             seats_published=figure("places_route"),
             mh_length_mm=_millimetres(length.group("value")) if length else None,
-            base_vehicle_manufacturer=porteur.group("make").title() if porteur else None,
+            base_vehicle_manufacturer=(
+                fmlv_base_vehicle(porteur.group("make").title()) if porteur else None
+            ),
         )
     return cards
 

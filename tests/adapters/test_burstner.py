@@ -9,15 +9,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.product_model.enums import BodyType
+
 from src.adapters.burstner import (
     DOCUMENTS,
     _band_reconciles,
+    _build_extracted_motorhome,
     _canonical_model,
     _extract,
     _find_blocks,
+    body_type_for,
     build_document_urls,
     find_document_href,
     parse_document,
+    published_chassis,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -197,10 +202,11 @@ def test_signature_sft_parses_all_four_layouts() -> None:
     by_model = {product.model: product for product in products}
     assert by_model["SFT 7.0"].rrp_pounds == 94895
     assert by_model["SFT 7.0"].base_vehicle_manufacturer == "Fiat"
-    # "Permitted number of seats (including driver)* 4 - 5 4 - 5 4 - 5 4 - 5" — every
-    # column is itself a range, and the standard (lower) figure is what FMLV records.
-    assert by_model["SFT 7.0"].mh_passenger_seats_inc_driver == 4
+    # "Permitted number of seats (including driver)* 4 - 5 4 - 5 4 - 5 4 - 5" — the row is
+    # read and kept for the run's narration, but NOT recorded: it is a type-approval
+    # ceiling, not the belted seats fitted as standard. See the seats section below.
     assert by_model["SFT 7.0"].seats_published == "4 - 5"
+    assert by_model["SFT 7.0"].mh_passenger_seats_inc_driver is None
 
 
 def test_signature_smt_parses_all_four_layouts_on_the_mercedes_chassis() -> None:
@@ -214,7 +220,7 @@ def test_signature_smt_parses_all_four_layouts_on_the_mercedes_chassis() -> None
         "SMT 7.4",
         "SMT 7.5",
     ]
-    assert products[0].base_vehicle_manufacturer == "Mercedes-Benz"
+    assert products[0].base_vehicle_manufacturer == "Mercedes"
     assert products[0].mtplm_kilograms == 4500
 
 
@@ -230,7 +236,8 @@ def test_habiton_parses_both_habiton_and_habiton_x_from_one_document() -> None:
     ]
     by_model = {product.model: product for product in products}
     assert by_model["HM 6.0"].rrp_pounds == 88995
-    assert by_model["HM 6.1"].mh_passenger_seats_inc_driver == 3  # "3 - 4" -> standard 3
+    assert by_model["HM 6.1"].seats_published == "3 - 4"
+    assert by_model["HM 6.1"].mh_passenger_seats_inc_driver is None  # a ceiling, not fitted
     # HMX's mass-in-running-order row prints one band for two columns — a genuine gap in
     # the source, not a misparse — so both HMX layouts are missing it and their payload.
     assert by_model["HMX 6.0"].mro_kilograms is None
@@ -280,3 +287,300 @@ def test_build_document_urls_reconstructs_the_three_unlinked_documents() -> None
         "https://www.buerstner.com/buerstner/01-relaunch-2025/technische-daten"
         "/26-08-17-uk/buerstner-technical-data-2027-habiton-gb.pdf"
     )
+
+
+# --------------------------------------------------------------------------- #
+# The base vehicle
+#
+# It reaches FMLV only if it is *registered as provenance*, not merely set on the
+# model: `diff/compare.py` compares only the fields the provenance dict names, and
+# `store/changes.py` proposes only those fields for a NEW product. An unregistered
+# value is silently dropped — which is how all seven of the first run's new layouts
+# (B66 C 640, Habiton HM/HMX 6.1, all four Signature SMT) reached the upload CSV with
+# `base_vehicle_manufacturer` blank, a REQUIRED field, while the 13 that already
+# existed in FMLV looked correct, their value carried through from the baseline.
+# --------------------------------------------------------------------------- #
+
+
+def _one_product(key: str):
+    products, _count = parse_document(_fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key])
+    return products[0]
+
+
+def test_every_document_names_its_own_chassis() -> None:
+    # Not a per-column figure: the chassis is stated once per document, in its own
+    # engine list, so all five are checked at document level.
+    assert published_chassis(_fixture("b66_td"))[0] == "Fiat"
+    assert published_chassis(_fixture("b66_c"))[0] == "Fiat"
+    assert published_chassis(_fixture("signature_sft"))[0] == "Fiat"
+    assert published_chassis(_fixture("signature_smt"))[0] == "Mercedes"
+    assert published_chassis(_fixture("habiton"))[0] == "Mercedes"
+
+
+def test_the_chassis_line_is_quoted_as_the_document_prints_it() -> None:
+    make, line = published_chassis(_fixture("signature_smt"))
+
+    # FMLV's spelling, which is shorter than the document's own "Mercedes Benz".
+    assert make == "Mercedes"
+    assert line == "Mercedes Benz Sprinter 4,5 t - 417 CDI"
+
+
+def test_mercedes_branded_equipment_is_not_mistaken_for_a_chassis() -> None:
+    # The Habiton document lists "Mercedes Comfort Seats" 34 lines from its real chassis
+    # line, and "Mercedes emergency call system" nearer still. Matching the make alone
+    # would read a seat trim option as the base vehicle.
+    equipment_only = """Chassis Equipment
+Mercedes Comfort Seats upholstered to match the living
+Mercedes emergency call system
+"""
+
+    assert published_chassis(equipment_only) is None
+
+
+def test_base_vehicle_is_registered_as_provenance_so_a_new_product_keeps_it() -> None:
+    # The regression this section exists for. Setting the field is not enough.
+    for key in ("b66-td", "b66-c", "signature-sft", "signature-smt", "habiton"):
+        extracted = _build_extracted_motorhome(_one_product(key), "https://example/doc.pdf")
+
+        assert extracted.motorhome.base_vehicle_manufacturer is not None, key
+        assert "base_vehicle_manufacturer" in extracted.provenance, key
+
+
+def test_the_provenance_snippet_quotes_the_document_rather_than_asserting_a_make() -> None:
+    extracted = _build_extracted_motorhome(_one_product("habiton"), "https://example/doc.pdf")
+    snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
+
+    assert extracted.motorhome.base_vehicle_manufacturer == "Mercedes"
+    assert "Sprinter 317 CDI" in snippet  # the document's own words, not the adapter's
+
+
+def _synthetic(chassis_line: str) -> str:
+    """A minimal document in Signature's letter-first shape.
+
+    One layout code on its own line, one readable label so the block is not discarded
+    as an equipment chart, and whatever chassis line the caller wants to plant.
+    """
+    return (
+        """SMT 7.0
+Price 100,000.-
+Overall length (approx. cm) 700
+Headroom (approx. cm) 200
+"""
+        + chassis_line
+    )
+
+
+def test_a_document_that_changes_chassis_overrules_the_configured_make_and_says_so() -> None:
+    # DOCUMENTS records Signature SMT as Mercedes. If Bürstner moves the range onto
+    # a Ducato, the document is the live source and wins — but a reviewer must be told
+    # the adapter expected otherwise, because the competing reading is that the document
+    # changed shape and the line was misread.
+    products, _count = parse_document(
+        _synthetic("Fiat Ducato Multijet 3 - 2.2l - 140 hp"),
+        DOCUMENTS_BY_KEY["signature-smt"],
+    )
+
+    assert products[0].base_vehicle_manufacturer == "Fiat"
+    assert products[0].base_vehicle_expected == "Mercedes"
+    extracted = _build_extracted_motorhome(products[0], "https://example/doc.pdf")
+    snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
+    assert "expected Mercedes" in snippet
+    assert "do not accept this blind" in snippet
+
+
+def test_a_document_naming_no_chassis_falls_back_to_the_configured_make() -> None:
+    # Still recorded and still registered — but the snippet must not claim the document
+    # said something it does not say.
+    products, _count = parse_document(_synthetic(""), DOCUMENTS_BY_KEY["signature-smt"])
+
+    assert products[0].base_vehicle_manufacturer == "Mercedes"
+    assert products[0].base_vehicle_published is None
+    assert products[0].base_vehicle_expected is None
+    extracted = _build_extracted_motorhome(products[0], "https://example/doc.pdf")
+    snippet = extracted.provenance["base_vehicle_manufacturer"].snippet
+    assert "names no chassis line of its own" in snippet
+
+
+# --------------------------------------------------------------------------- #
+# body_type
+#
+# Left unset until 27 August 2026, because FMLV's baseline holds two Bürstner
+# classifications that no rule derivable from the source reproduces, and proposing a
+# "correction" to a record that was actually right is worse than an honest gap.
+#
+# The requester then confirmed both are FMLV errors: TD 744 is a low profile, not an
+# `a_class` ("even the photos on FMLV back that up"), and C 644 is a plain high-top
+# campervan with no elevating roof as standard. With that settled the field is filled,
+# and the two corrections are proposed rather than left for a manual edit.
+#
+# WIDTH is the discriminator, not height. Checked against the real baseline export:
+# the rule reproduces FMLV on 11 of the 13 products it holds, and the two misses are
+# exactly those confirmed errors. Height cannot do the job - FMLV's own stored heights
+# are headroom, not overall (Habiton 1900mm, Signature 1980mm), and the documents' real
+# heights overlap between the families (vans 2650-2850, coachbuilts 2800-2990).
+# --------------------------------------------------------------------------- #
+
+
+def test_a_panel_van_width_is_a_campervan_and_a_wider_body_is_a_coachbuilt() -> None:
+    assert body_type_for(2050, 2650) == BodyType.CAMPERVAN_HIGH_TOP  # B66 C
+    assert body_type_for(2040, 2730) == BodyType.CAMPERVAN_HIGH_TOP  # Habiton HM
+    assert body_type_for(2300, 2950) == BodyType.COACH_BUILT_LOW_PROFILE  # B66 TD
+    assert body_type_for(2350, 2840) == BodyType.COACH_BUILT_LOW_PROFILE  # Signature
+
+
+def test_a_van_below_the_high_top_threshold_is_a_plain_campervan() -> None:
+    # No Bürstner layout is currently this low, but the threshold is the shared one and
+    # the rule should not silently promote a low-roof van to a high top.
+    assert body_type_for(2050, 2200) == BodyType.CAMPERVAN
+
+
+def test_body_type_is_unset_rather_than_guessed_when_a_measurement_is_missing() -> None:
+    # A row dropped by the column self-check leaves these blank, and the family cannot be
+    # told apart without the width.
+    assert body_type_for(None, 2950) is None
+    assert body_type_for(2050, None) is None  # a van whose roof height is unknown
+
+
+def test_td_744_is_a_low_profile_despite_being_the_ranges_outlier() -> None:
+    """FMLV holds `a_class`; the requester confirmed 27 August 2026 that is wrong.
+
+    TD 744 genuinely is the odd one out of its range — its own single-column table, a
+    4400kg chassis against its siblings' 3500/3650, and 2990mm against their 2950mm — so
+    the risk was reading "different" as "A-class". Width is what settles it: an A-class
+    body is wider than the semi-integrated it shares a range with, and every B66 TD is
+    2300mm.
+    """
+    products, _count = parse_document(_fixture("b66_td"), DOCUMENTS_BY_KEY["b66-td"])
+    by_model = {product.model: product for product in products}
+
+    assert by_model["TD 744"].mh_width_mm == by_model["TD 594"].mh_width_mm == 2300
+    assert by_model["TD 744"].mh_height_mm == 2990  # the tallest, not the shortest
+    assert by_model["TD 744"].mtplm_kilograms == 4400  # and the heaviest by 750kg
+    assert by_model["TD 744"].body_type == BodyType.COACH_BUILT_LOW_PROFILE
+    assert by_model["TD 744"].body_type == by_model["TD 594"].body_type
+
+
+def test_c_644_has_no_elevating_roof_despite_sleeping_four() -> None:
+    """FMLV holds `campervan_high_top_elevating_roof`; also confirmed an error.
+
+    C 644 sleeps 4 where its siblings sleep 2, which is the trap — the extra berths come
+    from its own floorplan, not from a roof. Bürstner's van page prices the pop-up roof as
+    an accessory ("Pop-up roof in Lanzarote Grey £420", "optionally available"), so it is
+    standard on nothing.
+    """
+    products, _count = parse_document(_fixture("b66_c"), DOCUMENTS_BY_KEY["b66-c"])
+    by_model = {product.model: product for product in products}
+
+    assert by_model["C 644"].berths == 4
+    assert by_model["C 600"].berths == 2
+    assert by_model["C 644"].body_type == BodyType.CAMPERVAN_HIGH_TOP
+    assert by_model["C 644"].body_type == by_model["C 600"].body_type
+
+
+def test_every_layout_gets_a_body_type_and_it_is_registered_as_provenance() -> None:
+    for key in ("b66-td", "b66-c", "signature-sft", "signature-smt", "habiton"):
+        products, _count = parse_document(
+            _fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key]
+        )
+        for product in products:
+            extracted = _build_extracted_motorhome(product, "https://example/doc.pdf")
+
+            assert extracted.motorhome.body_type is not None, f"{key} {product.model}"
+            assert "body_type" in extracted.provenance, f"{key} {product.model}"
+
+
+def test_the_body_type_snippet_does_not_cite_b66_evidence_for_another_range() -> None:
+    """The B66 pages say nothing about Signature, and the snippet must not imply they do."""
+    products, _count = parse_document(
+        _fixture("signature_smt"), DOCUMENTS_BY_KEY["signature-smt"]
+    )
+    snippet = _build_extracted_motorhome(products[0], "u").provenance["body_type"].snippet
+
+    assert "B66" not in snippet
+    assert "was not read" in snippet  # says plainly what it could not check
+
+
+# --------------------------------------------------------------------------- #
+# Seats: the published row is a type-approval CEILING, and is not recorded for the two
+# ranges where it demonstrably overstates the belted seats fitted as standard
+#
+# Footnote 3 of every document: "permitted number of seats (including driver)" is
+# "determined by the manufacturer in what is referred to as the type-approval
+# procedure". So its lower bound is not necessarily standard fitment, and the FMLV
+# baseline is what proves the difference — B66 published 4 and FMLV holds 4 on all
+# seven, but Signature SFT publishes `4 - 5` where FMLV holds 2 on three of four
+# layouts, and Habiton publishes 4 where FMLV holds 2 on both 6.0s.
+#
+# The Signature lounge is face-to-face with no belted rear seats as standard; the belted
+# seats come from "Sofa convertible to L-shaped bench (4 belted seats in total)", an
+# equipment item whose per-layout availability is marked with glyphs `extract_text`
+# drops. The SMT document does not mention the bench at all and still publishes `4 - 5`.
+#
+# Run #11 proposed 2 -> 4 on all five affected products. It should not have.
+# --------------------------------------------------------------------------- #
+
+
+def test_b66_publishes_one_seats_figure_that_fmlv_agrees_with_so_it_is_recorded() -> None:
+    for key in ("b66-td", "b66-c"):
+        products, _count = parse_document(
+            _fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key]
+        )
+        for product in products:
+            assert product.seats_published == "4"
+            assert product.mh_passenger_seats_inc_driver == 4
+            assert product.seats_overstate_standard is False
+
+
+def test_signature_seats_are_read_but_not_recorded() -> None:
+    for key in ("signature-sft", "signature-smt"):
+        products, _count = parse_document(
+            _fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key]
+        )
+        for product in products:
+            # kept, so the run can narrate what the document said...
+            assert product.seats_published == "4 - 5"
+            # ...but not recorded, and above all not proposed
+            assert product.mh_passenger_seats_inc_driver is None
+            assert product.seats_overstate_standard is True
+
+
+def test_habiton_seats_are_read_but_not_recorded() -> None:
+    products, _count = parse_document(_fixture("habiton"), DOCUMENTS_BY_KEY["habiton"])
+
+    for product in products:
+        assert product.seats_published in ("4", "3 - 4")
+        assert product.mh_passenger_seats_inc_driver is None
+
+
+def test_the_unrecorded_seats_figure_is_never_registered_as_provenance() -> None:
+    """The whole point: registering it with a `None` value would propose *clearing* the
+    figure FMLV already holds, which is worse than proposing the wrong one."""
+    for key in ("signature-sft", "signature-smt", "habiton"):
+        products, _count = parse_document(
+            _fixture(key.replace("-", "_")), DOCUMENTS_BY_KEY[key]
+        )
+        for product in products:
+            extracted = _build_extracted_motorhome(product, "https://example/doc.pdf")
+
+            assert extracted.motorhome.mh_passenger_seats_inc_driver is None
+            assert "mh_passenger_seats_inc_driver" not in extracted.provenance
+
+
+def test_b66s_seats_provenance_says_what_the_row_actually_means() -> None:
+    products, _count = parse_document(_fixture("b66_td"), DOCUMENTS_BY_KEY["b66-td"])
+    snippet = _build_extracted_motorhome(products[0], "u").provenance[
+        "mh_passenger_seats_inc_driver"
+    ].snippet
+
+    assert "type-approval maximum" in snippet
+    assert "standard and maximum are the same" in snippet
+
+
+def test_the_extra_seat_pattern_survives_the_mid_label_line_wrap() -> None:
+    # `extract_text` wraps this accessory's name mid-phrase in the real documents. Kept
+    # because the accessory is still evidence about the Signature ranges even though the
+    # seats figure is no longer recorded from them.
+    from src.adapters.burstner import _EXTRA_BELTED_SEAT
+
+    wrapped = "Additional seat secured" + chr(10) + "with a seatbelt and Isofix"
+    assert _EXTRA_BELTED_SEAT.search(wrapped)

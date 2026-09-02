@@ -402,3 +402,104 @@ The 11 range pages need not be fetched at all if the roster comes from the sitem
 fetches for the sitemap plus 48 model pages = 50 plain HTTP fetches**, no browser, no PDF
 required for the collect path. The two PDFs are worth fetching only as an occasional
 cross-check; the motorhome one is 17.6 MB.
+
+## The habitation pack — floorplans, and the ~40 layout fields the adapter never collects
+
+Built 2 September 2026, after the adapter, as the same post-build step Knaus got. Two
+outputs, both under `data/` and neither tracked:
+`data/dethleffs-2027-habitation-layouts.csv` and `data/dethleffs-2027-floorplans.html`,
+the page generated from the CSV so the two cannot drift.
+
+These cover the fields flagged out of scope in `config/field_guide_motorhome.csv` — bed
+types, sleeping area, bathroom layout, kitchen location, lounge, rear garage, fridge and
+microwave. `collect()` has no business with any of it; this is human data-entry support.
+
+### Finding the floorplans: the `is-active` variant
+
+Each model page carries an `m-model-variants` block listing **every layout in the range**
+with a floorplan thumbnail and a link. The one for *this* layout is the item whose class is
+`m-model-variants__item is-active`; its `<img src>` is the drawing. All 48 resolve, and
+each `is-active` item's `href` matches its own page URL, which is the check that the
+convention holds. Expect a fresh convention per manufacturer — Knaus identified floorplans
+by German `alt` text, not by markup.
+
+Three images are shared by two layouts each, and all three are legitimate: Globebus
+Performance and Performance 4x4 have the same habitation layout on different drivetrains
+(T 16 and T 46), and Globetrail VW Performance 600 DR and 600 DR Classic differ in trim,
+not layout.
+
+**Site bug**: `motorhomes/trend-active/i-7027` points its floorplan at
+`…/2027/trend/grundrisse/neu_trend-i-7027_v2.svg`, which **404s**. The working file is the
+same path without the `neu_` prefix, which is what the sibling Trend pages link to.
+
+Most drawings are SVG, some are PNG. Reading the SVGs needs a render pass — headless
+Chromium via the `playwright` already in the dev environment.
+
+### Reading a drawing: what is safe to state, and what is not
+
+**Never nearside/offside.** Dethleffs' renders are left-hand drive, UK vehicles are not.
+Side-versus-corner-versus-rear is safe; left-versus-right flips.
+
+**Bed orientation cannot be read from the published dimension string alone.** The drawing
+is the arbiter, and it uses a consistent idiom:
+
+* two duvets drawn *across* the body with the pillows side by side against one wall = a
+  **transverse** double;
+* two duvets running *fore and aft* with a pillow at the rear wall of each = **twin single
+  beds**;
+* one fore-and-aft double set clear of the rear wall, walk-round space at the foot and a
+  wardrobe in each rear corner = an **island** bed.
+
+The spec table's `Bed dimension: Rear bed` corroborates the first two — a single `L x W`
+figure for a transverse double, `A x 80 / B x 75 / C x W` for twin singles plus their
+infill — but it does **not** separate transverse from island: Trend Active T 7057 DBL
+publishes `195 x 150`, the same shape of figure as the transverse T 6877, and is an island
+bed. Read the drawing.
+
+Panel-van transverse beds are made possible by **widened bed niches**, drawn as bulges on
+the body outline at the rear. They are visible on all ten Fiat Globetrails and both VW
+Performances.
+
+### The three fields the requester added, and what the sources actually say
+
+**Rear garage — all 48 are `yes`, but there are two different kinds.** The 36 motorhomes
+have a dedicated rear garage: every range's standard equipment names it ("Large rear
+garage: two garage doors/flaps…"), and each model page publishes
+`Measurement storage opening right/left (W x H)`. Six Trend layouts publish **two** heights
+per side, e.g. `90 x 75 (○) / 90 x 110` — that is the height-adjustable rear bed, not a
+parsing artefact. Only the two Alpa Coachbuilts publish
+`Clear dimensions of rear garage door/flap`, an *optional* extra flap. The 12 Globetrail
+campervans publish no opening row at all; their under-bed space is loaded through the rear
+doors, and Dethleffs' own equipment list calls it "rear storage space with 4 integrated
+lashing eyes" while the model pages call it a rear garage. Recorded as `yes` with the
+distinction in each row's note, so flipping the campervans is one filter.
+
+**Fridge — all 48 are fridge/freezer, none is a plain fridge.** The 36 motorhomes publish
+`Refrigerator volume (thereof freezer), approx.` on their own page, 83 l to 177 l, always
+with a non-zero freezer figure; some print two, the second being an upgrade option. The 12
+campervans publish no such row, so theirs comes from the standard-equipment list in the GB
+camper-van PDF: 84 l with a 6.1 l freezer on the Globetrail and Active Plus, 90 l with 7 l
+on the VW Performance.
+
+**Microwave — a verified `no`, not a blank.** The word appears **nowhere** on
+dethleffs.co.uk and nowhere in either MY2027 GB technical-data PDF. That is a real negative
+rather than absence of evidence, because those PDFs carry the exhaustive optional-equipment
+and accessory price lists, which *do* list "Oven in the kitchen floor units", "Combined hob
+and oven with 4 hobs" and "Fridge (137 l) with integrated oven". Dethleffs neither fits nor
+offers a microwave on any of the 48.
+
+### Two things the layout data revealed that the adapter's own diff would not
+
+`Just Camp Active T 6762` is the **only one of the 48 with no rear bed** — its rear third
+is a full-width divisible washroom with a floor-to-ceiling wardrobe, and it is the single
+layout for which the site publishes no `Bed dimension: Rear bed` row. It sleeps two on the
+drop-down bed over the front lounge.
+
+**Seven layouts have a rear lounge**, not a rear bed: `Trend Active I 7027` (new for
+MY2027), both `XL A 6822-2` and `A 7822-2`, and all four Alpas. Their `Rear bed` figure is
+the U-shaped lounge's made-up bed, which on the Trend and both XLs is even marked optional.
+Anything that infers a rear sleeping area from the presence of a `Rear bed` row will get
+all seven wrong.
+
+Every kitchen in the range is a **side kitchen** — none is rear or corner — so
+`fmlv_kitchen_location` does not discriminate for Dethleffs either.

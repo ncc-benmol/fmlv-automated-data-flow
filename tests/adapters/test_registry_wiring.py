@@ -124,10 +124,13 @@ def test_one_manufacturer_can_hold_an_adapter_per_product_area() -> None:
 def test_asking_for_an_unwritten_product_area_returns_none_not_the_other_one() -> None:
     """The trap the tuple key exists to prevent.
 
-    A lookup that fell back to the manufacturer's only adapter would run Bailey's
-    *motorhome* scraper for a caravan run and file the results against the caravan export.
+    A lookup that fell back to the manufacturer's only adapter would run a *motorhome*
+    scraper for a caravan run and file the results against the caravan export. Asserted
+    against Swift, who build both but have only the motorhome adapter written — Bailey
+    can no longer make the point, having gained a caravan adapter of its own.
     """
-    assert adapters.adapter_for("Bailey", VehicleClass.CARAVAN) is None
+    assert adapters.adapter_for("Swift Group Ltd", VehicleClass.MOTORHOME) is not None
+    assert adapters.adapter_for("Swift Group Ltd", VehicleClass.CARAVAN) is None
 
 
 @pytest.mark.parametrize("name", ADAPTER_NAMES)

@@ -23,7 +23,7 @@ optional_equipment_payload_kilograms,Optional equipment payload (kg),NOT REQUIRE
 personal_effects_payload_kilograms,Personal effects payload (kg),REQUIRED FIELD,in_scope
 internal_length_mm,Internal length (mm),REQUIRED FIELD,in_scope
 overall_width_mm,Width (mm),REQUIRED FIELD,in_scope
-exterior_body_length_mm,Exterior body length (mm),REQUIRED FIELD,in_scope
+exterior_body_length_mm,Exterior body length (mm),"NOT REQUIRED - increasingly not published. Bailey quote internal and shipping length only, and this looks like an industry trend rather than one brand's omission. Left to whatever FMLV already holds.",
 shipping_length_mm,Shipping length (mm) - body plus towing hitch,REQUIRED FIELD,in_scope
 height_mm,Height (mm),REQUIRED FIELD,in_scope
 awning_length_mm,"Awning length (mm) - awning rail measurement, not a body dimension",REQUIRED FIELD,in_scope

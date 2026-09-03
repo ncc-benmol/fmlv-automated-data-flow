@@ -241,3 +241,102 @@ Confirmed end to end: `Bailey` appears in the review app's trigger dropdown, fil
 Both used directly as the model of what every page looks like — no near-miss document to
 reject, unlike every EHG-brand survey so far. The observation that prompted the request
 ("lots of good data on the page") held up completely.
+
+---
+
+# Bailey — touring caravans
+
+Surveyed and built 3 September 2026, as `src/adapters/bailey_caravan.py`. **The first
+caravan adapter**, and the reason Bailey was chosen for it: the motorhome survey above
+found this the cleanest source of any manufacturer, so the novelty could stay in the
+schema work rather than being tangled up with a difficult site.
+
+Note the correction to the survey above, which opens *"caravans are out of scope
+entirely — motorhomes and campervans only."* That was true until 3 September 2026.
+
+## Why a second adapter rather than a flag on the first
+
+FMLV keeps motorhomes and touring caravans as **separate exports with separate schemas**
+— 68 columns against 62, different body types, renamed dimensions, no base vehicle. One
+NCC "Export Products by Supplier" action returns both sheets. So `bailey_caravan.py`
+produces `Caravan` objects, declares `VEHICLE_CLASS = VehicleClass.CARAVAN`, and registers
+under `("Bailey", caravan)` alongside `bailey.py`'s `("Bailey", motorhome)`.
+
+Every *parsing* helper is imported from `bailey.py` unchanged — the `col-6` markup is
+identical across both halves of the site.
+
+## Where the data lives
+
+`/touring-caravans/<range>/<slug>/`, one URL per vehicle, server-rendered, no JavaScript.
+`/current-caravan-models/` links all 23 current models across the five ranges, so a full
+sweep is one index fetch plus 23 pages.
+
+**Two traps in the site's shape**, both of which cost time during the survey:
+
+* **`/caravans/` returns an `image/png` with a 200 status.** Not a 404, not a redirect —
+  the URL a person would guess serves a picture. `/touring-caravans/` is the real section
+  root, and `/current-caravan-models/` is the index worth crawling.
+* **A model page carries two blocks of `col-6` label/value pairs.** `Axle` and
+  `RRP Price` sit in an early one, roughly 96KB in; `Range`, `Model` and every dimension
+  sit under the "Technical specification" heading 240KB further down. A fixture trimmed to
+  the section a reader would call "the spec table" silently loses the axle and the price,
+  which is exactly what happened on the first attempt. The fixtures are whole pages.
+
+Unlike the motorhome template, `RRP Price` is the live row here and `OTR Price` is the
+empty one — the reverse of `bailey.py`, which has to read its price from the hero banner.
+
+## What is collected, and what is deliberately not
+
+Twelve fields off the page, plus two asserted: `body_type` (always rigid) and `twin_axle`
+(from the `Axle` row). `Total User Payload == MTPLM - MRO` reconciles on all 23 models.
+
+Three deliberate omissions:
+
+* **`exterior_body_length_mm`.** Bailey publish internal and shipping length and nothing
+  between them — the field is absent from all 23 pages. The requester's reading
+  (3 September 2026) is that this is *an industry trend rather than one brand's
+  omission*: "This may be a trend in the caravan industry to exclude that length, in
+  which case more and more manufacturers will be leaving it out." So it was taken out of
+  automated scope in `config/field_guide_caravan.csv` **globally**, not special-cased
+  here, and dropped from `caravan_schema.REQUIRED` — FMLV itself holds it blank on 5 of
+  Bailey's 27 live products, so requiring it would raise an error against FMLV's own data
+  on every run. Whatever FMLV holds is left untouched.
+* **Every layout flag.** The pages describe layouts in marketing prose — "parallel seat
+  front lounge and rear island king size bed" — and a bed-sizes block naming Front
+  Double, Front N/S Single and Rear Fixed Double. Enough to guess from, not enough to be
+  right. `bailey.py` takes the same line.
+* **`optional_equipment_payload_kilograms`.** Out of scope, and blank on all 92 real
+  caravan products FMLV holds.
+
+## Range names: the spec table abbreviates
+
+| Spec table says | FMLV holds | Action |
+|---|---|---|
+| `Pegasus Black` | `Pegasus Black Edition` | corrected |
+| `Phoenix Black` | `Phoenix Black Edition` | corrected |
+| `Unicorn Deluxe`, `Alicanto Grande Deluxe`, `Discovery` | same | left alone |
+
+The requester confirmed the longer form is the real name: the brochure and the URL slug
+both carry "Edition", and only the specification template drops it. **The page's own
+`<h1>` and `<title>` abbreviate it too** ("Pegasus Black Messina"), so there is no better
+in-page source to read instead — hence a correction table, the same resolution used for
+`Autograph` -> `Autograph IV` on the motorhome side.
+
+`Unicorn Deluxe` is a **distinct range from `Unicorn`**, not a rename of it — the
+requester was explicit. `Unicorn` (15 products) and `Phoenix +` (12) are entirely archived
+in FMLV; do not collapse them into their Deluxe/Black Edition successors.
+
+## What the first run should find
+
+Checked against FMLV's own export (81 products, 27 live) on 3 September 2026:
+
+* **Unicorn Deluxe Cabrera matches FMLV on all twelve collected fields.** A complete
+  confirmation, and the strongest evidence the extraction is right — a parsing error
+  would not land on twelve correct values.
+* Real changes elsewhere, mostly 2026 price rises and weight revisions: Messina
+  £32,499 -> £34,499 with MTPLM 1708 -> 1712kg; Phoenix 420 £23,599 -> £24,999;
+  Discovery D4-2 £19,999 -> £21,499.
+* **Four `Alicanto Grande` products will report as disappeared.** FMLV holds them live;
+  the site now lists only `Alicanto Grande Deluxe`. Expected, not a fault — they need a
+  human decision about deactivating them on the NCC site.
+* Three Discovery models publish no awning size, and FMLV holds it blank for them too.

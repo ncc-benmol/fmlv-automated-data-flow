@@ -350,10 +350,16 @@ def test_an_implausible_hitch_allowance_is_only_a_warning() -> None:
 
 
 def test_a_missing_length_is_not_treated_as_a_swap() -> None:
-    """Five of Bailey's live products have no exterior body length in FMLV at all."""
+    """No exterior body length means no swap to detect — and it is not required either.
+
+    Bailey publish internal and shipping length and nothing between them, which the
+    requester reads as an industry trend rather than one brand's omission (3 September
+    2026). So the field is out of scope and out of REQUIRED: a caravan without it is
+    complete, not deficient.
+    """
     issues = validation.validate_caravan(_complete(exterior_body_length_mm=None))
 
-    assert [issue.code for issue in issues] == ["missing_required"]
+    assert issues == []
 
 
 def test_the_payload_check_uses_personal_effects_when_optional_is_blank() -> None:

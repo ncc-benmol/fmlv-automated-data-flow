@@ -134,6 +134,13 @@ CARRY_THROUGH: frozenset[str] = frozenset(
 
 #: Guide: "REQUIRED FIELD". No `base_vehicle_manufacturer` and no passenger seats, and
 #: `personal_effects_payload_kilograms` takes the place the motorhome payload held.
+#:
+#: `exterior_body_length_mm` is deliberately **not** required, despite being a dimension
+#: every other schema would treat as fundamental. Bailey quote internal and shipping
+#: length and nothing between them, FMLV itself holds it blank on 5 of Bailey's 27 live
+#: products, and the requester reads that as an industry trend rather than one brand's
+#: omission (3 September 2026). Marking it required would raise an error against FMLV's
+#: own current data on every run.
 REQUIRED: frozenset[str] = frozenset(
     {
         "manufacturer",
@@ -147,7 +154,6 @@ REQUIRED: frozenset[str] = frozenset(
         "personal_effects_payload_kilograms",
         "internal_length_mm",
         "overall_width_mm",
-        "exterior_body_length_mm",
         "shipping_length_mm",
         "height_mm",
         "awning_length_mm",

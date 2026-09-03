@@ -247,6 +247,29 @@ labelled "permitted", the lower bound is a homologation minimum, not a fitment c
 corroborate it before recording it, and leave the field unset (and *unregistered*) if you
 cannot. See [`burstner.md`](burstner.md).
 
+### `sleeping_area_separate_childrens_area` is always blank
+
+Rule from the NCC side, 3 September 2026: **never select it.** *"We don't use the separate
+children's area field … We always leave that blank because it might be suitable for
+children, but it's not a designated children's area. And to be honest, no manufacturers at
+the moment specify that."*
+
+So `sleeping_area` only ever takes `front`, `rear` or `both`. A rear bunk pair is a
+sleeping area at the rear like any other, and the fourth option stays empty on every
+product — it is reserved for a *designated* children's area that no manufacturer currently
+declares.
+
+**The trap is that a family layout invites it.** Weinsberg's CaraHome 600 DKG is the worked
+example: the layout code literally spells it — `D` double, `K` Kinder, `G` garage — the
+drawing shows two narrow rear bunks partitioned off, and the range page sells it as the
+family motorhome. All of that is evidence about who sleeps there, and none of it is a
+manufacturer declaring a designated children's area. Record `both` and move on.
+
+The value stays in `SleepingArea` and in `config/field_guide_motorhome.csv` because it is
+FMLV's own schema — this is a rule about what to *emit*, not a reason to delete a column.
+No adapter sets `sleeping_area` at all today; it is filled by hand from the habitation
+pack, so the rule belongs there as much as here.
+
 ### Count three-point belts only — a lap belt is not a travel seat
 
 Rule from the NCC side, 3 September 2026: **`mh_passenger_seats_inc_driver` counts

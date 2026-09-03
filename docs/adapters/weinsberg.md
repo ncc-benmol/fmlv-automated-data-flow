@@ -662,7 +662,17 @@ so the pack and the review queue cannot disagree about a weight or a price.
 The spreadsheet needs no isolated environment — `openpyxl` is already a project dependency,
 since `io.read_export` reads the FMLV exports with it. It carries a second **How to read
 this** sheet holding the page link and the reading rules, and it **tints the rows that need
-a human call** so the six are findable without reading 29 note cells.
+a human call** so the five are findable without reading 29 note cells: the two CaraHome
+bed-marker swaps, the CaraCompact 600 MEG mis-filed drawing, and the two OUTLAW rows.
+
+**A sixth row was flagged and should not have been.** CaraHome 600 DKG's rear bunks were
+raised as a possible `sleeping_area_separate_childrens_area`, which the requester ruled out
+on 3 September 2026: that value is **never used and always left blank**, because a layout
+suiting children is not a manufacturer designating a children's area, and none currently
+does. `sleeping_area_both` was already the recorded value, so nothing but the note changed
+— but the layout code spelling out `K` for Kinder, the partitioned bunks and the range page
+selling it as the family motorhome made a strong-looking case for a field that is simply
+not in use. See [`README.md`](README.md).
 
 These cover the fields flagged out of scope in `config/field_guide_motorhome.csv` — bed
 types, sleeping area, bathroom layout, kitchen location, lounge, rear garage, fridge and

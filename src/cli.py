@@ -64,7 +64,13 @@ from .adapters import Adapter, adapter_for
 from .diff import DEFAULT_THRESHOLD, diff_products
 from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
-from .fetch.ncc import NccCredentials, NccCredentialsError, NccExportError, download_export
+from .fetch.ncc import (
+    NccCredentials,
+    NccCredentialsError,
+    NccExportError,
+    caravan_export_path,
+    download_export,
+)
 from .output import generate_upload
 from .product_model import caravan_io, io
 from .product_model.model import Motorhome
@@ -181,12 +187,20 @@ def fetch_export(
     data_root: Path,
     headless: bool = True,
     on_progress: Callable[[str], None] = lambda message: None,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
 ) -> Path:
     """Log in to the NCC site and download one manufacturer's current export.
 
     The shared implementation behind `fmlv fetch-export` and, via `execute_run`'s
     `refresh_export`, the automatic baseline refresh a triggered run does before
     diffing — so the two never drift apart on what "the current export" means.
+
+    **Both sheets are always downloaded** — one NCC export action returns them together —
+    and `vehicle_class` decides which of the two this returns as *the baseline for this
+    run*. Getting that wrong is silent and total rather than an error: a caravan run
+    handed the motorhome sheet parses 45 motorhomes as caravans with every dimension
+    blank, matches none of them, and reports every caravan as a new product. It did
+    exactly that on the first real caravan run, on 3 September 2026.
     """
     if not manufacturer.ncc_supplier_name:
         msg = (
@@ -203,6 +217,8 @@ def fetch_export(
         raise CommandError(str(exc)) from exc
 
     safe_name = paths.safe_path_component(manufacturer.fmlv_manufacturer)
+    # `download_export` is told where to put the motorhome sheet and derives the caravan
+    # one from it (`ncc.caravan_export_path`), so the pair stay named and dated together.
     dest_path = (
         paths.manufacturer_exports_dir(
             manufacturer.manufacturer_id, manufacturer.fmlv_manufacturer, root=data_root
@@ -220,6 +236,20 @@ def fetch_export(
         )
     except NccExportError as exc:
         raise CommandError(str(exc)) from exc
+
+    if VehicleClass(vehicle_class) is VehicleClass.CARAVAN:
+        caravan_path = caravan_export_path(dest_path)
+        if not caravan_path.exists():
+            # A motorhome-only supplier's export has no caravan sheet. Silently falling
+            # back to the motorhome one is the failure this whole argument exists to
+            # prevent, so refuse instead.
+            msg = (
+                f"{manufacturer.fmlv_manufacturer!r}'s export contains no touring-caravan "
+                f"sheet, so there is no caravan baseline to diff against. Check the "
+                f"manufacturer really does list caravans on the NCC site."
+            )
+            raise CommandError(msg)
+        return caravan_path
 
     return dest_path
 
@@ -414,7 +444,10 @@ def execute_run(
                     f"Fetching latest {manufacturer.fmlv_manufacturer} export from FMLV..."
                 )
                 export_path = _export_fetcher(
-                    manufacturer=manufacturer, data_root=data_root, on_progress=on_progress
+                    manufacturer=manufacturer,
+                    data_root=data_root,
+                    on_progress=on_progress,
+                    vehicle_class=vehicle_class,
                 )
                 on_progress(
                     f"Using export {export_path} "

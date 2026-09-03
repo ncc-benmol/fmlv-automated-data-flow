@@ -332,3 +332,130 @@ def test_outside_the_rollover_window_an_unchanged_caravan_contributes_nothing() 
     cabrera = next(d for d in diffs if d.key == "Bailey Unicorn Deluxe Cabrera")
 
     assert cabrera.year_rollover_eligible is False
+
+
+# --------------------------------------------------------------------------- #
+# The refresh_export path — the only one the review app uses
+# --------------------------------------------------------------------------- #
+
+
+def test_fetch_export_hands_a_caravan_run_the_caravan_sheet(tmp_path: Path, monkeypatch) -> None:
+    """The bug the first real caravan run found, on 3 September 2026.
+
+    `fetch_export` downloads both sheets and used to return the motorhome one whatever it
+    was asked for. `execute_run` fed that straight to the caravan parser, which read
+    Bailey's 45 motorhomes as caravans with every dimension blank — so none of the 23
+    caravan scrapes matched, and all 23 came through as new products.
+
+    Silent and total, which is why it is worth a test on the return value alone rather
+    than only on the end-to-end result.
+    """
+    from src import cli
+    from src.fetch import ncc
+
+    saved: dict[str, Path] = {}
+
+    def fake_download(credentials, supplier_name, dest_path, **kwargs):  # noqa: ANN001, ARG001
+        dest = Path(dest_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"motorhome sheet")
+        caravans = ncc.caravan_export_path(dest)
+        caravans.write_bytes(b"caravan sheet")
+        saved["motorhomes"] = dest
+        saved["caravans"] = caravans
+        return dest
+
+    monkeypatch.setattr(cli, "download_export", fake_download)
+    monkeypatch.setattr(
+        cli.NccCredentials, "from_env", classmethod(lambda cls: cls(email="a@b", password="x"))
+    )
+
+    caravan_baseline = cli.fetch_export(
+        manufacturer=BAILEY, data_root=tmp_path, vehicle_class=VehicleClass.CARAVAN
+    )
+    motorhome_baseline = cli.fetch_export(
+        manufacturer=BAILEY, data_root=tmp_path, vehicle_class=VehicleClass.MOTORHOME
+    )
+
+    assert caravan_baseline == saved["caravans"]
+    assert caravan_baseline.read_bytes() == b"caravan sheet"
+    assert motorhome_baseline == saved["motorhomes"]
+    assert caravan_baseline != motorhome_baseline
+
+
+def test_fetch_export_refuses_rather_than_falling_back_to_the_wrong_sheet(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A motorhome-only supplier has no caravan sheet, and must not get the other one."""
+    from src import cli
+
+    def fake_download(credentials, supplier_name, dest_path, **kwargs):  # noqa: ANN001, ARG001
+        dest = Path(dest_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"motorhome sheet only")
+        return dest
+
+    monkeypatch.setattr(cli, "download_export", fake_download)
+    monkeypatch.setattr(
+        cli.NccCredentials, "from_env", classmethod(lambda cls: cls(email="a@b", password="x"))
+    )
+
+    with pytest.raises(cli.CommandError, match="no touring-caravan sheet"):
+        cli.fetch_export(
+            manufacturer=BAILEY, data_root=tmp_path, vehicle_class=VehicleClass.CARAVAN
+        )
+
+
+@requires_real_export
+def test_execute_run_refreshing_its_export_diffs_against_caravans(tmp_path: Path) -> None:
+    """End to end down the path the review app actually takes: `refresh_export=True`.
+
+    The previous end-to-end test called `read_baseline` directly with the caravan file,
+    and the `latest_export` tests covered `--export`. Neither went through the fetcher,
+    which is where the bug was.
+    """
+    from src import cli
+
+    export_dir = paths.manufacturer_exports_dir(28, "Bailey", root=tmp_path)
+    export_dir.mkdir(parents=True)
+    caravan_copy = export_dir / "2026-09-03_Bailey_touring-caravans.xlsx"
+    caravan_copy.write_bytes(REAL_EXPORT.read_bytes())
+    motorhome_copy = export_dir / "2026-09-03_Bailey_motorhome-campervans.xlsx"
+    motorhome_copy.write_bytes(b"not a real workbook")
+
+    def fake_fetcher(*, manufacturer, data_root, on_progress, vehicle_class):  # noqa: ANN001, ARG001
+        assert vehicle_class is VehicleClass.CARAVAN, "the run must ask for its own area"
+        return caravan_copy
+
+    class _Adapter:
+        MANUFACTURER = "Bailey"
+
+        @staticmethod
+        def collect(http, browser, snapshot_dir, *, on_progress=lambda m: None):  # noqa: ANN001, ARG004
+            return scraped_fixtures()
+
+    summary = cli.execute_run(
+        manufacturer=BAILEY,
+        adapter=_Adapter(),
+        data_root=tmp_path,
+        refresh_export=True,
+        vehicle_class=VehicleClass.CARAVAN,
+        _export_fetcher=fake_fetcher,
+        _fetcher_factory=lambda d: _NullContext(),
+        _browser_factory=lambda d: _NullContext(),
+    )
+
+    assert summary.baseline_count == 23
+    assert summary.scraped_count == 4
+    # The symptom the first real run showed: every scrape classified as new because the
+    # baseline was 45 motorhomes read through the caravan parser.
+    assert summary.kinds.get("new_product", 0) == 0
+    assert summary.kinds["changed_field"] + summary.kinds["unchanged_confirmed"] == 4
+
+
+class _NullContext:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args) -> bool:
+        return False

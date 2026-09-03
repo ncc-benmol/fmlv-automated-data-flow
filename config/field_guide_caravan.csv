@@ -1,0 +1,63 @@
+﻿field_name,field_description,comment,automated_collection_scope_flag
+product_id,FMLV Product ID,PLEASE Leave as is!,
+year,Model Year,PLEASE Leave as is!,
+manufacturing_release_date,Manufacturer Release Date,PLEASE Leave as is!,
+manufacturer,MANUFACTURER NAME of TOURING CARAVAN,REQUIRED FIELD,in_scope
+manufacturer_display_name,Brand name of model,REQUIRED FIELD,in_scope
+manufacturer_range,Range name,REQUIRED FIELD,in_scope
+dealer_specials_range,"Or, Dealer EXCLUSIVE range name",LEAVE BLANK UNLESS DEALER EXCLUSIVE,
+dealer,Dealer name,LEAVE BLANK UNLESS DEALER EXCLUSIVE,
+model,Model variant (e.g. Unicorn Cabrera),REQUIRED FIELD,in_scope
+dealer_model_variant,Or Dealer EXCLUSIVE model variant,LEAVE BLANK UNLESS DEALER EXCLUSIVE,
+type_rigid,Rigid,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,in_scope
+type_folding,Folding,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,in_scope
+type_pop_up,Pop up,SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION,in_scope
+type_micro,Micro,"SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION. Micro requires BOTH: the manufacturer calls it a micro, AND MTPLM is 1250kg or lower. A micro should be towable by a very small car. Manufacturers sometimes call a caravan a micro when it is merely smaller than usual and over that weight - those are rigid.",in_scope
+berths,Berths,REQUIRED FIELD,in_scope
+rrp_pounds,RRP (£),REQUIRED FIELD,in_scope
+price_min_range_pounds,Min price guide,NOT REQUIRED,
+price_max_range_pounds,Max range,NOT REQUIRED,
+mtplm_kilograms,MTPLM (kg),REQUIRED FIELD,in_scope
+mro_kilograms,MRO (kg),REQUIRED FIELD,in_scope
+optional_equipment_payload_kilograms,Optional equipment payload (kg),NOT REQUIRED - rarely published,
+personal_effects_payload_kilograms,Personal effects payload (kg),REQUIRED FIELD,in_scope
+internal_length_mm,Internal length (mm),REQUIRED FIELD,in_scope
+overall_width_mm,Width (mm),REQUIRED FIELD,in_scope
+exterior_body_length_mm,Exterior body length (mm),REQUIRED FIELD,in_scope
+shipping_length_mm,Shipping length (mm) - body plus towing hitch,REQUIRED FIELD,in_scope
+height_mm,Height (mm),REQUIRED FIELD,in_scope
+awning_length_mm,"Awning length (mm) - awning rail measurement, not a body dimension",REQUIRED FIELD,in_scope
+twin_axle,Twin axle,SELECT 'YES/NO',in_scope
+headroom_mm,Headroom (mm),REQUIRED FIELD,in_scope
+sleeping_area_front,Front,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION,
+sleeping_area_rear,Rear,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION,
+sleeping_area_both,Both,SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION,
+make_up_beds,Make up bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+fixed_bed,Fixed bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+fixed_bunks,Fixed bunks,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+fixed_separate_beds,Fixed separate beds,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+island_bed,Island bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+transverse_bed,Transverse bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+drop_down_bed,Drop down bed,SELECT 'YES' AGAINST ALL BED TYPES THAT APPLY,
+side_kitchen,Side,SELECT 'YES' AGAINST ONE KITCHEN LOCATION,
+rear_kitchen,Rear,SELECT 'YES' AGAINST ONE KITCHEN LOCATION,
+corner_kitchen,Corner,SELECT 'YES' AGAINST ONE KITCHEN LOCATION,
+no_toilet,No toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+no_shower,No shower,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+toilet_only,Toilet only,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+shower_only,Shower only,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+rear_shower_toilet,Rear shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+side_shower_toilet,Side shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+separate_shower_toilet,Separate shower & toilet,SELECT 'YES' AGAINST ONE BATHROOM LAYOUT,
+front_lounge,Front lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION,
+rear_lounge,Rear lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION,
+twin_lounge,Twin lounge,SELECT 'YES' AGAINST ONE LOUNGE LOCATION,
+blown_air_heating,Blown air,SELECT 'YES' AGAINST ONE HEATING TYPE,
+wet_central_heating,Wet central heating,SELECT 'YES' AGAINST ONE HEATING TYPE,
+no_heating,No heating,SELECT 'YES' AGAINST ONE HEATING TYPE,
+fridge,Fridge,SELECT 'YES' IN IF MODEL HAS FRIDGE OR FRIDGE FREEZER (do not put 'YES' in both columns),
+fridge_freezer,Fridge / freezer,SELECT 'YES' IN IF MODEL HAS FRIDGE OR FRIDGE FREEZER (do not put 'YES' in both columns),
+microwave,Microwave,SELECT 'YES/NO',
+latest_model_id,Latest Model ID,PLEASE Leave as is!,
+images,Link to Images,PLEASE Leave as is!,
+archived,Archived,PLEASE Leave as is!,

@@ -625,3 +625,154 @@ Europe already has.
 4. **X-PEDITION's specs come from the European euro list**, the only document carrying them.
    If Weinsberg publish a UK X-PEDITION price list, switch to it — and note the microsite
    disagrees with both on length and height.
+
+## The habitation pack — floorplans, and the fields the adapter never collects
+
+Built 3 September 2026, after the adapter, as the same post-build step Knaus and Dethleffs
+got. Four outputs, all under `data/` and none tracked — they are large and regenerable:
+
+| File | What it is |
+|---|---|
+| `weinsberg-2027-habitation-layouts.csv` | the data, 29 rows × 21 columns — **the only hand-maintained one** |
+| `weinsberg-2027-floorplans.html` | the reference page, published as an Artifact |
+| `weinsberg-2027-floorplans.pdf` | that page printed to A4, 59 pages |
+| `weinsberg-2027-floorplans.docx` | a Word version, for annotating |
+
+**Everything downstream is generated from the CSV**, so the four cannot drift: edit the CSV
+and rebuild. The numeric columns are taken from `weinsberg.collect()` rather than retyped,
+so the pack and the review queue cannot disagree about a weight or a price. The HTML carries
+a print stylesheet, so `Ctrl+P` from the published Artifact gives the same document as the
+generated PDF — on paper the card goes single column so the drawing gets the full text width.
+
+The Word build needs `python-docx`, which is **not** a project dependency and should not
+become one — run it isolated, `uv run --with python-docx --no-project python <script>`. Two
+things it needs that the HTML build does not: the drawings re-encoded as plain JPEG, because
+python-docx raises `UnrecognizedImageError` on Weinsberg's own PNGs, and `Arial Narrow`
+rather than a webfont.
+
+These cover the fields flagged out of scope in `config/field_guide_motorhome.csv` — bed
+types, sleeping area, bathroom layout, kitchen location, lounge, rear garage, fridge and
+microwave. `collect()` has no business with any of it; this is human data-entry support.
+
+### Finding the floorplans: `layout-plans`, and the drawing comes *before* its caption
+
+**The UK layouts page is `/layout-plans/`, not `/layouts/`.** The survey had already
+concluded there was no per-layout page after `/layouts/` and `/grundrisse/` both 404'd; the
+real slug was sitting in a link on the range page all along, which is the README's "follow
+the link a customer sees" rule catching a wrong conclusion. Each of the four motorhome
+ranges has one, carrying a card per layout with the drawing, the price, the length, and a
+**Bed variants** line.
+
+The two campervan ranges have no `layout-plans` page. Their current MY2027 drawings are on
+`/en-uk/the-brand/new-products-2027/carabus-{grey-,}edition-fire/`, and X-PEDITION's are on
+its own microsite. Three different conventions for one brand.
+
+Three traps, all of which put a drawing on the wrong vehicle while looking perfectly fine:
+
+- **The image precedes its heading.** Verified by dumping byte offsets:
+  `…grundriss-650mf-overview.png` at 24331, then `CaraCore 650 MF` at 24736. A window
+  running *forwards* from each heading therefore collects the **next** layout's plan, which
+  is an off-by-one across the whole range with no visible symptom.
+- **A layout code can be a prefix of another.** `600 MQ` is a prefix of `600 MQH`, so a
+  substring filename test hands the 258 cm 600 MQ the 312 cm high-roof MQH's drawing — and
+  passes its own check. The match has to be delimited (`[-_]600mq[-_.]`).
+- **A teaser card sits above the real ones** on both campervan pages, so the first heading
+  on the page is not a layout card at all.
+
+The pairing that works reads the **filename first** where a drawing is filed under the
+layout's own code, and falls back to position otherwise. Exactly one layout needs the
+fallback: **CaraSuite 700 MEG**, whose drawing is still filed under last season's `700me`.
+
+### Weinsberg serve one layout the wrong drawing, and only the small one is right
+
+`edition-pepper/layout/600meg/` serves the **580 MEG's** plan as both its `-tag` and its
+`-nacht` full-size asset. Only the 600 MEG's 600×220 `-overview` is its own. Since the
+motorhome `-overview` drawings are too small to read a washroom from, the build upgrades
+each one to its `-tag` — and taking the bigger file on faith puts a 638 cm vehicle's plan
+on a 675 cm one.
+
+So the upgrade is **verified, not trusted**: it compares the *aspect ratio of the drawn
+content* before and after, and rejects a replacement more than 2% out. Aspect tracks length
+here — 2.151 for the 638 cm 580 MEG against 2.285 for the 675 cm 600 MEG, a 6.2% gap
+matching 675/638 — so the swap fails immediately and the correct small drawing is kept, with
+the reason carried into that row's notes as a flag. Every honest upgrade measured under 0.2%
+out. **Any manufacturer whose drawings come in more than one size needs the same check**; a
+mis-filed asset is invisible to a filename test and to the eye.
+
+### Reading a drawing: what was safe to state
+
+**Never nearside/offside.** Weinsberg's renders are left-hand drive and UK vehicles are not.
+Side, rear and corner are safe; left and right flip. The page says so in its own header.
+
+**The layout code is a third, independent source, and it is reliable.** Weinsberg's codes
+are descriptive German abbreviations — `E` Einzelbetten (single beds), `F` französisches
+Bett (French bed), `Q` Querbett (transverse), `D` Doppelbett (double), `K` Kinder
+(children's bunks), `G` Garage, `H` Hochdach (high roof). On all 29 layouts the code, the
+`Bed size, rear` dimensions and the drawing agree with each other.
+
+**Which is what exposed a real error in Weinsberg's price list.** The `Single bed` and
+`Transverse bed` marker rows are **swapped between CaraHome 650 DG and 650 MEG**: the
+document marks the 650 DG "Single bed" where its `210 x 141/135` dimension, its drawing and
+its `D` code all say transverse double, and marks the 650 MEG "Transverse bed" where its
+`190 x 87; 201 x 87`, its drawing and its `E` code all say twin singles. Three sources
+against one. Recorded from the drawing, and flagged on both rows.
+
+**`***` on a drawing is the freezer star rating.** It appears on the fridge cabinet of every
+one of the 29 plans, which is a second source for `fridge_freezer` independent of the
+`Refrigerator (ltr.)` row.
+
+**Weinsberg publish no "island bed" marker row.** CaraSuite 700 DX is marked
+`Queen-size bed`, and its drawing shows a 196 x 162 double set clear of the rear wall with
+walk-round space at the foot and a wardrobe in each rear corner. That is `island_bed`.
+
+**A published bed size is not a standard bed.** Every CaraSuite layout prints a
+`Bed size, lifting bed` figure, but `Beds` excludes it (3 against a `Max. number of beds`
+of 5), so the lifting bed is an option and is left out of the bed types per the
+base-vehicle rule. On CaraCore and on the CaraBus 600 DQ/600 MQH/630 ME the same bed *is*
+counted in `Beds`, so there it is standard. Read the two rows together, not the size.
+
+### The rear garage, and the one row to check
+
+**All 14 motorhomes: `yes`.** Every motorhome price list makes
+`Garage door <W> x <H> cm, left/right` standard with published opening dimensions, which is
+precisely the external-hatch test the requester set for Dethleffs on 2 September 2026.
+Standard load capacity 150 kg, 250 kg a £1,165 option.
+
+**Twelve of the fifteen campervans: `no`.** Their only rear-storage row is
+`552964-10 Large variable storage space in the rear`, standard on all seven layouts of each
+range with hint `H181 Garage height 135 cm`. No `Garage door` row exists for the campervans
+at all — no external hatch, no published opening. Under-bed space loaded through the rear
+doors, which is the requester's Dethleffs `no`.
+
+**The two 630 MEGs are recorded `yes` and flagged.** The 630 MEG is the `[OUTLAW]`:
+Weinsberg's page calls it a *"separate rear garage"* with *"room for two motorcycles or one
+quad bike"* and a *"gas-tight door"* from the living area, the drawing has a motorcycle in
+it, and the price list adds two options unique to this layout —
+`102785 Checker plate for garage floor` and `103460 Low garage height` — plus airline rails
+and lashing eyes. It is still loaded through the rear doors rather than a side hatch, so the
+**letter** of the Dethleffs test says no while its **reason** — *is this just the space
+under the bed?* — says yes. Recorded `yes` on the reason, and put to the requester.
+
+### Microwave: a `no`, but a weaker one than Dethleffs'
+
+The word appears **zero times** in every Weinsberg document read: all six UK price lists
+and both MY2027 catalogues. But **no oven is listed either** — the only `oven`/`grill` hits
+in any of them are radiator grilles — so unlike Dethleffs, whose PDFs price three different
+ovens and no microwave, these documents may simply not enumerate cooking appliances beyond
+the hob. Recorded `no`, with that caveat on every row rather than hidden here.
+
+Heating is a `TRUMA Combi 4` or `Combi 6` on every layout, so blown air throughout. Not a
+column in the CSV, but stated in the notes.
+
+### Two things the layout data revealed that the adapter's own diff would not
+
+**Every CaraBus GREY layout shares its drawing with the plain FIRE equivalent** — 7 pairs,
+byte-identical. That is legitimate: GREY is a colour and trim edition on the same seven
+habitation layouts, which is also why the two price lists carry identical rosters and
+identical prices and differ only by a few kilograms of MRO. 22 distinct drawings cover 29
+layouts.
+
+**Every kitchen in the range is a side kitchen** and every lounge is a front lounge, so
+`fmlv_kitchen_location` and `fmlv_lounge_location` do not discriminate for Weinsberg any
+more than they do for Dethleffs. The washroom does: `separate_shower_toilet` on CaraCore,
+CaraHome and CaraSuite, `side_shower_toilet` on CaraCompact, the CaraBus and X-PEDITION.

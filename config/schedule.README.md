@@ -42,3 +42,25 @@ for the normal interval to come round, rather than hammering a flaky source.
 whole file from loading. Checked at load time: `manufacturer_id` and `first_run`
 are present and parse, `frequency_value` is a positive integer, `frequency_unit` is
 one of the three known units, and `schedule_id` is unique across rows.
+
+## `vehicle_class`
+
+Which FMLV product area this row sweeps: `motorhome` (the default when the column is
+blank or absent) or `caravan`.
+
+**A manufacturer that builds both needs two rows, not one.** Bailey has a motorhome
+adapter and a caravan adapter, and a schedule row names one of them — there is no row
+that means "sweep everything Bailey makes". That is deliberate rather than an omission:
+
+* The two are separate FMLV exports with separate schemas, reviewed separately and
+  uploaded through separate importers. A single run producing both would have to produce
+  two CSVs, and the reviewer would have two different-shaped change queues under one run.
+* **Their model years do not roll over together.** Caravan and motorhome ranges are
+  announced at different shows, so the cadence that suits one rarely suits the other.
+
+"Due" is worked out per area — a caravan row is not held back by the motorhome row having
+run this morning. The one thing still shared is the in-progress guard: only one sweep of
+any kind runs against a manufacturer at a time, because both hit the same web server and
+we are a guest on it.
+
+An unrecognised value is a warning, not an error, and the row is treated as `motorhome`.

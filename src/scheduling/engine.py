@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 
 from .. import store
 from ..adapters import Adapter
+from ..vehicle_class import VehicleClass
 from ..cli import CommandError, resolve_ranges
 from .models import ScheduleEntry
 
@@ -46,9 +47,15 @@ def resolved_range_label(entry: ScheduleEntry, adapter: Adapter | None) -> str |
 
 
 def _last_scheduled_run(
-    connection: sqlite3.Connection, *, manufacturer_id: int, range_label: str | None
+    connection: sqlite3.Connection,
+    *,
+    manufacturer_id: int,
+    range_label: str | None,
+    vehicle_class: VehicleClass,
 ) -> store.Run | None:
-    for run in store.list_runs(connection, manufacturer_id=manufacturer_id):
+    for run in store.list_runs(
+        connection, manufacturer_id=manufacturer_id, vehicle_class=vehicle_class
+    ):
         if run.trigger == "scheduled" and run.range_label == range_label:
             return run
     return None
@@ -71,7 +78,12 @@ def next_due_at(
     whether that run succeeded or failed, so a failure waits for the normal interval
     rather than being retried early (see the README).
     """
-    last_run = _last_scheduled_run(connection, manufacturer_id=entry.manufacturer_id, range_label=range_label)
+    last_run = _last_scheduled_run(
+        connection,
+        manufacturer_id=entry.manufacturer_id,
+        range_label=range_label,
+        vehicle_class=entry.vehicle_class,
+    )
     if last_run is None:
         return entry.first_run.astimezone(UTC)
     return _as_utc(datetime.fromisoformat(last_run.started_at)) + entry.frequency
@@ -84,18 +96,40 @@ def last_triggered_at(
     connection: sqlite3.Connection,
 ) -> datetime | None:
     """When this entry last actually ran, or `None` if it never has."""
-    last_run = _last_scheduled_run(connection, manufacturer_id=entry.manufacturer_id, range_label=range_label)
+    last_run = _last_scheduled_run(
+        connection,
+        manufacturer_id=entry.manufacturer_id,
+        range_label=range_label,
+        vehicle_class=entry.vehicle_class,
+    )
     return _as_utc(datetime.fromisoformat(last_run.started_at)) if last_run else None
 
 
-def has_run_in_progress(connection: sqlite3.Connection, *, manufacturer_id: int) -> bool:
+def has_run_in_progress(
+    connection: sqlite3.Connection,
+    *,
+    manufacturer_id: int,
+    vehicle_class: VehicleClass | None = None,
+) -> bool:
     """Whether a run (of any trigger) is already `running` for this manufacturer.
 
     Guards against a scheduler tick starting a second run for a manufacturer that's
     still mid-run — one browser/HTTP sweep per manufacturer at a time, same as a
     person triggering a run by hand would expect.
+
+    `vehicle_class` defaults to `None`, meaning *any* area, which keeps the guard
+    deliberately conservative: Bailey's caravan and motorhome sweeps hit the same web
+    server, so letting them overlap because they are nominally different runs would
+    double the load on a site we are a guest on.
     """
-    return bool(store.list_runs(connection, manufacturer_id=manufacturer_id, status="running"))
+    return bool(
+        store.list_runs(
+            connection,
+            manufacturer_id=manufacturer_id,
+            status="running",
+            vehicle_class=vehicle_class,
+        )
+    )
 
 
 def is_due(

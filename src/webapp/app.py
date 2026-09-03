@@ -172,7 +172,7 @@ def check_schedule(app: FastAPI) -> list[scheduling.ScheduleEntry]:
             manufacturer = by_id.get(entry.manufacturer_id)
             if manufacturer is None:
                 continue
-            adapter = adapter_for(manufacturer.fmlv_manufacturer)
+            adapter = adapter_for(manufacturer.fmlv_manufacturer, entry.vehicle_class)
             if adapter is None:
                 continue
 
@@ -198,6 +198,7 @@ def check_schedule(app: FastAPI) -> list[scheduling.ScheduleEntry]:
                     refresh_export=True,
                     data_root=app.state.data_root,
                     trigger="scheduled",
+                    vehicle_class=entry.vehicle_class,
                     collect_kwargs=collect_kwargs,
                     on_progress=_on_progress,
                 )
@@ -399,13 +400,20 @@ def create_app(
                 if manufacturer
                 else f"manufacturer_id {entry.manufacturer_id}"
             )
-            adapter = adapter_for(manufacturer.fmlv_manufacturer) if manufacturer else None
+            adapter = (
+                adapter_for(manufacturer.fmlv_manufacturer, entry.vehicle_class)
+                if manufacturer
+                else None
+            )
 
             if manufacturer is None:
                 error = f"no manufacturer_id {entry.manufacturer_id} in the registry"
                 status = None
             elif adapter is None:
-                error = f"no adapter written for {manufacturer.fmlv_manufacturer!r} yet"
+                error = (
+                    f"no {entry.vehicle_class.value} adapter written for "
+                    f"{manufacturer.fmlv_manufacturer!r} yet"
+                )
                 status = None
             else:
                 status = scheduling.describe(entry, adapter=adapter, connection=connection)

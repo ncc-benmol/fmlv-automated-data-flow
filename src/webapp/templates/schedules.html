@@ -35,7 +35,10 @@
         {% for row in rows %}
           <tr>
             <td>{{ row.entry.schedule_id }}</td>
-            <td>{{ row.manufacturer_name }}</td>
+            <td>
+              {{ row.manufacturer_name }}
+              <span class="badge vehicle-class {{ row.entry.vehicle_class.value }}" title="{{ row.entry.vehicle_class.label }}">{{ row.entry.vehicle_class.badge }}</span>
+            </td>
             <td>{{ row.range_display }}</td>
             <td>{{ row.frequency_display }}</td>
             <td>

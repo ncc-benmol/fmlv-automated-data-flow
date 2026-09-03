@@ -6,6 +6,7 @@ import csv
 from pathlib import Path
 
 from src import scheduling
+from src.vehicle_class import VehicleClass
 
 _COLUMNS = (
     "schedule_id",
@@ -117,3 +118,68 @@ def test_real_schedule_csv_loads_cleanly() -> None:
     errors = [issue for issue in result.issues if issue.severity == "error"]
     assert errors == []
     assert result.entries
+
+
+def test_a_row_without_a_vehicle_class_column_means_motorhomes(tmp_path: Path) -> None:
+    """Every schedule written before caravans existed keeps meaning what it meant."""
+    path = tmp_path / "schedule.csv"
+    path.write_text(
+        "schedule_id,manufacturer_id,ranges,first_run,frequency_value,frequency_unit,enabled\n"
+        "bailey-weekly,28,,2026-09-01 03:00,7,days,true\n",
+        encoding="utf-8",
+    )
+
+    result = scheduling.load(path)
+
+    assert not [issue for issue in result.issues if issue.severity == "error"]
+    assert result.entries[0].vehicle_class is VehicleClass.MOTORHOME
+
+
+def test_a_caravan_row_is_read_as_one(tmp_path: Path) -> None:
+    path = tmp_path / "schedule.csv"
+    path.write_text(
+        "schedule_id,manufacturer_id,ranges,first_run,frequency_value,frequency_unit,"
+        "enabled,vehicle_class\n"
+        "bailey-caravans,28,,2026-09-01 03:00,7,days,true,caravan\n",
+        encoding="utf-8",
+    )
+
+    result = scheduling.load(path)
+
+    assert result.entries[0].vehicle_class is VehicleClass.CARAVAN
+
+
+def test_one_manufacturer_can_hold_a_row_per_product_area(tmp_path: Path) -> None:
+    """Bailey's two line-ups roll over at different shows, so they want different cadences."""
+    path = tmp_path / "schedule.csv"
+    path.write_text(
+        "schedule_id,manufacturer_id,ranges,first_run,frequency_value,frequency_unit,"
+        "enabled,vehicle_class\n"
+        "bailey-mh,28,,2026-09-01 03:00,7,days,true,motorhome\n"
+        "bailey-cv,28,,2026-09-01 04:00,14,days,true,caravan\n",
+        encoding="utf-8",
+    )
+
+    result = scheduling.load(path)
+
+    assert not [issue for issue in result.issues if issue.severity == "error"]
+    assert [e.vehicle_class for e in result.entries] == [
+        VehicleClass.MOTORHOME,
+        VehicleClass.CARAVAN,
+    ]
+
+
+def test_an_unknown_vehicle_class_warns_and_falls_back(tmp_path: Path) -> None:
+    path = tmp_path / "schedule.csv"
+    path.write_text(
+        "schedule_id,manufacturer_id,ranges,first_run,frequency_value,frequency_unit,"
+        "enabled,vehicle_class\n"
+        "bailey-boats,28,,2026-09-01 03:00,7,days,true,narrowboat\n",
+        encoding="utf-8",
+    )
+
+    result = scheduling.load(path)
+
+    assert [i.code for i in result.issues] == ["unknown_vehicle_class"]
+    assert result.issues[0].severity == "warning"
+    assert result.entries[0].vehicle_class is VehicleClass.MOTORHOME

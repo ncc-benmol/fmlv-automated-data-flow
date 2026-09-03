@@ -44,17 +44,28 @@ Concretely, for one manufacturer at a time:
 
 ### Non-goals for the prototype
 
-- Touring caravans (see §3).
+- ~~Touring caravans (see §3).~~ No longer a non-goal — added 3 September 2026.
 - Writing to the NCC website automatically (see §6.2).
 - Image handling and floorplan interpretation (see §10).
 - Multi-user concurrency in the review step — one reviewer at a time is fine.
 
 ## 3. Scope
 
-**Motorhomes and campervans only.** It is by far the larger and more important segment.
-Touring caravans use a different export schema (62 columns vs 68, different type flags and
-dimension sets) and are deferred to a later phase. The manufacturer registry carries a
-`categories` column from day one so caravans can be switched on without a schema change.
+**Motorhomes, campervans and — since 3 September 2026 — touring caravans.**
+
+Motorhomes came first: by far the larger and more important segment. Caravans use a
+different export schema (62 columns vs 68, different type flags and dimension sets) and
+were deferred until the motorhome path had earned its keep across sixteen manufacturers.
+
+The prediction this section made — that the registry's `categories` column meant caravans
+could "be switched on without a schema change" — was half right. The registry needed
+nothing. Everything downstream of it needed a second schema (`product_model/caravan*.py`),
+a product area on the run and on product identity (`vehicle_class.py`), and an adapter key
+that admits two adapters per manufacturer, because eight of the seventeen build both.
+
+What did *not* need changing is the part that matters: the diff engine, the run store, the
+decision trail and the review UI were already schema-agnostic — `proposed_change.field` is
+free text — so the whole review and upload path took caravans without alteration.
 
 ---
 
@@ -480,7 +491,7 @@ only place a schedule is actually created or changed at this stage.
 
 Not in the prototype, but designed around so they can be added without rework:
 
-- **Touring caravans** — second schema, second set of adapters.
+- ~~**Touring caravans** — second schema, second set of adapters.~~ **Done, 3 September 2026** — see §3. Bailey was the pilot; the remaining seven dual-line manufacturers need a caravan adapter each.
 - **Images and floorplans** — the `images` column is carried through untouched today.
   Worth revisiting for *new* products, where the ~40 layout flags must be determined and
   the floorplan image may be the only reliable source.

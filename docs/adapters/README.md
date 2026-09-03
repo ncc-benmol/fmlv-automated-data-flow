@@ -969,3 +969,44 @@ as a generic capability, not something specific to Adria.
   — but `cli._is_current_model_year` already drops them, because they carry 2024 and 2022.
   The baseline the diff sees was 29 and nothing disappeared. Count against the *filtered*
   baseline, not the raw export.
+
+## Writing a caravan adapter
+
+Bailey's is the first (`src/adapters/bailey_caravan.py`, `docs/adapters/bailey.md`), and
+the shape it settled is worth reusing.
+
+**A manufacturer that builds both gets two adapter modules, not one with a flag.** They
+are different URLs, a different specification table and a differently-shaped product.
+Declare `VEHICLE_CLASS = VehicleClass.CARAVAN` at module level — omitting it means
+motorhomes, which is why none of the seventeen motorhome adapters needed an edit — and
+register the module in `_MODULES`; the `(manufacturer, class)` key is derived from what
+the module declares, so it cannot drift.
+
+Import the sibling's parsing helpers rather than reimplementing them. Bailey's caravan
+pages use markup identical to its motorhome pages, so `bailey_caravan.py` imports
+`_field`, `_kilograms`, `_metres_to_mm` and `_leading_int` from `bailey.py` unchanged.
+
+**Four lengths, and they are not interchangeable.** `internal_length_mm` is the habitable
+space; `exterior_body_length_mm` is the body; `shipping_length_mm` adds the towing hitch,
+so it is always the larger of those two; and `awning_length_mm` is an awning rail
+measurement rather than a vehicle dimension at all — it routinely exceeds the body length.
+Getting shipping and exterior body the wrong way round is the most plausible single
+mistake available: both are lengths, both sit in the same table, and on any one product
+either ordering looks reasonable. `validation` makes it an error rather than leaving it to
+a reviewer's eye.
+
+**`exterior_body_length_mm` is out of automated scope.** Bailey do not publish it at all,
+and the requester reads that as an industry trend rather than one brand's omission
+(3 September 2026). Do not add it back for a manufacturer that happens to publish it
+without asking first — whatever FMLV already holds is left untouched.
+
+**The payload check is `mtplm - mro == personal_effects_payload`.** There are two payload
+columns, but `optional_equipment_payload_kilograms` is blank on all 92 real caravan
+products FMLV holds. Report a mismatch rather than dropping the product: six of Bailey's
+81 fail it on FMLV's own published figures.
+
+**Body type is nearly always `type_rigid`.** `type_micro` needs **both** the
+manufacturer's own naming **and** MTPLM of 1250kg or lower — a micro should be towable by
+a very small car. Weight alone would have mislabelled thirteen products across Bailey and
+Adria; Bailey's Discovery D4-2 is 995kg and FMLV holds it as rigid. Folding and pop-up
+exist in the schema but no surveyed brand builds one yet.

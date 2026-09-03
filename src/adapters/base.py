@@ -161,9 +161,14 @@ class Adapter(Protocol):
     Two things every adapter also declares, which a `Protocol` cannot express because
     they are module-level constants rather than methods:
 
-    * `MANUFACTURER` — the key this adapter is registered under in `ADAPTERS`, and it
-      must equal the registry row's `fmlv_manufacturer` exactly. Also
+    * `MANUFACTURER` — half the key this adapter is registered under in `ADAPTERS`, and
+      it must equal the registry row's `fmlv_manufacturer` exactly. Also
       `MANUFACTURER_DISPLAY_NAME` and `BASE_URL`.
+    * `VEHICLE_CLASS: VehicleClass` — optional, the other half of that key. Absent means
+      motorhomes and campervans, which is what every adapter written before touring
+      caravans came into scope produces. A manufacturer that builds both gets **two
+      adapter modules**, not one with a flag: they are different URLs, a different spec
+      table and a differently-shaped product (DESIGN.md §3).
     * `DEFAULT_RANGES: tuple[tuple[str, str], ...]` — optional, `(path, label)` pairs.
       `cli.resolve_ranges` looks for it with `getattr` and treats its absence as "this
       adapter does not support `--range`", so it stays genuinely opt-in.

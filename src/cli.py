@@ -529,14 +529,23 @@ def _run_command(args: argparse.Namespace) -> int:
 
     manufacturer = find_manufacturer(registry.manufacturers, args.manufacturer)
 
-    adapter = adapter_for(manufacturer.fmlv_manufacturer)
+    vehicle_class = VehicleClass(args.vehicle_class)
+    adapter = adapter_for(manufacturer.fmlv_manufacturer, vehicle_class)
     if adapter is None:
-        from .adapters import ADAPTERS
+        from .adapters import ADAPTERS, adapters_for
 
+        # Name the product area. Bailey has a motorhome adapter and (for now) no caravan
+        # one, so a bare "no adapter written for 'Bailey'" would read as plainly wrong to
+        # someone who has just run Bailey successfully.
+        other_areas = sorted(other.label for other in adapters_for(manufacturer.fmlv_manufacturer))
+        available = sorted(f"{name} ({registered.value})" for name, registered in ADAPTERS)
         msg = (
-            f"no adapter written for {manufacturer.fmlv_manufacturer!r} yet. "
-            f"Adapters exist for: {', '.join(sorted(ADAPTERS)) or '(none)'}"
+            f"no {vehicle_class.value} adapter written for "
+            f"{manufacturer.fmlv_manufacturer!r} yet."
         )
+        if other_areas:
+            msg += f" It does have: {', '.join(other_areas)}."
+        msg += f" Adapters exist for: {', '.join(available) or '(none)'}"
         raise CommandError(msg)
 
     # Ranges before the export: a mistyped `--range` is answerable from the arguments
@@ -562,6 +571,7 @@ def _run_command(args: argparse.Namespace) -> int:
             data_root=data_root,
             trigger=args.trigger,
             bump_year=args.bump_year,
+            vehicle_class=vehicle_class,
             collect_kwargs=collect_kwargs,
             on_progress=_print_with_timestamp,
         )
@@ -744,6 +754,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "propose bumping year on every product of this manufacturer (DESIGN.md "
             "§6.9 route 1). Still reviewed and accepted per product like any change."
+        ),
+    )
+    run_parser.add_argument(
+        "--class",
+        dest="vehicle_class",
+        choices=tuple(member.value for member in VehicleClass),
+        default=DEFAULT_VEHICLE_CLASS.value,
+        help=(
+            "which FMLV product area to sweep — a manufacturer that builds both has a "
+            "separate adapter for each (default: %(default)s)"
         ),
     )
     run_parser.set_defaults(handler=_run_command)

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}{{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %} — run #{{ run.id }}{% endblock %}
+{% block title %}{{ run.fmlv_manufacturer }} — {{ run.vehicle_class.label }}{% if run.range_label %} — {{ run.range_label }}{% endif %} — run #{{ run.id }}{% endblock %}
 {% block content %}
   <p class="muted"><a href="/runs">← All runs</a></p>
   <div class="run-detail-header">
     <h1>
-      {{ run.fmlv_manufacturer }}{% if run.range_label %} — {{ run.range_label }}{% endif %}
+      {{ run.fmlv_manufacturer }} — {{ run.vehicle_class.label }}{% if run.range_label %} — {{ run.range_label }}{% endif %}
       <span class="badge {{ run.status }}">{{ run.status }}</span>
     </h1>
     {% if run.status == "succeeded" %}

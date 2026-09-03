@@ -15,6 +15,9 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from .vehicle_class import VehicleClass
+
 #: Matches the review app's own display convention (`webapp/app.py`'s `_LOCAL_TZ`) —
 #: the upload filename's timestamp should read the same way to a UK-based reviewer.
 _LOCAL_TZ = ZoneInfo("Europe/London")
@@ -57,9 +60,17 @@ def schedule_path(*, root: Path = CONFIG_DIR) -> Path:
     return root / "schedule.csv"
 
 
-def field_guide_path(*, root: Path = CONFIG_DIR) -> Path:
-    """The field guide CSV — the source of truth for `product_model.schema.IN_SCOPE`."""
-    return root / "field_guide_motorhome.csv"
+def field_guide_path(
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS, *, root: Path = CONFIG_DIR
+) -> Path:
+    """The field guide CSV — the source of truth for each schema's `IN_SCOPE` set.
+
+    One per product area, because the two exports have different columns and the NCC
+    describes them in their own words: `field_guide_motorhome.csv` and
+    `field_guide_caravan.csv`. Defaults to motorhomes so every existing call site keeps
+    reading the file it always did.
+    """
+    return root / f"{VehicleClass(vehicle_class).field_guide_stem}.csv"
 
 
 def snapshot_dir(manufacturer_id: int, run_id: int, *, root: Path = DATA_DIR) -> Path:
@@ -94,7 +105,11 @@ def uploads_dir(*, root: Path = DATA_DIR) -> Path:
 
 
 def upload_csv_path(
-    run_id: int, *, generated_at: datetime | None = None, root: Path = DATA_DIR
+    run_id: int,
+    *,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
+    generated_at: datetime | None = None,
+    root: Path = DATA_DIR,
 ) -> Path:
     """Where one run's generated upload CSV is written.
 
@@ -103,10 +118,17 @@ def upload_csv_path(
     twice from the same run therefore never silently overwrites an earlier CSV —
     each generation gets its own file, and the reviewer can see at a glance how
     fresh (or stale) a given upload is.
+
+    The trailing stem is the NCC's own filename for that product area, so a caravan run
+    yields `..._touring-caravans.csv`. That is a safety property, not decoration: the
+    reviewer uploads this file by hand into one of two importers, and a caravan CSV named
+    `motorhome-campervans` invites exactly the wrong choice on the one irreversible step
+    in the pipeline.
     """
     when = (generated_at or datetime.now(_LOCAL_TZ)).astimezone(_LOCAL_TZ)
     stamp = when.strftime("%Y-%m-%d_%H%M")
-    return uploads_dir(root=root) / f"run{run_id}_{stamp}_motorhome-campervans.csv"
+    stem = VehicleClass(vehicle_class).export_stem
+    return uploads_dir(root=root) / f"run{run_id}_{stamp}_{stem}.csv"
 
 
 def upload_issues_path(csv_path: Path) -> Path:

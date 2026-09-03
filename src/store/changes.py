@@ -50,6 +50,8 @@ from ..diff.classify import ChangeKind, ProductDiff
 from ..diff.compare import MissingField, field_value
 from ..diff.year_rollover import bump_year, can_bump_year
 from ..product_model import schema
+from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from ..vehicle_class import VehicleClass
 from . import products as products_store
 from .decisions import Decision
 from .products import Product
@@ -370,6 +372,7 @@ def persist_diff(
     diffs: list[ProductDiff],
     bump_year_all: bool = False,
     today: date | None = None,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
 ) -> PersistResult:
     """Persist one run's worth of `diff_products` output.
 
@@ -383,6 +386,11 @@ def persist_diff(
     when triggering the run. A genuinely new product is never given one: it has no
     baseline year to bump. Either route is capped by `year_rollover.can_bump_year`
     (`today`, injectable for tests, defaults to the real today).
+
+    `vehicle_class` is carried into every `upsert_seen` so a product's identity is scoped
+    to the FMLV export it came from. It does not affect the `proposed_change` rows
+    themselves — those are keyed on the product, and `field` is free text, which is why
+    the whole review and decision path needed no changes for caravans.
     """
     proposed = 0
     verified = 0
@@ -402,6 +410,7 @@ def persist_diff(
                 manufacturer_range=diff.baseline.manufacturer_range,
                 model=diff.baseline.model,
                 run_id=run_id,
+                vehicle_class=vehicle_class,
             )
             record_disappearance_notice(
                 connection, run_id=run_id, product_id=product.id, note=DISAPPEARANCE_NOTE
@@ -417,6 +426,7 @@ def persist_diff(
             manufacturer_range=diff.extracted.motorhome.manufacturer_range,
             model=diff.extracted.motorhome.model,
             run_id=run_id,
+            vehicle_class=vehicle_class,
         )
 
         if diff.kind == ChangeKind.NEW_PRODUCT:

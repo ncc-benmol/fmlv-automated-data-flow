@@ -105,6 +105,32 @@
     .badge.running { border-color: var(--correct); color: var(--correct); }
     .badge.failed { border-color: var(--reject); color: var(--reject); }
     .badge.succeeded { border-color: var(--accept); color: var(--accept); }
+    /* Which FMLV product area a run swept. Filled rather than outlined, unlike the
+       status badges beside it, because this is the run's identity and not its state —
+       eight registered manufacturers build both, and a full sweep of either carries no
+       range label to tell them apart. */
+    .badge.vehicle-class {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 0.68em;
+      font-weight: 600;
+      vertical-align: 0.1em;
+    }
+    .badge.vehicle-class.motorhome {
+      background: var(--brand-green-pale);
+      border-color: var(--brand-green-pale2);
+      color: var(--brand-green-dark);
+    }
+    .badge.vehicle-class.caravan {
+      background: var(--new-product-pale);
+      border-color: var(--new-product-border);
+      color: var(--new-product-text);
+    }
+    @media (prefers-color-scheme: dark) {
+      /* `--brand-green-dark` doesn't flip with the theme (see the variable block), so
+         on the dark pale-green fill it needs the bright green instead. */
+      .badge.vehicle-class.motorhome { color: var(--brand-green-bright); }
+    }
     .product-group {
       border: 1px solid var(--border);
       border-radius: 0.5rem;

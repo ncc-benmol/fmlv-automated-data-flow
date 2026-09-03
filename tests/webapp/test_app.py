@@ -20,6 +20,7 @@ from src.adapters.base import ExtractedMotorhome, Provenance
 from src.diff.classify import diff_products
 from src.product_model import io
 from src.product_model.model import Motorhome
+from src.vehicle_class import VehicleClass
 from src.webapp import create_app
 
 
@@ -885,3 +886,98 @@ def test_run_detail_offers_a_reviewer_dropdown_when_reviewers_are_configured(
     assert "<select" in response.text
     assert "Ben Molyneaux" in response.text
     assert "Fran" in response.text
+
+
+def test_run_list_shows_a_product_area_badge(client: TestClient, db_path: Path) -> None:
+    """The question this whole pass answers: two Bailey runs must be tellable apart.
+
+    A full sweep of either area carries no `range_label`, so before the badge existed
+    these two rendered as visually identical rows.
+    """
+    connection = store.connect(db_path)
+    motorhome = store.start_run(
+        connection,
+        manufacturer_id=28,
+        fmlv_manufacturer="Bailey",
+        trigger="manual",
+        vehicle_class=VehicleClass.MOTORHOME,
+    )
+    store.finish_run(connection, motorhome.id)
+    caravan = store.start_run(
+        connection,
+        manufacturer_id=28,
+        fmlv_manufacturer="Bailey",
+        trigger="manual",
+        vehicle_class=VehicleClass.CARAVAN,
+    )
+    store.finish_run(connection, caravan.id)
+    connection.close()
+
+    response = client.get("/runs")
+
+    assert response.status_code == 200
+    assert "badge vehicle-class motorhome" in response.text
+    assert "badge vehicle-class caravan" in response.text
+
+
+def test_run_list_filters_by_product_area(client: TestClient, db_path: Path) -> None:
+    connection = store.connect(db_path)
+    motorhome = store.start_run(
+        connection,
+        manufacturer_id=28,
+        fmlv_manufacturer="Bailey",
+        trigger="manual",
+        vehicle_class=VehicleClass.MOTORHOME,
+    )
+    store.finish_run(connection, motorhome.id)
+    caravan = store.start_run(
+        connection,
+        manufacturer_id=28,
+        fmlv_manufacturer="Bailey",
+        trigger="manual",
+        vehicle_class=VehicleClass.CARAVAN,
+    )
+    store.finish_run(connection, caravan.id)
+    connection.close()
+
+    response = client.get("/runs", params={"vehicle_class": "caravan"})
+
+    assert response.status_code == 200
+    assert f">#{caravan.id}<" in response.text
+    assert f">#{motorhome.id}<" not in response.text
+    assert "No runs match this filter" not in response.text
+
+
+def test_run_list_ignores_an_unknown_product_area_rather_than_erroring(
+    client: TestClient, db_path: Path
+) -> None:
+    """Same "cleared means all" treatment the status filter gets."""
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection, manufacturer_id=28, fmlv_manufacturer="Bailey", trigger="manual"
+    )
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = client.get("/runs", params={"vehicle_class": "hovercraft"})
+
+    assert response.status_code == 200
+    assert f">#{run.id}<" in response.text
+
+
+def test_run_detail_heading_names_the_product_area(client: TestClient, db_path: Path) -> None:
+    connection = store.connect(db_path)
+    run = store.start_run(
+        connection,
+        manufacturer_id=28,
+        fmlv_manufacturer="Bailey",
+        trigger="manual",
+        vehicle_class=VehicleClass.CARAVAN,
+    )
+    store.finish_run(connection, run.id)
+    connection.close()
+
+    response = client.get(f"/runs/{run.id}")
+
+    assert response.status_code == 200
+    assert "Touring caravans" in response.text

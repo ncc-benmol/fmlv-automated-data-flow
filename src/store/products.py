@@ -17,6 +17,9 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from ..vehicle_class import VehicleClass
+
 
 @dataclass(frozen=True)
 class Product:
@@ -29,6 +32,9 @@ class Product:
     model: str | None
     first_seen_run_id: int | None
     last_seen_run_id: int | None
+    #: Which FMLV product area this product belongs to. Part of its identity, not a
+    #: label: the same range/model name in the other area is a different vehicle.
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Product:
@@ -40,6 +46,7 @@ class Product:
             model=row["model"],
             first_seen_run_id=row["first_seen_run_id"],
             last_seen_run_id=row["last_seen_run_id"],
+            vehicle_class=VehicleClass(row["vehicle_class"]),
         )
 
 
@@ -52,15 +59,26 @@ def get_product(connection: sqlite3.Connection, product_id: int) -> Product:
     return Product.from_row(row)
 
 
-def list_products(connection: sqlite3.Connection, manufacturer_id: int) -> list[Product]:
-    """List every known product for one manufacturer, by range then model."""
+def list_products(
+    connection: sqlite3.Connection,
+    manufacturer_id: int,
+    *,
+    vehicle_class: VehicleClass | None = None,
+) -> list[Product]:
+    """List known products for one manufacturer, by range then model.
+
+    `vehicle_class` defaults to `None` — every product area — so a caller wanting "all of
+    Bailey" still gets it. Pass one to scope to a single area, which is what a run does.
+    """
+    clauses = ["manufacturer_id = ?"]
+    params: list[object] = [manufacturer_id]
+    if vehicle_class is not None:
+        clauses.append("vehicle_class = ?")
+        params.append(VehicleClass(vehicle_class).value)
+    joined = " AND ".join(clauses)
     rows = connection.execute(
-        """
-        SELECT * FROM product
-        WHERE manufacturer_id = ?
-        ORDER BY manufacturer_range, model
-        """,
-        (manufacturer_id,),
+        f"SELECT * FROM product WHERE {joined} ORDER BY manufacturer_range, model",  # noqa: S608
+        params,
     ).fetchall()
     return [Product.from_row(row) for row in rows]
 
@@ -72,9 +90,10 @@ _PRODUCT_CHILD_TABLES = ("proposed_change", "verification", "disappearance_notic
 class ProductIdentityConflict(Exception):
     """Two products with different `fmlv_product_id`s claim one range/model name.
 
-    Raised instead of letting sqlite's `UNIQUE (manufacturer_id, manufacturer_range, model)`
-    surface as a bare `IntegrityError`, because the fix is on the FMLV side and the message
-    needs to say which two products are involved.
+    Raised instead of letting sqlite's
+    `UNIQUE (manufacturer_id, vehicle_class, manufacturer_range, model)` surface as a bare
+    `IntegrityError`, because the fix is on the FMLV side and the message needs to say
+    which two products are involved.
     """
 
 
@@ -86,6 +105,7 @@ def _absorb_clash(
     manufacturer_range: str | None,
     model: str | None,
     run_id: int,
+    vehicle_class: VehicleClass,
 ) -> None:
     """Clear the way for `keeping` to take a name another local row already holds.
 
@@ -118,9 +138,10 @@ def _absorb_clash(
     clash = connection.execute(
         """
         SELECT * FROM product
-        WHERE manufacturer_id = ? AND manufacturer_range IS ? AND model IS ? AND id != ?
+        WHERE manufacturer_id = ? AND vehicle_class = ? AND manufacturer_range IS ?
+              AND model IS ? AND id != ?
         """,
-        (manufacturer_id, manufacturer_range, model, keeping),
+        (manufacturer_id, VehicleClass(vehicle_class).value, manufacturer_range, model, keeping),
     ).fetchone()
     if clash is None:
         return
@@ -157,6 +178,7 @@ def upsert_seen(
     manufacturer_range: str | None,
     model: str | None,
     run_id: int,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
 ) -> Product:
     """Record that one product was seen in `run_id`.
 
@@ -165,20 +187,31 @@ def upsert_seen(
     `fmlv_product_id` yet. If found, the row is updated in place — including its
     `manufacturer_range`/`model`, so a rename is picked up rather than orphaning the
     old name — rather than inserting a duplicate. Otherwise a new row is inserted.
+
+    Both lookups are scoped to `vehicle_class`. The `fmlv_product_id` one does not strictly
+    need it — FMLV mints those across both exports from one sequence, and Bailey's
+    motorhome and caravan ids don't overlap — but the range/model fallback does: that is
+    the path a product with no FMLV id yet takes, and a caravan named like a motorhome
+    would otherwise be matched to it and inherit its history.
     """
+    class_value = VehicleClass(vehicle_class).value
     existing = None
     if fmlv_product_id is not None:
         existing = connection.execute(
-            "SELECT * FROM product WHERE manufacturer_id = ? AND fmlv_product_id = ?",
-            (manufacturer_id, fmlv_product_id),
+            """
+            SELECT * FROM product
+            WHERE manufacturer_id = ? AND vehicle_class = ? AND fmlv_product_id = ?
+            """,
+            (manufacturer_id, class_value, fmlv_product_id),
         ).fetchone()
     if existing is None:
         existing = connection.execute(
             """
             SELECT * FROM product
-            WHERE manufacturer_id = ? AND manufacturer_range IS ? AND model IS ?
+            WHERE manufacturer_id = ? AND vehicle_class = ? AND manufacturer_range IS ?
+                  AND model IS ?
             """,
-            (manufacturer_id, manufacturer_range, model),
+            (manufacturer_id, class_value, manufacturer_range, model),
         ).fetchone()
 
     if existing is not None:
@@ -189,6 +222,7 @@ def upsert_seen(
             manufacturer_range=manufacturer_range,
             model=model,
             run_id=run_id,
+            vehicle_class=vehicle_class,
         )
         connection.execute(
             """
@@ -205,10 +239,18 @@ def upsert_seen(
         """
         INSERT INTO product
             (manufacturer_id, fmlv_product_id, manufacturer_range, model,
-             first_seen_run_id, last_seen_run_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+             first_seen_run_id, last_seen_run_id, vehicle_class)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (manufacturer_id, fmlv_product_id, manufacturer_range, model, run_id, run_id),
+        (
+            manufacturer_id,
+            fmlv_product_id,
+            manufacturer_range,
+            model,
+            run_id,
+            run_id,
+            class_value,
+        ),
     )
     connection.commit()
     assert cursor.lastrowid is not None

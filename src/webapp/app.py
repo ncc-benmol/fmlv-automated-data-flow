@@ -67,6 +67,7 @@ from ..output import generate_upload
 from ..product_model import io
 from ..registry import loader
 from ..store.decisions import Action
+from ..vehicle_class import VehicleClass
 from . import choices
 from .reviewers import load_reviewers
 
@@ -284,9 +285,19 @@ def create_app(
         manufacturer_id: str = "",
         status: str | None = None,
         start_date: str = "",
+        vehicle_class: str = "",
     ) -> HTMLResponse:
         if status not in _RUN_STATUSES:
             status = None  # an unknown/empty value means "all statuses", not an error
+
+        # Same "cleared means all" treatment as `status`: an empty or unrecognised value
+        # is not an error, it means the reviewer isn't narrowing by product area.
+        try:
+            vehicle_class_filter: VehicleClass | None = (
+                VehicleClass(vehicle_class) if vehicle_class else None
+            )
+        except ValueError:
+            vehicle_class_filter = None
 
         # Plain str params (like `limit`) rather than `int | None`/`date | None`,
         # deliberately: the filter form's "cleared" state submits an empty string for
@@ -302,7 +313,12 @@ def create_app(
         except ValueError:
             start_date_filter = None
 
-        runs = store.list_runs(connection, manufacturer_id=manufacturer_id_filter, status=status)
+        runs = store.list_runs(
+            connection,
+            manufacturer_id=manufacturer_id_filter,
+            status=status,
+            vehicle_class=vehicle_class_filter,
+        )
         if start_date_filter is not None:
             # Filtered here rather than in the SQL `store.list_runs` runs on, against
             # the *local* calendar date — matching what the "Started" column actually
@@ -340,6 +356,10 @@ def create_app(
                 "selected_manufacturer_id": manufacturer_id_filter,
                 "selected_status": status,
                 "selected_start_date": start_date_filter.isoformat() if start_date_filter else "",
+                "vehicle_classes": list(VehicleClass),
+                "selected_vehicle_class": (
+                    vehicle_class_filter.value if vehicle_class_filter else ""
+                ),
             },
         )
 
@@ -554,7 +574,9 @@ def create_app(
             run_id=run.id,
             manufacturer=manufacturer,
             baseline=baseline,
-            path=paths.upload_csv_path(run.id, root=app.state.data_root),
+            path=paths.upload_csv_path(
+                run.id, vehicle_class=run.vehicle_class, root=app.state.data_root
+            ),
         )
 
         # No folder/file:// link — Chrome (and most browsers) blocks navigation to

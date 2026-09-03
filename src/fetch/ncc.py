@@ -103,10 +103,12 @@ class NccSiteConfig:
     #: baseline for a diff needs everything currently in FMLV, not just the live subset.
     only_active_toggle_selector: str = '[dusk="only_active_products-default-boolean-field"]'
     run_action_selector: str = '[dusk="confirm-action-button"]'
-    #: Name of the motorhome/campervan file inside the downloaded zip. The zip also
-    #: contains a `touring-caravans.xlsx` we don't need (DESIGN.md §3: motorhomes and
-    #: campervans only for the prototype).
+    #: Name of the motorhome/campervan file inside the downloaded zip.
     motorhome_export_filename: str = "motorhome-campervans.xlsx"
+    #: Name of the touring-caravan file inside the same zip. Saved alongside the
+    #: motorhome one rather than discarded: one export action returns both, so keeping
+    #: the second costs nothing and is the baseline the caravan schema needs.
+    caravan_export_filename: str = "touring-caravans.xlsx"
 
 
 def _ensure_toggle_off(page, selector: str) -> None:
@@ -119,6 +121,32 @@ def _ensure_toggle_off(page, selector: str) -> None:
     """
     if page.get_attribute(selector, "data-state") == "checked":
         page.click(selector)
+
+
+def caravan_export_path(
+    motorhome_path: Path | str, *, config: NccSiteConfig = NccSiteConfig()
+) -> Path:
+    """Where the touring-caravan half of an export sits, given the motorhome half.
+
+    One "Export Products by Supplier" action returns both sheets in one zip, so the two
+    are always downloaded together and always belong to the same supplier and the same
+    moment. Naming the caravan file by substitution rather than by its own date stamp is
+    what keeps that pairing legible on disk months later:
+
+        2026-08-20_Bailey_motorhome-campervans.xlsx
+        2026-08-20_Bailey_touring-caravans.xlsx
+
+    `cli.fetch_export` builds the motorhome name, so deriving the caravan one here means
+    only one place knows the convention.
+    """
+    motorhome_path = Path(motorhome_path)
+    motorhome_stem = Path(config.motorhome_export_filename).stem
+    caravan_stem = Path(config.caravan_export_filename).stem
+    if motorhome_stem in motorhome_path.name:
+        return motorhome_path.with_name(
+            motorhome_path.name.replace(motorhome_stem, caravan_stem)
+        )
+    return motorhome_path.with_name(f"{motorhome_path.stem}_{caravan_stem}.xlsx")
 
 
 def download_export(
@@ -188,7 +216,19 @@ def download_export(
                     f"export for {supplier_name!r} — zip contains: {archive.namelist()}"
                 )
                 raise NccExportError(msg) from exc
-        dest_path.write_bytes(data)
+            dest_path.write_bytes(data)
+
+            # The caravan half of the same zip. Missing is normal and not an error — a
+            # motorhome-only supplier's export simply has no caravan sheet — so this
+            # narrates the outcome rather than raising the way the motorhome read does.
+            caravan_path = caravan_export_path(dest_path, config=config)
+            try:
+                caravan_data = archive.read(config.caravan_export_filename)
+            except KeyError:
+                on_progress(f"no {config.caravan_export_filename!r} in {supplier_name!r}'s export")
+            else:
+                caravan_path.write_bytes(caravan_data)
+                on_progress(f"saved the touring-caravan export to {caravan_path}")
     finally:
         zip_path.unlink(missing_ok=True)
 

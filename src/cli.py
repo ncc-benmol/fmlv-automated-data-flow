@@ -70,6 +70,8 @@ from .product_model import io
 from .product_model.model import Motorhome
 from .registry import Manufacturer, loader
 from .store.runs import Trigger
+from .vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from .vehicle_class import VehicleClass
 
 #: Export file types `product_model.io.read_export` can dispatch on.
 EXPORT_SUFFIXES = (".xlsx", ".csv")
@@ -329,6 +331,7 @@ def execute_run(
     trigger: Trigger = "manual",
     bump_year: bool = False,
     refresh_export: bool = False,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
     collect_kwargs: dict[str, Any] | None = None,
     on_progress: Callable[[str], None] = lambda message: None,
     on_run_started: Callable[[store.Run], None] = lambda run: None,
@@ -352,6 +355,10 @@ def execute_run(
     favour of the freshly downloaded one. Exactly one of `export_path` and
     `refresh_export` must be usable, checked before the `run` row is even created —
     this is a caller mistake, not something to record as a failed run.
+
+    `vehicle_class` names which FMLV product area is being swept, and is recorded on the
+    `run` row so the review app can tell a Bailey caravan run from a Bailey motorhome one.
+    It defaults to motorhomes, which is what every adapter written so far produces.
     """
     if export_path is None and not refresh_export:
         msg = "execute_run needs export_path, or refresh_export=True to fetch one"
@@ -368,6 +375,7 @@ def execute_run(
             fmlv_manufacturer=manufacturer.fmlv_manufacturer,
             trigger=trigger,
             range_label=range_label,
+            vehicle_class=vehicle_class,
         )
         on_run_started(run)
         snapshot_dir = paths.snapshot_dir(manufacturer.manufacturer_id, run.id, root=data_root)
@@ -422,6 +430,7 @@ def execute_run(
                 manufacturer_id=manufacturer.manufacturer_id,
                 diffs=diffs,
                 bump_year_all=bump_year,
+                vehicle_class=vehicle_class,
             )
             on_progress(
                 f"Compared {len(scraped)} scraped against {len(baseline)} baseline product(s) "
@@ -659,7 +668,9 @@ def _generate_upload_command(args: argparse.Namespace) -> int:
             run_id=run.id,
             manufacturer=manufacturer,
             baseline=baseline,
-            path=paths.upload_csv_path(run.id, root=data_root),
+            path=paths.upload_csv_path(
+                run.id, vehicle_class=run.vehicle_class, root=data_root
+            ),
         )
     finally:
         connection.close()

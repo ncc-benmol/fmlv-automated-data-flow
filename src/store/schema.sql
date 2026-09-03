@@ -14,7 +14,11 @@ CREATE TABLE IF NOT EXISTS run (
     started_at TEXT NOT NULL,
     finished_at TEXT,
     error_message TEXT,
-    range_label TEXT
+    range_label TEXT,
+    -- Which FMLV product area this run swept: 'motorhome' or 'caravan'
+    -- (src/vehicle_class.py). Defaulted so every run recorded before caravans existed
+    -- reads back correctly, and so `db._apply_column_migrations` can add it in place.
+    vehicle_class TEXT NOT NULL DEFAULT 'motorhome'
 );
 
 CREATE INDEX IF NOT EXISTS idx_run_manufacturer ON run (manufacturer_id, started_at);
@@ -44,7 +48,13 @@ CREATE TABLE IF NOT EXISTS product (
     model TEXT,
     first_seen_run_id INTEGER REFERENCES run (id),
     last_seen_run_id INTEGER REFERENCES run (id),
-    UNIQUE (manufacturer_id, manufacturer_range, model)
+    -- In the unique key because a manufacturer's two product areas are separate FMLV
+    -- exports that could legitimately reuse a range/model name. Bailey's don't overlap
+    -- today (Adamo/Autograph/Endeavour vs Unicorn/Pegasus/Phoenix), nor do Adria's, but
+    -- without this a brand that did would silently merge two different vehicles into one
+    -- product row and mix their review histories.
+    vehicle_class TEXT NOT NULL DEFAULT 'motorhome',
+    UNIQUE (manufacturer_id, vehicle_class, manufacturer_range, model)
 );
 
 CREATE INDEX IF NOT EXISTS idx_product_fmlv_id ON product (fmlv_product_id);

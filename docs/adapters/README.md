@@ -247,6 +247,29 @@ labelled "permitted", the lower bound is a homologation minimum, not a fitment c
 corroborate it before recording it, and leave the field unset (and *unregistered*) if you
 cannot. See [`burstner.md`](burstner.md).
 
+### Count three-point belts only — a lap belt is not a travel seat
+
+Rule from the NCC side, 3 September 2026: **`mh_passenger_seats_inc_driver` counts
+three-point belted seats and nothing else.** *"Lap belts aren't safe for adults, we should
+only count 3 point seat belts in our output."*
+
+This decides a question that would otherwise recur on every European brand, because the
+manufacturers publish the two separately and invite the sum. Weinsberg's CaraHome price
+list prints `Three-point belts in driving direction 2 2 2` **and**
+`Lap seat belts against driving direction 2 2`, so a 6-berth family alcove looks like it
+seats four; on the rule it seats **two**. `weinsberg.py` reads only the three-point row and
+says in the provenance why the other is refused.
+
+Two things follow:
+
+- **A lap-belt row is not a tie-break for an ambiguous seats figure.** It had looked like
+  the resolution for CaraHome — 2 three-point plus 2 lap belts reconciling neatly with the
+  6 that FMLV's baseline and the `Max. belt-secured seats` row both suggested. That
+  reconciliation is exactly the trap: it makes a wrong figure look corroborated.
+- **The rule is about safety, not about counting**, so it holds however the manufacturer
+  labels or positions the seat. Do not reinstate a lap belt because a brand calls it a
+  travel seat, prices it as one, or homologates the vehicle for the higher number.
+
 **And when a scrape proposes changing a value FMLV already holds, treat the baseline as
 evidence, not just as a target.** Several products disagreeing *the same way* is a signal
 about the parse, far more often than it is several stale records. Bürstner's run proposed

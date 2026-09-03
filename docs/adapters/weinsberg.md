@@ -394,17 +394,24 @@ on two layouts and was corroborated per-layout by the options table; here the op
 corroborates the *rule* but the figure itself is a constant. That is a real reduction in
 evidence.
 
-**CaraHome publishes a lap-belt row, and Knaus did not.** `Lap seat belts against driving
-direction` appears on CaraHome only, reading `2 2` — and the roster is **three** models, so
-the row is short and there is no way to tell which two it belongs to (coordinates are
-unrecoverable; see below). If lap-belted travel seats count as passenger seats, CaraHome
-600 DKG and 650 DG hold **4**, not 2. The adapter cannot resolve it, so it does not read the
-row, and both figures reach the reviewer in the provenance instead.
+**CaraHome publishes a lap-belt row, and Knaus did not** — and the requester settled it on
+3 September 2026, before the pack shipped: *"Lap belts aren't safe for adults, we should only
+count 3 point seat belts in our output."* So CaraHome's figure is **2**, and
+`Lap seat belts against driving direction` is refused by rule rather than for want of a
+parse. The rule is now in [`README.md`](README.md) because it applies to every European
+brand that publishes the two rows separately.
+
+Worth recording how close this came to going the other way. The lap-belt row *reconciles* —
+2 three-point plus 2 lap belts makes 4, and the row is only printed on the two CaraHome
+layouts whose `Max. belt-secured seats` reads 6 and whose FMLV baseline holds 4. Every
+available cross-check pointed at the sum. The row's own short-column problem (two values
+against a three-model roster, with coordinates unrecoverable) was the *lesser* reason not to
+read it; the real one is that a lap belt is not a travel seat.
 
 The consequence to expect: recording 2 proposes **4 → 2 on all 28 matched products**. That is
 precisely the systematic-disagreement shape [`burstner.md`](burstner.md) says to distrust, so
-it is being accepted on the documented definition rather than on the count — and the CaraHome
-pair is genuinely open. Flag it to the requester rather than letting it pass as settled.
+it rests on the documented definition rather than on the count — and now on an explicit
+safety rule as well.
 
 ## Price: sterling, and the basis is published
 
@@ -617,8 +624,9 @@ Europe already has.
 1. **Which `Mass in running order` is the base vehicle's?** Unresolved, as for Knaus. The
    adapter takes the first and shows both. Nothing in either document, and nothing in FMLV's
    own (placeholder) baseline, breaks the tie.
-2. **Does CaraHome hold 2 or 4 belted travel seats on 600 DKG and 650 DG?** The lap-belt row
-   says `2 2` for three models and cannot be attributed. Needs the requester or Weinsberg.
+2. ~~**Does CaraHome hold 2 or 4 belted travel seats on 600 DKG and 650 DG?**~~ **Settled,
+   3 September 2026: 2.** FMLV counts three-point belts only, because a lap belt is not a
+   safe adult travel seat. See [`README.md`](README.md).
 3. **Should FMLV's three duplicate Mercedes CaraCompact rows all be retired?** They are one
    vehicle held three times; the adapter reports three disappearances because that is what
    the baseline contains.
@@ -629,26 +637,32 @@ Europe already has.
 ## The habitation pack — floorplans, and the fields the adapter never collects
 
 Built 3 September 2026, after the adapter, as the same post-build step Knaus and Dethleffs
-got. Four outputs, all under `data/` and none tracked — they are large and regenerable:
+got. **Three outputs**, all under `data/` and none tracked — they are large and regenerable:
 
 | File | What it is |
 |---|---|
 | `weinsberg-2027-habitation-layouts.csv` | the data, 29 rows × 21 columns — **the only hand-maintained one** |
+| `weinsberg-2027-habitation-layouts.xlsx` | the same data as a formatted Excel table, 15 KB |
 | `weinsberg-2027-floorplans.html` | the reference page, published as an Artifact |
-| `weinsberg-2027-floorplans.pdf` | that page printed to A4, 59 pages |
-| `weinsberg-2027-floorplans.docx` | a Word version, for annotating |
 
-**Everything downstream is generated from the CSV**, so the four cannot drift: edit the CSV
+**The deliverable set changed with this pack.** Dethleffs got a PDF and a Word version as
+well; the requester dropped both on 3 September 2026 — *"we only need the link to the
+webpage and an excel table, no pdf or word docs as I think these take a lot of capacity"*.
+They were right about the cost: the two carried the 29 drawings a second and third time for
+1.96 MB, against 15 KB for the spreadsheet, and nobody edits a generated PDF. **Do not
+rebuild them for the next manufacturer.** The `@page`/`@media print` stylesheet stays on the
+HTML, so `Ctrl+P` from the published Artifact still gives a clean A4 document on demand —
+one column, drawing at the full text width — which is the same thing without keeping a
+copy on disk.
+
+**Everything downstream is generated from the CSV**, so the three cannot drift: edit the CSV
 and rebuild. The numeric columns are taken from `weinsberg.collect()` rather than retyped,
-so the pack and the review queue cannot disagree about a weight or a price. The HTML carries
-a print stylesheet, so `Ctrl+P` from the published Artifact gives the same document as the
-generated PDF — on paper the card goes single column so the drawing gets the full text width.
+so the pack and the review queue cannot disagree about a weight or a price.
 
-The Word build needs `python-docx`, which is **not** a project dependency and should not
-become one — run it isolated, `uv run --with python-docx --no-project python <script>`. Two
-things it needs that the HTML build does not: the drawings re-encoded as plain JPEG, because
-python-docx raises `UnrecognizedImageError` on Weinsberg's own PNGs, and `Arial Narrow`
-rather than a webfont.
+The spreadsheet needs no isolated environment — `openpyxl` is already a project dependency,
+since `io.read_export` reads the FMLV exports with it. It carries a second **How to read
+this** sheet holding the page link and the reading rules, and it **tints the rows that need
+a human call** so the six are findable without reading 29 note cells.
 
 These cover the fields flagged out of scope in `config/field_guide_motorhome.csv` — bed
 types, sleeping area, bathroom layout, kitchen location, lounge, rear garage, fridge and

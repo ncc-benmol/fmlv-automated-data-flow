@@ -130,10 +130,11 @@ Two caveats, both weaker than the Knaus case and both narrated to the reviewer:
 
 * **The row reads 2 on all 29 products**, so it has no variance of its own and is
   indistinguishable on the numbers from `Automatic three-point belts, height-adjustable`.
-* **CaraHome alone publishes `Lap seat belts against driving direction`**, `2 2` for three
-  models. If lap-belted travel seats count, its 600 DKG and 650 DG hold 4 rather than 2 —
-  and the short row cannot be attributed to two of the three. Open question for the
-  requester; the adapter does not read it and says so in the provenance.
+* **CaraHome alone publishes `Lap seat belts against driving direction`**, and it is
+  deliberately not counted. **A lap belt is not a safe adult travel seat, so FMLV counts
+  three-point belts only** — requester, 3 September 2026, and now a standing rule in
+  `docs/adapters/README.md`. So CaraHome's figure is 2, not 4, and the row's short-column
+  problem never has to be solved.
 
 Expect this to propose `4 → 2` on every matched product. That is the shape
 `docs/adapters/burstner.md` says to distrust, so it rests on the documented definition
@@ -909,9 +910,9 @@ def _build_extracted_motorhome(
         )
         lap_belts = (
             " NOTE WEINSBERG also print 'Lap seat belts against driving direction' on "
-            "this range, with two values for three layouts — a short row that cannot be "
-            "attributed, so it is not read. If lap-belted travel seats count as passenger "
-            "seats this figure may be 4 rather than 2; open question."
+            "this range, 2 on some layouts. That row is deliberately NOT counted: a lap "
+            "belt is not a safe adult travel seat, so FMLV counts three-point belts only "
+            "(requester, 3 September 2026). CaraHome's figure is 2, not 4."
             if spec.fmlv_range == "CaraHome"
             else ""
         )

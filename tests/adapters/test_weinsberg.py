@@ -157,6 +157,11 @@ def test_a_short_row_is_rejected_rather_than_sliced() -> None:
     which two layouts it belongs to — pypdf places most runs on that page at (0, 0). So it
     must be refused, not padded: slicing would let it swallow the next row's label and
     report a value for a layout that has none.
+
+    Lap belts are excluded from the seat count by rule anyway (README, "Count three-point
+    belts only"), so nothing depends on this row's values. It is kept as the test case
+    because it is the only genuinely short row in any of these documents, and the guard it
+    exercises protects every other row on the page.
     """
     page = next(
         text for text in _pages("carahome") if "Lap seat belts" in " ".join(text.split())
@@ -748,7 +753,11 @@ def test_seat_provenance_names_the_row_it_used_and_the_rows_it_refused() -> None
     snippet = extracted.provenance["mh_passenger_seats_inc_driver"].snippet
     assert "Three-point belts in driving direction" in snippet
     assert "Number of persons allowed in driving operation' is NOT this field" in snippet
-    assert "Lap seat belts" in snippet, "CaraHome's open question must reach the reviewer"
+    assert "Lap seat belts" in snippet, "the refused row must reach the reviewer"
+    assert "not a safe adult travel seat" in snippet, (
+        "the reviewer needs the reason the lap-belt row is refused, not just that it was"
+    )
+    assert "open question" not in snippet, "settled by the requester 3 September 2026"
 
 
 def test_payload_provenance_says_it_is_derived_and_why() -> None:

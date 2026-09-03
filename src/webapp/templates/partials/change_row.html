@@ -1,5 +1,6 @@
 {% set missing = is_missing_field(entry.change) %}
-{% set choices = field_choices(entry.change.field) %}
+{# `run` is in scope from run_detail.html; both areas name their layout fields the same things while meaning different enums, so the area has to be passed. #}
+{% set choices = field_choices(entry.change.field, run.vehicle_class) %}
 <div id="change-{{ entry.change.id }}" class="change-row{% if missing %} missing-field-row{% endif %}">
   <div class="field-name">
     {{ entry.change.field }}

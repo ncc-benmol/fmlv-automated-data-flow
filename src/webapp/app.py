@@ -53,20 +53,21 @@ from starlette.requests import Request
 from starlette.templating import Jinja2Templates
 
 from .. import paths, scheduling, store
-from ..adapters import adapter_for
+from ..adapters import adapter_for, adapters_for
 from ..cli import (
     CommandError,
     _dedupe_baseline,
     execute_run,
     find_manufacturer,
     latest_export,
+    read_baseline,
     resolve_ranges,
 )
 from ..diff.compare import LAYOUT_FIELDS
 from ..output import generate_upload
-from ..product_model import io
 from ..registry import loader
 from ..store.decisions import Action
+from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
 from ..vehicle_class import VehicleClass
 from . import choices
 from .reviewers import load_reviewers
@@ -265,11 +266,28 @@ def create_app(
     app.state.background_tasks = set()
 
     def _load_registry() -> tuple[list, list]:
-        """Manufacturers with an adapter, and any registry load errors to show."""
+        """Manufacturers with an adapter in *any* product area, plus load errors to show.
+
+        `adapters_for` rather than `adapter_for`, so a manufacturer that only ever gains a
+        caravan adapter still appears. The product area is a separate choice on the form.
+        """
         result = loader.load(app.state.registry_path)
         errors = [issue.message for issue in result.issues if issue.severity == "error"]
-        runnable = [m for m in result.manufacturers if adapter_for(m.fmlv_manufacturer)]
+        runnable = [m for m in result.manufacturers if adapters_for(m.fmlv_manufacturer)]
         return runnable, errors
+
+    def _areas_by_manufacturer(manufacturers: list) -> dict[str, list[VehicleClass]]:
+        """Which product areas each manufacturer can actually be run for.
+
+        Drives the trigger form's area choices, so a reviewer is never offered "Bailey,
+        caravans" for a brand with no caravan adapter written.
+        """
+        return {
+            m.fmlv_manufacturer: sorted(
+                adapters_for(m.fmlv_manufacturer), key=lambda cls: cls.value
+            )
+            for m in manufacturers
+        }
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request) -> HTMLResponse:
@@ -433,7 +451,13 @@ def create_app(
         return _templates.TemplateResponse(
             request,
             "trigger.html",
-            {"manufacturers": manufacturers, "registry_errors": errors, "error": None},
+            {
+                "manufacturers": manufacturers,
+                "registry_errors": errors,
+                "error": None,
+                "areas_by_manufacturer": _areas_by_manufacturer(manufacturers),
+                "vehicle_classes": list(VehicleClass),
+            },
         )
 
     @app.post("/trigger", response_class=HTMLResponse)
@@ -441,6 +465,7 @@ def create_app(
         request: Request,
         manufacturer_name: str = Form(...),
         range_name: str = Form(""),
+        vehicle_class: str = Form(DEFAULT_VEHICLE_CLASS.value),
     ) -> HTMLResponse:
         manufacturers, registry_errors = _load_registry()
 
@@ -454,15 +479,29 @@ def create_app(
                     "error": message,
                     "submitted_manufacturer": manufacturer_name,
                     "submitted_range": range_name,
+                    "submitted_vehicle_class": vehicle_class,
+                    "areas_by_manufacturer": _areas_by_manufacturer(manufacturers),
+                    "vehicle_classes": list(VehicleClass),
                 },
                 status_code=422,
             )
 
         try:
+            selected_class = VehicleClass(vehicle_class)
+        except ValueError:
+            return render_error(f"{vehicle_class!r} is not a product area we run")
+
+        try:
             manufacturer = find_manufacturer(manufacturers, manufacturer_name)
-            adapter = adapter_for(manufacturer.fmlv_manufacturer)
-            if adapter is None:  # pragma: no cover — _load_registry already filters these out
-                msg = f"no adapter written for {manufacturer.fmlv_manufacturer!r} yet"
+            adapter = adapter_for(manufacturer.fmlv_manufacturer, selected_class)
+            if adapter is None:
+                # Reachable, unlike the old motorhome-only check: `_load_registry` keeps a
+                # manufacturer with an adapter in *any* area, so asking for the area it
+                # lacks is a normal mistake rather than an impossible one.
+                msg = (
+                    f"no {selected_class.value} adapter written for "
+                    f"{manufacturer.fmlv_manufacturer!r} yet"
+                )
                 raise CommandError(msg)
 
             collect_kwargs: dict[str, object] = {}
@@ -494,6 +533,7 @@ def create_app(
                 refresh_export=True,
                 data_root=app.state.data_root,
                 trigger="manual",
+                vehicle_class=selected_class,
                 collect_kwargs=collect_kwargs,
                 on_run_started=on_run_started,
             )
@@ -558,16 +598,16 @@ def create_app(
                 root=app.state.data_root,
                 manufacturer_id=manufacturer.manufacturer_id,
                 manufacturer_name=manufacturer.fmlv_manufacturer,
+                vehicle_class=run.vehicle_class,
             )
         except CommandError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=422)
 
-        read = io.read_export(export_path)
         baseline = _dedupe_baseline(
-            motorhome
-            for motorhome in read.motorhomes
-            if motorhome.manufacturer == manufacturer.fmlv_manufacturer
-            and not motorhome.archived
+            product
+            for product in read_baseline(export_path, run.vehicle_class)
+            if product.manufacturer == manufacturer.fmlv_manufacturer
+            and not product.archived
         )
         result = generate_upload(
             connection,
@@ -577,6 +617,7 @@ def create_app(
             path=paths.upload_csv_path(
                 run.id, vehicle_class=run.vehicle_class, root=app.state.data_root
             ),
+            vehicle_class=run.vehicle_class,
         )
 
         # No folder/file:// link — Chrome (and most browsers) blocks navigation to
@@ -640,7 +681,8 @@ def create_app(
         corrected_value = corrected_value.strip()
         reviewer_name = reviewer_name.strip()
         error = None
-        selectable = choices.field_choices(change.field)
+        run = store.get_run(connection, change.run_id)
+        selectable = choices.field_choices(change.field, run.vehicle_class)
         known_reviewers: set[str] = app.state.reviewer_names_lower
         if known_reviewers and reviewer_name.lower() not in known_reviewers:
             error = "Select your name from the reviewer list before deciding."
@@ -653,7 +695,7 @@ def create_app(
         elif (
             action == "correct"
             and selectable
-            and not choices.is_valid_choice(change.field, corrected_value)
+            and not choices.is_valid_choice(change.field, corrected_value, run.vehicle_class)
         ):
             # A `<select>` cannot submit this, but the endpoint is a plain POST and an
             # unrecognised value would only fail later, in `build.apply_field`, at upload.

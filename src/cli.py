@@ -66,8 +66,9 @@ from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
 from .fetch.ncc import NccCredentials, NccCredentialsError, NccExportError, download_export
 from .output import generate_upload
-from .product_model import io
+from .product_model import caravan_io, io
 from .product_model.model import Motorhome
+from .product_model.product import Product
 from .registry import Manufacturer, loader
 from .store.runs import Trigger
 from .vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
@@ -123,30 +124,55 @@ def find_manufacturer(manufacturers: Sequence[Manufacturer], needle: str) -> Man
     raise CommandError(msg)
 
 
-def latest_export(*, root: Path, manufacturer_id: int, manufacturer_name: str) -> Path:
-    """The most recently modified FMLV export for one manufacturer.
+def latest_export(
+    *,
+    root: Path,
+    manufacturer_id: int,
+    manufacturer_name: str,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
+) -> Path:
+    """The most recently modified FMLV export for one manufacturer and product area.
 
     `fetch/ncc.py`'s download is per-manufacturer (the NCC site offers exports no
     other way), so the search is scoped to that manufacturer's own subdirectory under
     `data/exports/` — otherwise a stale export downloaded for a *different*
     manufacturer could silently become today's baseline. `fetch-export` names each
-    download `<date>_<manufacturer>_motorhome-campervans.xlsx` directly in that
-    subdirectory (no per-date nesting), so "newest file wins" is the right default for
-    a scheduled run; `--export` overrides it when testing against one specific baseline.
+    download `<date>_<manufacturer>_<area>.xlsx` directly in that subdirectory (no
+    per-date nesting), so "newest file wins" is the right default for a scheduled run;
+    `--export` overrides it when testing against one specific baseline.
+
+    **The area is part of the filter, not a nicety.** One export action saves both
+    sheets side by side in that directory, so "newest file wins" alone would hand a
+    caravan run whichever of the two happened to be written last — and a motorhome
+    baseline against caravan scrapes classifies all 23 caravans as new products and all
+    45 motorhomes as disappeared.
     """
     directory = paths.manufacturer_exports_dir(manufacturer_id, manufacturer_name, root=root)
+    stem = VehicleClass(vehicle_class).export_stem
     candidates = [
         path
         for path in directory.rglob("*")
-        if path.is_file() and path.suffix.lower() in EXPORT_SUFFIXES
+        if path.is_file() and path.suffix.lower() in EXPORT_SUFFIXES and stem in path.name
     ]
     if not candidates:
         msg = (
-            f"no {' or '.join(EXPORT_SUFFIXES)} export found under {directory} — "
-            f"run `fmlv fetch-export` first, or point at one with --export"
+            f"no {' or '.join(EXPORT_SUFFIXES)} export matching {stem!r} found under "
+            f"{directory} — run `fmlv fetch-export` first, or point at one with --export"
         )
         raise CommandError(msg)
     return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def read_baseline(path: Path | str, vehicle_class: VehicleClass) -> list[Product]:
+    """Every product in one export, parsed against that product area's schema.
+
+    The two schemas share a file format and almost no columns, so reading a caravan
+    export through `io.read_export` yields 81 products with every dimension blank rather
+    than an error — which is why the caller states the area rather than this guessing it.
+    """
+    if VehicleClass(vehicle_class) is VehicleClass.CARAVAN:
+        return list(caravan_io.read_export(path).caravans)
+    return list(io.read_export(path).motorhomes)
 
 
 def fetch_export(
@@ -395,14 +421,13 @@ def execute_run(
                     f"(FMLV login + download took {time.monotonic() - fetch_started:.1f}s)"
                 )
 
-            read = io.read_export(export_path)
             baseline = _dedupe_baseline(
-                motorhome
-                for motorhome in read.motorhomes
-                if motorhome.manufacturer == manufacturer.fmlv_manufacturer
-                and not motorhome.archived
-                and _is_current_model_year(motorhome.year)
-                and (in_scope is None or in_scope(motorhome))
+                product
+                for product in read_baseline(export_path, vehicle_class)
+                if product.manufacturer == manufacturer.fmlv_manufacturer
+                and not product.archived
+                and _is_current_model_year(product.year)
+                and (in_scope is None or in_scope(product))
             )
 
             # One browser process and one HTTP client for the whole run — the browser
@@ -650,18 +675,18 @@ def _generate_upload_command(args: argparse.Namespace) -> int:
             root=data_root,
             manufacturer_id=manufacturer.manufacturer_id,
             manufacturer_name=manufacturer.fmlv_manufacturer,
+            vehicle_class=run.vehicle_class,
         )
         if not export_path.exists():
             msg = f"export not found: {export_path}"
             raise CommandError(msg)
 
-        read = io.read_export(export_path)
         baseline = _dedupe_baseline(
-            motorhome
-            for motorhome in read.motorhomes
-            if motorhome.manufacturer == manufacturer.fmlv_manufacturer
-            and not motorhome.archived
-            and _is_current_model_year(motorhome.year)
+            product
+            for product in read_baseline(export_path, run.vehicle_class)
+            if product.manufacturer == manufacturer.fmlv_manufacturer
+            and not product.archived
+            and _is_current_model_year(product.year)
         )
 
         queue = store.list_change_queue(connection, run.id)
@@ -681,6 +706,7 @@ def _generate_upload_command(args: argparse.Namespace) -> int:
             path=paths.upload_csv_path(
                 run.id, vehicle_class=run.vehicle_class, root=data_root
             ),
+            vehicle_class=run.vehicle_class,
         )
     finally:
         connection.close()

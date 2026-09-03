@@ -40,8 +40,8 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from ..adapters.base import ExtractedMotorhome
-from ..product_model.model import Motorhome
+from ..adapters.base import ExtractedProduct
+from ..product_model.product import Product
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -115,7 +115,7 @@ def _codes(tokens: frozenset[str]) -> frozenset[str]:
     return frozenset(token for token in tokens if any(char.isdigit() for char in token))
 
 
-def token_similarity(left: Motorhome, right: Motorhome) -> float:
+def token_similarity(left: Product, right: Product) -> float:
     """Jaccard similarity of the two products' range+model word bags, in [0, 1].
 
     Zero when both sides name a layout code and none of the codes agree. Word overlap
@@ -140,7 +140,7 @@ def token_similarity(left: Motorhome, right: Motorhome) -> float:
     return len(left_tokens & right_tokens) / len(union)
 
 
-def _tie_break(baseline: Motorhome) -> tuple[int, int]:
+def _tie_break(baseline: Product) -> tuple[int, int]:
     """Sort key preferring the *live, current* row when several score identically.
 
     An FMLV export holds a manufacturer's history, not just its current line-up: the
@@ -164,16 +164,16 @@ class MatchResult:
     (DESIGN.md §4.1: a genuinely new product is submitted with `product_id` blank).
     """
 
-    extracted: ExtractedMotorhome
-    baseline: Motorhome | None
+    extracted: ExtractedProduct
+    baseline: Product | None
     baseline_index: int | None
     score: float
     method: str | None  # "exact" | "fuzzy" | None
 
 
 def match_products(
-    scraped: Iterable[ExtractedMotorhome],
-    baseline: Iterable[Motorhome],
+    scraped: Iterable[ExtractedProduct],
+    baseline: Iterable[Product],
     *,
     threshold: float = DEFAULT_THRESHOLD,
 ) -> list[MatchResult]:
@@ -194,7 +194,7 @@ def match_products(
     candidates: list[tuple[float, tuple[int, int], int, int]] = []
     for s_idx, extracted in enumerate(scraped_list):
         for b_idx, baseline_motorhome in enumerate(baseline_list):
-            score = token_similarity(extracted.motorhome, baseline_motorhome)
+            score = token_similarity(extracted.product, baseline_motorhome)
             if score > 0:
                 candidates.append((score, _tie_break(baseline_motorhome), s_idx, b_idx))
 

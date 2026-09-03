@@ -423,8 +423,8 @@ def persist_diff(
             connection,
             manufacturer_id=manufacturer_id,
             fmlv_product_id=diff.fmlv_product_id,
-            manufacturer_range=diff.extracted.motorhome.manufacturer_range,
-            model=diff.extracted.motorhome.model,
+            manufacturer_range=diff.extracted.product.manufacturer_range,
+            model=diff.extracted.product.model,
             run_id=run_id,
             vehicle_class=vehicle_class,
         )
@@ -437,7 +437,7 @@ def persist_diff(
                     product_id=product.id,
                     field=field_name,
                     old_value=None,
-                    new_value=_serialize(field_value(diff.extracted.motorhome, field_name)),
+                    new_value=_serialize(field_value(diff.extracted.product, field_name)),
                     source_url=provenance.source_url,
                     source_snippet=provenance.snippet,
                 )

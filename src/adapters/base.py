@@ -185,6 +185,12 @@ class ExtractedCaravan:
         return self.caravan
 
 
+#: One extracted product of either area. Both classes expose `.product`, so code that
+#: only needs "the vehicle this adapter found" can read it from either without branching
+#: — `diff` and `store` annotate this.
+ExtractedProduct = ExtractedMotorhome | ExtractedCaravan
+
+
 class Adapter(Protocol):
     """Turns one manufacturer's website into canonical products.
 

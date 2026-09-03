@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 
-from ..adapters.base import ExtractedMotorhome
-from ..product_model.model import Motorhome
+from ..adapters.base import ExtractedProduct
+from ..product_model.product import Product
 from .compare import FieldChange, MissingField, compare_fields, sort_changes
 from .matching import DEFAULT_THRESHOLD, match_products
 from .year_rollover import in_rollover_window
@@ -40,8 +40,8 @@ class ProductDiff:
     kind: ChangeKind
     key: str
     fmlv_product_id: int | None
-    baseline: Motorhome | None
-    extracted: ExtractedMotorhome | None
+    baseline: Product | None
+    extracted: ExtractedProduct | None
     changes: list[FieldChange] = field(default_factory=list)
     confirmed_fields: list[str] = field(default_factory=list)
     missing_fields: list[MissingField] = field(default_factory=list)
@@ -68,8 +68,8 @@ class ProductDiff:
 
 
 def diff_products(
-    scraped: list[ExtractedMotorhome],
-    baseline: list[Motorhome],
+    scraped: list[ExtractedProduct],
+    baseline: list[Product],
     *,
     threshold: float = DEFAULT_THRESHOLD,
     today: date | None = None,
@@ -90,7 +90,7 @@ def diff_products(
             diffs.append(
                 ProductDiff(
                     kind=ChangeKind.NEW_PRODUCT,
-                    key=result.extracted.motorhome.key,
+                    key=result.extracted.product.key,
                     fmlv_product_id=None,
                     baseline=None,
                     extracted=result.extracted,
@@ -121,15 +121,15 @@ def diff_products(
             )
         )
 
-    for index, baseline_motorhome in enumerate(baseline):
+    for index, baseline_product in enumerate(baseline):
         if index in matched_baseline_indices:
             continue
         diffs.append(
             ProductDiff(
                 kind=ChangeKind.DISAPPEARED,
-                key=baseline_motorhome.key,
-                fmlv_product_id=baseline_motorhome.product_id,
-                baseline=baseline_motorhome,
+                key=baseline_product.key,
+                fmlv_product_id=baseline_product.product_id,
+                baseline=baseline_product,
                 extracted=None,
             )
         )

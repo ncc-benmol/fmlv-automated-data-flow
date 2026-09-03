@@ -616,6 +616,7 @@ def _run_command(args: argparse.Namespace) -> int:
         root=data_root,
         manufacturer_id=manufacturer.manufacturer_id,
         manufacturer_name=manufacturer.fmlv_manufacturer,
+        vehicle_class=vehicle_class,
     )
     if not export_path.exists():
         msg = f"export not found: {export_path}"

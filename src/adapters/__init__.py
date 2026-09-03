@@ -42,6 +42,7 @@ from . import (
     rimor,
     sunlight,
     swift,
+    swift_caravan,
     weinsberg,
     wingamm,
 )
@@ -69,6 +70,7 @@ _MODULES: tuple[Adapter, ...] = (
     rimor,
     sunlight,
     swift,
+    swift_caravan,
     weinsberg,
     wingamm,
 )
@@ -111,6 +113,7 @@ __all__ = [
     "rimor",
     "sunlight",
     "swift",
+    "swift_caravan",
     "weinsberg",
     "wingamm",
 ]

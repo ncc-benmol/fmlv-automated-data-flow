@@ -459,3 +459,42 @@ class _NullContext:
 
     def __exit__(self, *args) -> bool:
         return False
+
+
+def test_the_run_command_asks_for_the_baseline_of_the_area_it_is_sweeping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`latest_export` takes a `vehicle_class`; the run command has to actually pass it.
+
+    The function was right and tested from the day caravans landed. What was untested was
+    the one line that calls it, and it omitted the argument — so every caravan run took
+    the motorhome default. Bailey never showed it because its export directory only ever
+    held the caravan sheet, and newest-file-wins happened to be right. Swift's first
+    caravan run had both sheets side by side and classified all 26 caravans as new and all
+    31 motorhomes as disappeared, which is exactly what `latest_export`'s own docstring
+    predicts. Asserted through the command, because the seam is the bug.
+    """
+    from src import cli
+
+    directory = paths.manufacturer_exports_dir(26, "Swift Group Ltd", root=tmp_path)
+    directory.mkdir(parents=True)
+    caravans = directory / "2026-09-03_Swift Group Ltd_touring-caravans.xlsx"
+    caravans.write_bytes(b"caravans")
+    motorhomes = directory / "2026-09-03_Swift Group Ltd_motorhome-campervans.xlsx"
+    motorhomes.write_bytes(b"motorhomes")  # written last, so newest-file-wins picks it
+
+    chosen: dict[str, Path] = {}
+
+    def fake_execute_run(*, export_path: Path, **_: object) -> cli.RunSummary:
+        chosen["export_path"] = export_path
+        raise cli.CommandError("stop here — the export choice is all this test needs")
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+
+    # `_run_command` catches an adapter-side failure and reports it as exit 1.
+    exit_code = cli.main(
+        ["run", "Swift Group Ltd", "--class", "caravan", "--data-dir", str(tmp_path)]
+    )
+
+    assert exit_code == 1
+    assert chosen["export_path"] == caravans

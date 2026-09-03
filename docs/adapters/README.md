@@ -985,6 +985,15 @@ the module declares, so it cannot drift.
 Import the sibling's parsing helpers rather than reimplementing them. Bailey's caravan
 pages use markup identical to its motorhome pages, so `bailey_caravan.py` imports
 `_field`, `_kilograms`, `_metres_to_mm` and `_leading_int` from `bailey.py` unchanged.
+`swift_caravan.py` goes further and imports `parse_layouts_json`, `range_and_model` and
+`find_quick_guide_url` too: Swift's caravan ranges are served by the same CMS template as
+its motorhome ranges, one `data-product-layouts-data` block per range page.
+
+**Which existing adapter to copy is decided by the site's shape, not by the product
+area.** Bailey's caravan adapter is one page per vehicle with a literal spec table; Swift's
+is one page per range with embedded JSON, so it was built on `swift.py` and took only the
+field mapping and the domain rules from `bailey_caravan.py`. Reaching for the nearest
+caravan adapter because the run is a caravan run is the wrong instinct.
 
 **Four lengths, and they are not interchangeable.** `internal_length_mm` is the habitable
 space; `exterior_body_length_mm` is the body; `shipping_length_mm` adds the towing hitch,
@@ -1000,13 +1009,26 @@ and the requester reads that as an industry trend rather than one brand's omissi
 (3 September 2026). Do not add it back for a manufacturer that happens to publish it
 without asking first — whatever FMLV already holds is left untouched.
 
-**The payload check is `mtplm - mro == personal_effects_payload`.** There are two payload
-columns, but `optional_equipment_payload_kilograms` is blank on all 92 real caravan
-products FMLV holds. Report a mismatch rather than dropping the product: six of Bailey's
+**The payload check is `mtplm - mro == published_payload`, and `published_payload` is not
+always one column.** There are two — `personal_effects_payload_kilograms` and
+`optional_equipment_payload_kilograms` — and they must *sum* to `mtplm - mro`. On Bailey's
+and Adria's 92 products the optional column is blank throughout, so the check collapses to
+the personal-effects figure alone. **Swift's four Elegance Grandes are the counter-example**
+(3 September 2026): FMLV holds 160kg personal effects plus 41kg optional equipment against
+a 201kg derived payload. Report a mismatch rather than dropping the product: six of Bailey's
 81 fail it on FMLV's own published figures.
+
+**So a manufacturer's single published payload figure may be the total, not the
+personal-effects half — and where it is, emit nothing.** Swift publish one `Max Payload`
+per layout and no split. Writing it to `personal_effects_payload_kilograms` would propose
+160 -> 201 on those four Elegance Grandes while the out-of-scope 41kg survived untouched,
+leaving 242kg of payload against 201kg of real capacity: an internally inconsistent product
+arriving as a routine-looking update. `swift_caravan.py` uses the figure as its self-check
+and emits neither payload column. Check the export for a non-blank optional figure before
+deciding which the manufacturer's number is.
 
 **Body type is nearly always `type_rigid`.** `type_micro` needs **both** the
 manufacturer's own naming **and** MTPLM of 1250kg or lower — a micro should be towable by
 a very small car. Weight alone would have mislabelled thirteen products across Bailey and
-Adria; Bailey's Discovery D4-2 is 995kg and FMLV holds it as rigid. Folding and pop-up
-exist in the schema but no surveyed brand builds one yet.
+Adria; Bailey's Discovery D4-2 is 995kg and FMLV holds it as rigid, as is Swift's 1043kg
+Basecamp. Folding and pop-up exist in the schema but no surveyed brand builds one yet.

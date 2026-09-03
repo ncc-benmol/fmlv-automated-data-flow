@@ -99,23 +99,20 @@ class Caravan(BaseModel):
 
     #: Whether a door or a firm partition divides the toilet from the shower.
     #:
-    #: **Independent of where the washroom is**, which is the whole reason it is its own
-    #: field. A washroom sits somewhere — on the side, or across the rear — and separately
-    #: either does or does not divide the two. Bailey build seven caravans that are *both*
-    #: side-mounted *and* separated, and FMLV's single `bathroom_layout` column can only
-    #: record one of those facts: five of the seven are held as `side_shower_toilet` and two
-    #: as `separate_shower_toilet`, which is one column being asked to answer two questions.
-    #: The requester's words, 3 September 2026: "one is the location, and the other is the
-    #: construction or the nature of the bathroom, whether it's separate or not."
+    #: **The export's `separate_shower_toilet` column, read as its own fact.** It is not an
+    #: alternative to `bathroom_layout` and never was: the requester, 3 September 2026 —
+    #: "they are separate, but they are also on the side... one is the location, and the
+    #: other is the construction or the nature of the bathroom." A washroom sits somewhere
+    #: *and* separately either does or does not divide the two, and FMLV can hold both,
+    #: whatever the field guide's "select one" wording suggests. Its own data proves it:
+    #: Phoenix GT75 762 carries `rear_shower_toilet` and `separate_shower_toilet` together.
     #:
-    #: **Not yet an export column**, so it is deliberately absent from
-    #: `caravan_schema.COLUMNS` and never written to an upload CSV — the NCC's importer
-    #: takes 62 columns in a fixed order and a 63rd would at best be ignored. It is carried
-    #: here so the habitation pack and any adapter can record it now, and so wiring it into
-    #: the export is a one-line change once the NCC adds the column. See
-    #: `caravan_schema.PROPOSED_COLUMNS`.
+    #: So `bathroom_layout` takes the location and this takes the construction. Reading a
+    #: row that sets both fills both, which is what makes the pair expressible at all —
+    #: before this, the second flag survived only as an opaque `extra_column_flags` entry.
     #:
-    #: `None` means nobody has assessed this product, which is different from `False`.
+    #: `None` means the column was blank, which is not the same as somebody having looked
+    #: and found one room.
     shower_toilet_separated: bool | None = None
 
     @property

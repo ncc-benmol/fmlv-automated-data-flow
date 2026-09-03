@@ -202,24 +202,6 @@ LAYOUT: frozenset[str] = frozenset(
     ]
 )
 
-#: Fields this project records that the NCC export has no column for **yet**.
-#:
-#: `shower_toilet_separated` is the first. It is a real property of a caravan and a
-#: separate one from where the washroom sits (`Caravan.shower_toilet_separated` explains
-#: the case), but `COLUMNS` is a contract with someone else's importer: 62 names in a fixed
-#: order, uploaded by hand. Adding a 63rd here would change every generated upload CSV, and
-#: the best case is that the importer ignores it.
-#:
-#: So the field lives on the model and in the habitation pack, and this constant records
-#: what would have to move where if the NCC adds the column. Doing so then means inserting
-#: the name into `COLUMNS` at the position FMLV chooses and setting it in
-#: `caravan_io.caravan_to_row` — nothing else.
-PROPOSED_COLUMNS: tuple[str, ...] = ("shower_toilet_separated",)
-
-assert not set(PROPOSED_COLUMNS) & set(COLUMNS), (
-    "a proposed column has been added to the export; move it out of PROPOSED_COLUMNS"
-)
-
 #: Numeric columns that change often — the fields a run actually chases.
 #: `optional_equipment_payload_kilograms` is deliberately absent: it is out of scope in
 #: the field guide and unpopulated on every real caravan product this project holds.

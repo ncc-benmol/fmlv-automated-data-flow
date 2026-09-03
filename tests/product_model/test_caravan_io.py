@@ -417,31 +417,62 @@ def test_separation_is_unset_rather_than_false_until_somebody_looks() -> None:
     assert Caravan(shower_toilet_separated=False).shower_toilet_separated is False
 
 
-def test_separation_stays_out_of_the_export_until_the_ncc_has_a_column() -> None:
-    """`COLUMNS` is a contract with someone else's importer: 62 names, fixed order.
+def test_separation_reads_from_the_column_the_export_already_has() -> None:
+    """`separate_shower_toilet` is column 49 of the caravan export, not a wish.
 
-    A 63rd would change every generated upload CSV for a column the importer does not
-    have. `PROPOSED_COLUMNS` records the intent without acting on it.
+    It was briefly modelled here as a column FMLV lacked. It does not lack it — the
+    mistake was reading the field guide's "select one" wording as a constraint the data
+    obeys, when FMLV's own export disproves it.
     """
-    assert "shower_toilet_separated" in caravan_schema.PROPOSED_COLUMNS
-    assert "shower_toilet_separated" not in caravan_schema.COLUMNS
-    assert len(caravan_schema.COLUMNS) == 62
+    assert "separate_shower_toilet" in caravan_schema.COLUMNS
 
-    row = caravan_io.caravan_to_row(Caravan(model="Porto", shower_toilet_separated=True))
-    assert "shower_toilet_separated" not in row
-    assert set(row) == set(caravan_schema.COLUMNS)
+    row = _row(model="Porto", side_shower_toilet="Yes", separate_shower_toilet="Yes")
+    caravan, issues = caravan_io.row_to_caravan(row)
+
+    # Location and construction, both kept, from one row.
+    assert caravan.bathroom_layout is BathroomLayout.SIDE_SHOWER_TOILET
+    assert caravan.shower_toilet_separated is True
+    assert [i.code for i in issues] == ["ambiguous_layout_group"]
 
 
-def test_a_separated_caravan_still_round_trips_through_the_export() -> None:
-    """The field is lost on a round trip, because the export has nowhere to put it.
+def test_a_side_washroom_that_divides_keeps_both_flags_on_write() -> None:
+    """The correction Bailey's range needs: five products carry one flag and want two."""
+    caravan = Caravan(
+        model="Porto",
+        bathroom_layout=BathroomLayout.SIDE_SHOWER_TOILET,
+        shower_toilet_separated=True,
+    )
 
-    Asserted rather than left implicit: it is the cost of keeping the upload CSV valid,
-    and whoever adds the column should see this test change.
-    """
-    original = Caravan(manufacturer="Bailey", model="Porto", shower_toilet_separated=True)
+    row = caravan_io.caravan_to_row(caravan)
 
-    returned, issues = caravan_io.row_to_caravan(caravan_io.caravan_to_row(original))
+    assert row["side_shower_toilet"] == "Yes"
+    assert row["separate_shower_toilet"] == "Yes"
+    assert row["rear_shower_toilet"] == "No"
 
-    assert not issues
-    assert returned.model == "Porto"
-    assert returned.shower_toilet_separated is None
+
+def test_a_combined_rear_washroom_writes_separation_off() -> None:
+    caravan = Caravan(
+        model="Cadiz",
+        bathroom_layout=BathroomLayout.REAR_SHOWER_TOILET,
+        shower_toilet_separated=False,
+    )
+
+    row = caravan_io.caravan_to_row(caravan)
+
+    assert row["rear_shower_toilet"] == "Yes"
+    assert row["separate_shower_toilet"] == "No"
+
+
+def test_both_washroom_facts_survive_a_round_trip() -> None:
+    original = _row(
+        manufacturer="Bailey",
+        model="Porto",
+        side_shower_toilet="Yes",
+        separate_shower_toilet="Yes",
+    )
+
+    caravan, _ = caravan_io.row_to_caravan(original)
+    returned, _ = caravan_io.row_to_caravan(caravan_io.caravan_to_row(caravan))
+
+    assert returned.bathroom_layout is BathroomLayout.SIDE_SHOWER_TOILET
+    assert returned.shower_toilet_separated is True

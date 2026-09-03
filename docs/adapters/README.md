@@ -671,6 +671,72 @@ Two follow-on questions the later surveys added:
   often exactly the roster or comparison view an adapter wants, and nobody links to them
   because they are not part of the sales funnel.
 
+### A download card can name the right market and link the wrong one
+
+Weinsberg, 3 September 2026, and it is the nastiest near-miss found so far — because the
+label is not merely unhelpful, it is *reassuring*.
+
+`weinsberg.com/en-uk/support/catalogues-price-lists/` offers three documents on cards
+reading **"Price list, UK"**. All three link the `global`, `DE-EN` editions, which quote
+`List price in EUR including 19% VAT` on every spec page; the word `GBP` appears **zero
+times** in either in-scope document. The sterling per-range lists exist, and are linked
+from the range pages instead.
+
+Every other rule in this file would have waved it through. It is the current model year, it
+is the only price list on the downloads page, it is not a glossy catalogue, its filename is
+undated in the way that matters, and the card says UK. "Read what a customer sees" —
+the rule that caught Etrusco's mislabelled year — actively points the wrong way here,
+because what the customer sees is the word UK.
+
+So the check that works is not about the label or the filename at all:
+
+- **Read the currency, and the tax rate, out of the document you actually downloaded, and
+  assert on them.** `weinsberg.py` requires `List price in GBP including 20% VAT` on a page
+  before it will take a price from it, and narrates a page offering EUR instead. That is one
+  line, it is checked every run, and it is the only thing standing between a euro figure and
+  `rrp_pounds`.
+- **The same assertion makes a foreign-currency document safely reusable.** Weinsberg's one
+  UK-priced range with no UK price list, X-PEDITION, has its specification read out of the
+  euro document and its price taken from a sterling index card. Because the parser refuses
+  the euro price by rule rather than by which file it was handed, pointing it at the
+  European list costs nothing.
+
+Generalise it as: **a price is the one field where the document's own units have to be
+verified, not inferred from where the document was found.** Dimensions and weights announce
+their units in the row label; a price announces its currency somewhere else entirely, and a
+manufacturer selling into thirteen markets publishes the same table thirteen ways.
+
+### A 404 can arrive with HTTP 200, so check the title
+
+Also Weinsberg. `/en-uk/motorhomes/caracore/layouts/650-meg/` is served **200** with
+`<title>404 - Page not Found | WEINSBERG</title>` and 34KB of chrome. Anything branching on
+`status_code` reads that as a successful fetch of a page with no specification on it —
+which is indistinguishable from a template change, and on a site where the per-layout page
+is the thing you are looking for, it is indistinguishable from the page existing and being
+empty.
+
+Probing for a page that may not exist is a normal thing for an adapter to do (it is how
+Weinsberg's two `EDITION [FIRE]` slugs were confirmed under `/en-uk/`), so **test the title
+as well as the status** on any site whose 404 behaviour has not been checked. It costs one
+`in` and it is the difference between "this range was withdrawn" and "this range parsed to
+nothing".
+
+### A card that renders is not a card that links
+
+Third from the same site, and the reason "no single menu is a complete roster" needs one
+more clause: `/en-uk/camper-vans/` renders a full card — name, price, key facts — for all
+four campervan ranges, and **links only one of them.** The other three cards are
+`<div class="link__button">` with no `href` anywhere in the served HTML.
+
+So a link-following crawl of that page finds one range in four, while a human reading the
+same page sees all four. Two consequences:
+
+- **A card is a roster signal even when it is not a link.** Weinsberg's index is where
+  X-PEDITION's only published sterling price lives, and where the survey first learned the
+  range existed at all — its URL had to come from the German sitemap's slug.
+- **Count the cards, then count what you can reach.** The gap between the two is the
+  measure of how much of the roster the crawl is missing, and it is free.
+
 ### If the document is behind a name/email form
 
 Two things, in this order.

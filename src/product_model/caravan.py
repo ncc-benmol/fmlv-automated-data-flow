@@ -97,6 +97,27 @@ class Caravan(BaseModel):
     twin_axle: bool = False
     microwave: bool = False
 
+    #: Whether a door or a firm partition divides the toilet from the shower.
+    #:
+    #: **Independent of where the washroom is**, which is the whole reason it is its own
+    #: field. A washroom sits somewhere — on the side, or across the rear — and separately
+    #: either does or does not divide the two. Bailey build seven caravans that are *both*
+    #: side-mounted *and* separated, and FMLV's single `bathroom_layout` column can only
+    #: record one of those facts: five of the seven are held as `side_shower_toilet` and two
+    #: as `separate_shower_toilet`, which is one column being asked to answer two questions.
+    #: The requester's words, 3 September 2026: "one is the location, and the other is the
+    #: construction or the nature of the bathroom, whether it's separate or not."
+    #:
+    #: **Not yet an export column**, so it is deliberately absent from
+    #: `caravan_schema.COLUMNS` and never written to an upload CSV — the NCC's importer
+    #: takes 62 columns in a fixed order and a 63rd would at best be ignored. It is carried
+    #: here so the habitation pack and any adapter can record it now, and so wiring it into
+    #: the export is a one-line change once the NCC adds the column. See
+    #: `caravan_schema.PROPOSED_COLUMNS`.
+    #:
+    #: `None` means nobody has assessed this product, which is different from `False`.
+    shower_toilet_separated: bool | None = None
+
     @property
     def key(self) -> str:
         """Human-readable identity for logs and the review UI."""

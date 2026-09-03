@@ -385,3 +385,63 @@ def test_a_caravan_is_never_asked_for_a_base_vehicle() -> None:
     """The motorhome schema makes `base_vehicle_manufacturer` REQUIRED; caravans have none."""
     assert "base_vehicle_manufacturer" not in caravan_schema.REQUIRED
     assert not hasattr(Caravan(), "base_vehicle_manufacturer")
+
+
+# --------------------------------------------------------------------------- #
+# Separation, recorded apart from position
+# --------------------------------------------------------------------------- #
+
+
+def test_separation_is_its_own_field_not_a_bathroom_layout_value() -> None:
+    """Where the washroom is and whether it divides are two facts, not one.
+
+    The requester, 3 September 2026, on Bailey's side-mounted separated washrooms: "they
+    are separate, but they are also on the side... one is the location, and the other is
+    the construction or the nature of the bathroom." FMLV's single-select
+    `bathroom_layout` can only answer one of the two, which is why seven identical Bailey
+    layouts are split five/two between `side_shower_toilet` and `separate_shower_toilet`.
+    """
+    porto = Caravan(
+        model="Porto",
+        bathroom_layout=BathroomLayout.SIDE_SHOWER_TOILET,
+        shower_toilet_separated=True,
+    )
+
+    assert porto.bathroom_layout is BathroomLayout.SIDE_SHOWER_TOILET
+    assert porto.shower_toilet_separated is True
+
+
+def test_separation_is_unset_rather_than_false_until_somebody_looks() -> None:
+    """`None` means nobody assessed it; `False` means someone looked and it is one room."""
+    assert Caravan().shower_toilet_separated is None
+    assert Caravan(shower_toilet_separated=False).shower_toilet_separated is False
+
+
+def test_separation_stays_out_of_the_export_until_the_ncc_has_a_column() -> None:
+    """`COLUMNS` is a contract with someone else's importer: 62 names, fixed order.
+
+    A 63rd would change every generated upload CSV for a column the importer does not
+    have. `PROPOSED_COLUMNS` records the intent without acting on it.
+    """
+    assert "shower_toilet_separated" in caravan_schema.PROPOSED_COLUMNS
+    assert "shower_toilet_separated" not in caravan_schema.COLUMNS
+    assert len(caravan_schema.COLUMNS) == 62
+
+    row = caravan_io.caravan_to_row(Caravan(model="Porto", shower_toilet_separated=True))
+    assert "shower_toilet_separated" not in row
+    assert set(row) == set(caravan_schema.COLUMNS)
+
+
+def test_a_separated_caravan_still_round_trips_through_the_export() -> None:
+    """The field is lost on a round trip, because the export has nowhere to put it.
+
+    Asserted rather than left implicit: it is the cost of keeping the upload CSV valid,
+    and whoever adds the column should see this test change.
+    """
+    original = Caravan(manufacturer="Bailey", model="Porto", shower_toilet_separated=True)
+
+    returned, issues = caravan_io.row_to_caravan(caravan_io.caravan_to_row(original))
+
+    assert not issues
+    assert returned.model == "Porto"
+    assert returned.shower_toilet_separated is None

@@ -704,6 +704,33 @@ fields verified unchanged. Everything predicted by the survey, and nothing else:
   a baseline, each a flagged no-op that preserves FMLV's figure. The two new products have
   no baseline to preserve, so those four stay blank on them.
 
+## No layout flags, and the bed-size tables do not change that
+
+The quick guide carries a **structured bed-size table** per range, one row per model,
+naming positions explicitly — Front Double, Front Single (Nearside/Offside), Side Single,
+Side Bunk, Side Double, Side Fixed Upper/Lower Bunk, Rear Double, with dimensions. It is a
+table, not marketing prose, and it covers all 26 models. That is more than Bailey's pages
+give, so it was examined for the layout flags on 3 September 2026 and **rejected**.
+
+It gives bed *position and size*, not bed *type*, and the FMLV columns need type:
+
+- **A caravan's front lounge converts to a double on almost every model**, so "Front
+  Double" appears on nearly all 26 rows. The table cannot say whether it is a
+  `fixed_bed` or one of the `make_up_beds` — which is the whole distinction.
+- **`island_bed` against `transverse_bed` is orientation**, and the table never states it.
+  Bed dimensions hint at it, which is exactly the "enough to guess from and not enough to
+  be right" trap `bailey_caravan.py` refuses.
+- The guide's one fixed-bed signal is a **range-level footnote**, `^Fixed beds` against
+  equipment lines like "Exclusive Duvalay Duvalite Strato mattress^". It marks which
+  equipment applies to fixed-bed models, not which models have one.
+- Nearside/offside is stated, and per the requester's standing rule it is never recorded
+  from a table without the drawing.
+
+So Swift's caravans take the same line as Bailey's: no layout flags, and
+`sleeping_area_*` stays blank. Filling them needs the floorplan drawings, which is the
+habitation-layout-pack job, not the adapter's. Recorded here so the bed-size table is not
+re-proposed as a shortcut to it.
+
 ## Re-verify after the NEC show
 
 Same caveat as the motorhomes: the guide is stamped "Issued September 2026" and carries

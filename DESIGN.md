@@ -230,6 +230,21 @@ real bottleneck. The app puts the source snippet and a link to the live manufact
 directly beside each proposed change, which is where a reviewer's time actually goes.
 Accept / reject / correct is **per field**, and the reviewer can type a corrected value.
 
+A field the adapter *could not find* takes a third answer, added 3 September 2026 at the
+requester's asking while reviewing Swift's first caravan run: **leave blank**. Such a field
+is proposed as a no-op (old value equals new) so that accepting it preserves what FMLV
+holds — but where a manufacturer has *withdrawn* a spec, as Swift did with caravan
+internal length, height and awning size for 2027, a stale figure is worse than none. So
+the three answers are "keep it", "replace it" and "clear it". `blank` is a distinct
+`decision.action` rather than a `correct` carrying an empty string, because the two are
+different editorial judgements and §6.7 requires the history to say which was made.
+
+It is offered only where the column can actually hold a blank: not for a boolean, which
+would be written `No` and so assert a fact rather than an absence, and not for the range
+or model, which would take the row below §6.6's matching threshold and orphan its FMLV
+id. Where the cleared column is a required one the button says so, since the generated
+CSV will then report the row as missing it.
+
 Implemented in `webapp/app.py` (Phase 6): `create_app(db_path)` builds the app against
 one SQLite file, so tests point it at a throwaway one rather than needing a running
 server. `store/changes.py` is where a run's diff (Phase 5's `diff_products`) becomes the
@@ -332,7 +347,7 @@ Tables, in outline:
 | `source_snapshot` | URL, fetch time, content hash, path on disk, run reference. |
 | `product` | Local mirror of known products keyed by `product_id`, plus the manufacturer's own identifier for matching. |
 | `proposed_change` | Run, product, field, old value, new value, source URL + snippet, confidence. |
-| `decision` | Reviewer action on a proposed change: accept / reject / correct, corrected value, who, when. |
+| `decision` | Reviewer action on a proposed change: accept / reject / correct / blank / undo, corrected value, who, when. |
 | `verification` | Product + field + run, recording "checked, unchanged". |
 
 ---

@@ -71,6 +71,42 @@ def _migrate_decision_undo_action(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_decision_blank_action(connection: sqlite3.Connection) -> None:
+    """Rebuild `decision` if its CHECK constraint predates the "blank" action.
+
+    Same shape and same reason as `_migrate_decision_undo_action` — SQLite has no
+    `ALTER TABLE` for a CHECK constraint, so widening one means rebuilding the table,
+    and it has to be done here rather than left to a fresh `schema.sql` because the
+    deployed run store holds real review history.
+
+    Kept as a second function rather than folded into the "undo" one so each migration
+    stays idempotent on its own marker: a store created after "undo" shipped but before
+    "blank" did needs exactly this one and not that one.
+    """
+    row = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'decision'"
+    ).fetchone()
+    if row is None or "'blank'" in row["sql"]:
+        return
+    connection.executescript(
+        """
+        ALTER TABLE decision RENAME TO decision_old;
+        CREATE TABLE decision (
+            id INTEGER PRIMARY KEY,
+            proposed_change_id INTEGER NOT NULL REFERENCES proposed_change (id),
+            action TEXT NOT NULL
+                CHECK (action IN ('accept', 'reject', 'correct', 'blank', 'undo')),
+            corrected_value TEXT,
+            decided_by TEXT,
+            decided_at TEXT NOT NULL
+        );
+        INSERT INTO decision SELECT * FROM decision_old;
+        DROP TABLE decision_old;
+        CREATE INDEX IF NOT EXISTS idx_decision_proposed_change ON decision (proposed_change_id);
+        """
+    )
+
+
 def _migrate_product_vehicle_class_unique_key(connection: sqlite3.Connection) -> None:
     """Widen `product`'s unique key to include `vehicle_class`.
 
@@ -132,6 +168,7 @@ def connect(db_path: Path | str) -> sqlite3.Connection:
     connection.executescript(_SCHEMA_SQL)
     _apply_column_migrations(connection)
     _migrate_decision_undo_action(connection)
+    _migrate_decision_blank_action(connection)
     _migrate_product_vehicle_class_unique_key(connection)
     connection.commit()
     connection.execute("PRAGMA foreign_keys = ON")

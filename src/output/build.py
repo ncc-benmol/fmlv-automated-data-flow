@@ -2,15 +2,20 @@
 
 DESIGN.md §6.3: accept/reject/correct is *per field*, so a run's approved output is
 assembled one field at a time — start from the baseline row (or a blank one for a
-`NEW_PRODUCT`), then apply every `accept`/`correct` decision on top of it. A `reject`,
-or a proposal never decided at all, leaves that field exactly as the baseline had it.
+`NEW_PRODUCT`), then apply every `accept`/`correct`/`blank` decision on top of it. A
+`reject`, or a proposal never decided at all, leaves that field exactly as the baseline
+had it.
 Carry-through fields (DESIGN.md §4.2) are untouched by construction: they're copied
 from the baseline `Motorhome` and no adapter ever proposes a change to them (the one
 exception, `year`, is handled the same way as any other field — see
 `store/changes.py`'s year-rollover note).
 
-A product with no `accept`/`correct` decision at all contributes nothing to the
-output — there is nothing approved to upload for it.
+A product with no `accept`/`correct`/`blank` decision at all contributes nothing to
+the output — there is nothing approved to upload for it.
+
+`blank` is the odd one out and is deliberately in that list: it is the only decision
+whose approved value is *emptiness*, so a product whose sole decision is a `blank`
+still contributes a row — one that clears a column FMLV currently fills.
 """
 
 from __future__ import annotations
@@ -273,8 +278,16 @@ def _mirror_guide_price(product: Product) -> Product:
 
 
 def _approved_value(entry: ChangeQueueEntry) -> str | None:
-    """The value to write for one approved entry — the correction if there was one."""
+    """The value to write for one approved entry — the correction if there was one.
+
+    `"blank"` returns `None`, which `apply_field` maps to an empty column for every
+    field type it accepts. That is the whole mechanism: a reviewer answering "the
+    manufacturer no longer publishes this, so stop showing the old figure" writes an
+    empty cell rather than the preserved one an `"accept"` would write.
+    """
     assert entry.decision is not None
+    if entry.decision.action == "blank":
+        return None
     if entry.decision.action == "correct":
         return entry.decision.corrected_value
     return entry.change.new_value

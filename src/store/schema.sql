@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_proposed_change_product ON proposed_change (produ
 CREATE TABLE IF NOT EXISTS decision (
     id INTEGER PRIMARY KEY,
     proposed_change_id INTEGER NOT NULL REFERENCES proposed_change (id),
-    action TEXT NOT NULL CHECK (action IN ('accept', 'reject', 'correct', 'undo')),
+    action TEXT NOT NULL CHECK (action IN ('accept', 'reject', 'correct', 'blank', 'undo')),
     corrected_value TEXT,
     decided_by TEXT,
     decided_at TEXT NOT NULL

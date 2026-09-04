@@ -89,6 +89,13 @@ _templates.env.globals["choice_label"] = choices.label_for
 _templates.env.globals["is_missing_field"] = lambda change: (change.source_snippet or "").startswith(
     (store.MISSING_FIELD_SNIPPET, store.UNDETERMINED_FIELD_SNIPPET)
 )
+#: Whether the "Leave blank" button is offered for a field — see `choices.can_be_blanked`.
+#: A guard, not a preference: blanking a boolean writes `No` and blanking an identity
+#: string orphans the product's FMLV id, so neither is offered.
+_templates.env.globals["can_be_blanked"] = choices.can_be_blanked
+#: Whether FMLV expects the column filled — shown on the "Leave blank" button so the
+#: reviewer knows the upload will report a gap, rather than meeting it at upload time.
+_templates.env.globals["is_required_field"] = choices.is_required_field
 
 
 #: Everything is stored in UTC (`datetime.now(UTC)` throughout `store/`); this is
@@ -694,6 +701,11 @@ def create_app(
         known_reviewers: set[str] = app.state.reviewer_names_lower
         if known_reviewers and reviewer_name.lower() not in known_reviewers:
             error = "Select your name from the reviewer list before deciding."
+        elif action == "blank" and not choices.can_be_blanked(change.field, run.vehicle_class):
+            # Reachable only by a hand-rolled POST — the template offers no button for
+            # these — but it would otherwise reach `apply_field` and write `No` into a
+            # boolean or empty the product's name. See `choices.can_be_blanked`.
+            error = f"{change.field} cannot be left blank; keep or replace it instead."
         elif action == "correct" and not corrected_value:
             error = (
                 "Choose a value before submitting."

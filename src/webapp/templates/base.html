@@ -203,6 +203,7 @@
     .decision-accept { color: var(--accept); }
     .decision-reject { color: var(--reject); }
     .decision-correct { color: var(--correct); }
+    .decision-blank { color: var(--muted); font-style: italic; }
     .undo-form { display: inline-block; margin-top: 0.3rem; }
     .form-error { color: var(--reject); font-size: 0.85em; }
     #reviewer-bar { margin-bottom: 1.5rem; }
@@ -268,6 +269,16 @@
       border-color: var(--correct);
     }
     .btn-correct:hover { background: var(--correct); color: #fff; }
+    .btn-blank {
+      background: transparent;
+      color: var(--muted);
+      border-color: var(--muted);
+    }
+    .btn-blank:hover { background: var(--muted); color: #fff; }
+    /* Marks a required column: clearing it is allowed and will be reported by
+       `validation` against the generated CSV, so the reviewer is told up front. */
+    .blank-required-flag { color: var(--correct); font-weight: 700; }
+    .btn-blank:hover .blank-required-flag { color: #fff; }
     .btn-undo {
       background: transparent;
       color: var(--muted);

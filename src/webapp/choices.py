@@ -25,7 +25,8 @@ The two halves of that are separate, and only this half needed new code:
 
 from __future__ import annotations
 
-from ..output.build import CARAVAN_UPLOAD, MOTORHOME_UPLOAD
+from ..output.build import CARAVAN_UPLOAD, MOTORHOME_UPLOAD, upload_profile
+from ..product_model import caravan_schema, schema
 from ..product_model.enums import BodyType, CaravanBodyType
 from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
 from ..vehicle_class import VehicleClass
@@ -121,4 +122,61 @@ def is_valid_choice(
         value == option
         for _group, options in field_choices(field, vehicle_class)
         for option, _ in options
+    )
+
+
+def is_required_field(field: str, vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS) -> bool:
+    """Whether FMLV's field guide marks `field` as a required column.
+
+    Not a bar on blanking — it decides the *warning* the reviewer sees before doing it.
+    All four fields Swift withdrew for 2027 are required (`internal_length_mm`,
+    `height_mm`, `awning_length_mm`, `personal_effects_payload_kilograms`), so clearing
+    one leaves `validation.check_caravan` reporting "required field ... is missing" against
+    the generated CSV. That report is correct and worth keeping: the row really does now
+    have a gap FMLV expects filled. It just should not be the first the reviewer hears of
+    it, hours later at upload.
+    """
+    required = (
+        caravan_schema.REQUIRED
+        if VehicleClass(vehicle_class) is VehicleClass.CARAVAN
+        else schema.REQUIRED
+    )
+    return field in required
+
+
+def can_be_blanked(field: str, vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS) -> bool:
+    """Whether a reviewer may clear `field` outright rather than keep or replace it.
+
+    The third answer to a field the adapter could not find, requested 3 September 2026:
+    where a manufacturer has *withdrawn* a spec, FMLV holding a stale figure can be worse
+    than holding nothing. Swift's caravans are the case in point — the 2027 site publishes
+    no internal length, height or awning size at all, so each arrives as a flagged no-op
+    on 24 products and, until now, could only be preserved.
+
+    **Not offered for every field, because not every column can hold a blank**, and the
+    two failure modes are silent ones:
+
+    * **Booleans write `False`, not empty.** `apply_field` maps an absent value to `False`
+      for `twin_axle` and `microwave`, and FMLV holds those as `No`. So "leave blank" on an
+      axle count would quietly assert *single axle* rather than *unknown* — a worse answer
+      than the figure it replaced.
+    * **The string fields are the product's identity** — `manufacturer`,
+      `manufacturer_display_name`, `manufacturer_range` and `model`. Clearing one takes the
+      row below `diff.matching`'s threshold and orphans its FMLV product id, which
+      `docs/adapters/README.md` describes at length under renames. A measurement can be
+      unknown; a vehicle's name cannot.
+
+    What is left is exactly what a reviewer means by "we don't know this": the numeric
+    measurements, the layout and body-type enums, and the automatic-variant weights. All
+    three map cleanly to an empty column in `apply_field`.
+
+    `bed_types` is excluded too. It is a list, so its empty state is `[]` rather than
+    `None`, and "no bed types recorded" and "this vehicle has no beds" would serialise
+    identically — a distinction worth keeping until someone asks for it.
+    """
+    profile = upload_profile(vehicle_class)
+    return (
+        field in profile.int_fields
+        or field in profile.enum_fields
+        or field in profile.automatic_fields
     )

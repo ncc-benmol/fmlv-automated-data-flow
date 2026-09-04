@@ -981,3 +981,222 @@ def test_run_detail_heading_names_the_product_area(client: TestClient, db_path: 
 
     assert response.status_code == 200
     assert "Touring caravans" in response.text
+
+
+# --------------------------------------------------------------------------- #
+# "Leave blank" — the third answer to a field the adapter could not find
+# --------------------------------------------------------------------------- #
+#
+# Requested 3 September 2026, while reviewing Swift's first caravan run. Their 2027
+# site publishes no internal length, height or awning size at all, so each arrived as
+# a flagged no-op on 24 products — and the only available answers were "keep the
+# existing figure" or "type a replacement". Neither says "the manufacturer has
+# withdrawn this, so stop showing a stale number".
+
+
+@pytest.fixture
+def run_with_a_missing_field(db_path: Path) -> tuple[int, int]:
+    """A run whose one proposal is an in-scope field the adapter did not find.
+
+    `mh_height_mm` is on the baseline and absent from the scrape, which is exactly
+    what `diff.compare` turns into a `MissingField` rather than a change.
+    """
+    connection = store.connect(db_path)
+    try:
+        run = store.start_run(
+            connection, manufacturer_id=3, fmlv_manufacturer="Adria Mobil", trigger="manual"
+        )
+        baseline = make_baseline(mh_height_mm=2890)
+        extracted = make_extracted(rrp_pounds=93950)  # same price, so the only row is the gap
+        diffs = diff_products([extracted], [baseline])
+        store.persist_diff(connection, run_id=run.id, manufacturer_id=3, diffs=diffs)
+        [entry] = store.list_change_queue(connection, run.id)
+        assert entry.change.field == "mh_height_mm"
+        store.finish_run(connection, run.id)
+        return run.id, entry.change.id
+    finally:
+        connection.close()
+
+
+def test_a_missing_field_row_offers_leaving_it_blank(
+    client: TestClient, run_with_a_missing_field: tuple[int, int]
+) -> None:
+    run_id, _change_id = run_with_a_missing_field
+    body = client.get(f"/runs/{run_id}").text
+
+    assert "Keep existing value" in body
+    assert "Leave blank" in body
+    assert 'value="blank"' in body
+
+
+def test_leaving_a_field_blank_is_recorded_and_shown_as_cleared(
+    client: TestClient, db_path: Path, run_with_a_missing_field: tuple[int, int]
+) -> None:
+    run_id, change_id = run_with_a_missing_field
+
+    response = client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "blank", "reviewer_name": "ben"},
+    )
+
+    assert response.status_code == 200
+    assert "cleared the value" in response.text
+    connection = store.connect(db_path)
+    try:
+        decision = store.latest_decision(connection, change_id)
+    finally:
+        connection.close()
+    assert decision is not None
+    assert decision.action == "blank"
+    # Not a "correct" carrying an empty string: clearing the field *is* the value, so
+    # `corrected_value` keeps meaning "what the reviewer typed".
+    assert decision.corrected_value is None
+    assert decision.decided_by == "ben"
+
+
+def test_leaving_a_field_blank_needs_no_replacement_value(
+    client: TestClient, run_with_a_missing_field: tuple[int, int]
+) -> None:
+    """The guard that blocks an empty "correct" must not also block a deliberate blank."""
+    run_id, change_id = run_with_a_missing_field
+
+    response = client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "blank", "corrected_value": "", "reviewer_name": "ben"},
+    )
+
+    assert "Enter a corrected value" not in response.text
+    assert "cleared the value" in response.text
+
+
+def test_a_blanked_field_can_be_undone(
+    client: TestClient, run_with_a_missing_field: tuple[int, int]
+) -> None:
+    run_id, change_id = run_with_a_missing_field
+    client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "blank", "reviewer_name": "ben"},
+    )
+
+    response = client.post(
+        f"/runs/{run_id}/changes/{change_id}/decide",
+        data={"action": "undo", "reviewer_name": "ben"},
+    )
+
+    assert "cleared the value" not in response.text
+    assert "Leave blank" in response.text  # reopened for review
+
+
+def test_a_field_that_cannot_hold_a_blank_is_refused_by_the_endpoint(
+    client: TestClient, db_path: Path
+) -> None:
+    """The template offers no button for these, but the endpoint is a plain POST.
+
+    Without this guard a hand-rolled request would reach `apply_field` and write `No`
+    into a boolean — asserting *single axle* rather than *unknown*, which is a worse
+    answer than the figure it replaced. The proposal is recorded directly rather than
+    diffed into being, so the guard is exercised rather than depending on which rows a
+    particular baseline happens to produce.
+    """
+    connection = store.connect(db_path)
+    try:
+        run = store.start_run(
+            connection,
+            manufacturer_id=26,
+            fmlv_manufacturer="Swift Group Ltd",
+            trigger="manual",
+            vehicle_class=VehicleClass.CARAVAN,
+        )
+        product = store.upsert_seen(
+            connection,
+            manufacturer_id=26,
+            fmlv_product_id=None,
+            manufacturer_range="Challenger Grande",
+            model="580",
+            run_id=run.id,
+            vehicle_class=VehicleClass.CARAVAN,
+        )
+        change = store.record_proposed_change(
+            connection,
+            run_id=run.id,
+            product_id=product.id,
+            field="twin_axle",
+            old_value="True",
+            new_value="False",
+            source_url=None,
+            source_snippet=store.MISSING_FIELD_SNIPPET,
+        )
+        store.finish_run(connection, run.id)
+    finally:
+        connection.close()
+
+    response = client.post(
+        f"/runs/{run.id}/changes/{change.id}/decide",
+        data={"action": "blank", "reviewer_name": "ben"},
+    )
+
+    assert "cannot be left blank" in response.text
+    connection = store.connect(db_path)
+    try:
+        assert store.latest_decision(connection, change.id) is None
+    finally:
+        connection.close()
+
+
+def test_a_row_for_an_unblankable_field_offers_no_blank_button(
+    client: TestClient, db_path: Path
+) -> None:
+    """The guard above is the backstop; this is the reviewer never being offered it."""
+    connection = store.connect(db_path)
+    try:
+        run = store.start_run(
+            connection,
+            manufacturer_id=26,
+            fmlv_manufacturer="Swift Group Ltd",
+            trigger="manual",
+            vehicle_class=VehicleClass.CARAVAN,
+        )
+        product = store.upsert_seen(
+            connection,
+            manufacturer_id=26,
+            fmlv_product_id=None,
+            manufacturer_range="Challenger Grande",
+            model="580",
+            run_id=run.id,
+            vehicle_class=VehicleClass.CARAVAN,
+        )
+        store.record_proposed_change(
+            connection,
+            run_id=run.id,
+            product_id=product.id,
+            field="twin_axle",
+            old_value="True",
+            new_value="True",
+            source_url=None,
+            source_snippet=store.MISSING_FIELD_SNIPPET,
+        )
+        store.finish_run(connection, run.id)
+    finally:
+        connection.close()
+
+    body = client.get(f"/runs/{run.id}").text
+
+    assert "Keep existing value" in body
+    assert "Leave blank" not in body
+
+
+def test_blanking_a_required_column_is_flagged_on_the_button(
+    client: TestClient, run_with_a_missing_field: tuple[int, int]
+) -> None:
+    """`mh_height_mm` is a required column, so the button warns before it is clicked.
+
+    Blanking it is still allowed — the reviewer's judgement is the point — but the
+    generated CSV will report the row as missing a required field, and that should not be
+    a surprise discovered at upload.
+    """
+    run_id, _change_id = run_with_a_missing_field
+    body = client.get(f"/runs/{run_id}").text
+
+    assert "Leave blank" in body
+    assert "blank-required-flag" in body
+    assert "will report this row as missing it" in body

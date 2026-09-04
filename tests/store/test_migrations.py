@@ -259,3 +259,72 @@ def test_the_decision_undo_migration_still_runs_alongside(legacy_db: Path) -> No
 
     assert "'undo'" in sql
     assert decisions == 1
+
+
+def test_the_decision_blank_migration_widens_the_check_and_keeps_history(
+    legacy_db: Path,
+) -> None:
+    """'blank' joins the CHECK on a store that predates it, without losing decisions.
+
+    Added 3 September 2026 with the "Leave blank" review action. The legacy fixture's
+    CHECK is `('accept', 'reject', 'correct')`, so this rebuild and the 'undo' one both
+    run in a single `connect` — the case worth asserting, since each is idempotent on
+    its own marker and a store could be sitting at either point.
+    """
+    connection = store.connect(legacy_db)
+    try:
+        sql = _table_sql(connection, "decision")
+        assert "'blank'" in sql
+        assert "'undo'" in sql
+        # The reviewer's real decision is still there, unchanged.
+        row = connection.execute(
+            "SELECT action, decided_by FROM decision WHERE id = 41"
+        ).fetchone()
+        assert (row["action"], row["decided_by"]) == ("accept", "Blanca Borbely")
+
+        store.record_decision(
+            connection, proposed_change_id=31, action="blank", decided_by="Francis Doyle"
+        )
+        latest = store.latest_decision(connection, 31)
+        assert latest is not None
+        assert latest.action == "blank"
+        assert latest.corrected_value is None
+    finally:
+        connection.close()
+
+
+def test_the_widened_check_still_refuses_an_unknown_action(legacy_db: Path) -> None:
+    """Widening the constraint must not amount to removing it."""
+    connection = store.connect(legacy_db)
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO decision (proposed_change_id, action, decided_at)"
+                " VALUES (31, 'obliterate', '2026-09-03T00:00:00Z')"
+            )
+    finally:
+        connection.close()
+
+
+def test_a_store_already_carrying_blank_is_left_alone(legacy_db: Path) -> None:
+    """Idempotency, asserted by rowid rather than by count.
+
+    A rebuild that ran a second time would copy every row into a fresh table; the ids
+    survive that, so this also records a `blank` decision first and checks it is the
+    same row afterwards.
+    """
+    connection = store.connect(legacy_db)
+    try:
+        recorded = store.record_decision(
+            connection, proposed_change_id=31, action="blank", decided_by="Francis Doyle"
+        )
+    finally:
+        connection.close()
+
+    connection = store.connect(legacy_db)
+    try:
+        again = store.get_decision(connection, recorded.id)
+        assert (again.action, again.decided_by) == ("blank", "Francis Doyle")
+        assert connection.execute("SELECT COUNT(*) FROM decision").fetchone()[0] == 2
+    finally:
+        connection.close()

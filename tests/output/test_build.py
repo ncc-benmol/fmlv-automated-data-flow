@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import sqlite3
 from datetime import date
 from pathlib import Path
@@ -12,7 +13,7 @@ from src import store
 from src.adapters.base import ExtractedMotorhome, Provenance
 from src.diff.classify import diff_products
 from src.product_model import validation
-from src.product_model.io import read_csv
+from src.product_model.io import read_csv, write_csv
 from src.product_model.model import Motorhome
 from src.output import build_upload_motorhomes, generate_upload
 from src.registry.models import Manufacturer, Status, TriState
@@ -458,3 +459,97 @@ def test_a_brand_with_no_price_gets_no_mirrored_price(
 
     assert motorhome.rrp_pounds is None
     assert motorhome.price_min_range_pounds is None
+
+
+# --------------------------------------------------------------------------- #
+# "Leave blank" — the decision whose approved value is emptiness
+# --------------------------------------------------------------------------- #
+
+
+def test_blanked_field_is_written_empty_not_preserved(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    """The point of the action: clear a column FMLV currently fills.
+
+    Requested 3 September 2026. An in-scope field the adapter cannot find is proposed
+    as a no-op so the stored figure survives an "accept" — but where the manufacturer
+    has *withdrawn* the spec, a stale figure is worse than none, and until now there
+    was no way to say so. Contrast
+    `test_a_missing_field_left_undecided_keeps_the_baseline_figure`.
+    """
+    baseline = make_baseline()  # mh_height_mm = 2900
+    extracted = make_extracted(rrp_pounds=93950)  # same price: the height gap is the only row
+    diffs = diff_products([extracted], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    queue = store.list_change_queue(connection, run_id)
+    entry = next(e for e in queue if e.change.field == "mh_height_mm")
+    # The proposal is a no-op — old and new are both the baseline's own figure.
+    assert entry.change.old_value == entry.change.new_value == "2900"
+    store.record_decision(
+        connection, proposed_change_id=entry.change.id, action="blank", decided_by="ben"
+    )
+
+    [motorhome] = build_upload_motorhomes(
+        connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
+    )
+
+    assert motorhome.mh_height_mm is None
+    # Only the blanked field is cleared; the rest of the row carries through.
+    assert motorhome.product_id == 4147
+    assert motorhome.mro_kilograms == 3200
+    assert motorhome.model == "Supreme 670 DC"
+
+
+def test_accepting_a_missing_field_still_preserves_the_figure(
+    connection: sqlite3.Connection, run_id: int
+) -> None:
+    """The other half of the pair, so the two answers are visibly different.
+
+    `diff.compare` deliberately refuses to propose `None` over a good baseline value so
+    that a reviewer cannot blank a field by clicking "accept". That guarantee has to keep
+    holding now that blanking is possible on purpose.
+    """
+    baseline = make_baseline()
+    extracted = make_extracted(rrp_pounds=93950)
+    diffs = diff_products([extracted], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    queue = store.list_change_queue(connection, run_id)
+    entry = next(e for e in queue if e.change.field == "mh_height_mm")
+    store.record_decision(
+        connection, proposed_change_id=entry.change.id, action="accept", decided_by="ben"
+    )
+
+    [motorhome] = build_upload_motorhomes(
+        connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
+    )
+
+    assert motorhome.mh_height_mm == 2900
+
+
+def test_a_blanked_field_reaches_the_csv_as_an_empty_cell(
+    connection: sqlite3.Connection, run_id: int, tmp_path: Path
+) -> None:
+    """Through `write_csv`, since an empty column is the actual deliverable."""
+    baseline = make_baseline()
+    extracted = make_extracted(rrp_pounds=93950)
+    diffs = diff_products([extracted], [baseline])
+    store.persist_diff(connection, run_id=run_id, manufacturer_id=3, diffs=diffs)
+
+    entry = next(
+        e for e in store.list_change_queue(connection, run_id) if e.change.field == "mh_height_mm"
+    )
+    store.record_decision(
+        connection, proposed_change_id=entry.change.id, action="blank", decided_by="ben"
+    )
+    motorhomes = build_upload_motorhomes(
+        connection, run_id=run_id, manufacturer=make_manufacturer(), baseline=[baseline]
+    )
+
+    destination = tmp_path / "upload.csv"
+    write_csv(motorhomes, destination)
+    with destination.open(encoding="utf-8-sig", newline="") as handle:
+        [row] = list(csv.DictReader(handle))
+
+    assert row["mh_height_mm"] == ""

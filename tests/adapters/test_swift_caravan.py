@@ -540,3 +540,79 @@ def test_no_provenance_is_recorded_for_a_field_that_was_not_found() -> None:
         "twin_axle",
         "body_type",
     }
+
+
+def test_the_adapter_asks_for_a_stale_optional_payload_to_be_cleared() -> None:
+    """The requester's rule, 4 September 2026.
+
+    "If a model previously had a split and now doesn't, take the one figure that's
+    published and use it in personal effects." So the derived total goes in the
+    personal-effects column and the optional column is recorded with *no value* — which
+    `diff.compare` turns into a confirm-or-clear row wherever FMLV holds one.
+    """
+    extracted = swift_caravan.build_extracted(
+        by_model(ELEGANCE_GRANDE, "835"), "https://example.test"
+    )
+
+    # Provenance recorded, so the field is compared rather than skipped...
+    assert "optional_equipment_payload_kilograms" in extracted.provenance
+    snippet = extracted.provenance["optional_equipment_payload_kilograms"].snippet
+    assert "no split" in snippet
+    assert "Leave this blank" in snippet
+    # ...but no value, because Swift publish none.
+    assert extracted.caravan.optional_equipment_payload_kilograms is None
+
+
+def test_a_baseline_holding_no_optional_payload_produces_no_row() -> None:
+    """22 of the 26 already hold it blank, so the reviewer should see nothing there.
+
+    `diff.compare` treats "adapter found nothing, baseline holds nothing" as a
+    confirmation rather than a gap — DESIGN.md §6.5.
+    """
+    from src.diff.compare import compare_fields
+
+    baseline = swift_caravan.build_extracted(
+        by_model(SPRITE, "Alpine 4"), "https://example.test"
+    ).caravan
+    extracted = swift_caravan.build_extracted(
+        by_model(SPRITE, "Alpine 4"), "https://example.test"
+    )
+
+    _changes, confirmed, missing = compare_fields(baseline, extracted)
+
+    assert "optional_equipment_payload_kilograms" in confirmed
+    assert "optional_equipment_payload_kilograms" not in [m.field for m in missing]
+
+
+def test_a_baseline_holding_a_split_produces_a_clearable_row() -> None:
+    """And it is a confirm-or-clear row, not a silent blanking.
+
+    `diff.compare` routes a value-to-nothing change down the missing-field path
+    precisely so no field is emptied by an "accept" — the reviewer uses "Leave blank".
+    """
+    from src.diff.compare import compare_fields
+    from src.webapp.choices import can_be_blanked
+
+    extracted = swift_caravan.build_extracted(
+        by_model(ELEGANCE_GRANDE, "835"), "https://example.test"
+    )
+    baseline = extracted.caravan.model_copy(
+        update={
+            "personal_effects_payload_kilograms": 160,
+            "optional_equipment_payload_kilograms": 41,
+        }
+    )
+
+    changes, _confirmed, missing = compare_fields(baseline, extracted)
+
+    gap = next(m for m in missing if m.field == "optional_equipment_payload_kilograms")
+    assert gap.old_value == 41
+    # Out of scope, so the reviewer is told the adapter could not determine it rather
+    # than that it was required — and the adapter's own snippet says why.
+    assert gap.in_scope is False
+    # And the reviewer can actually clear it.
+    assert can_be_blanked("optional_equipment_payload_kilograms", VehicleClass.CARAVAN)
+    # The personal-effects half moves as an ordinary proposal in the same breath.
+    assert [c.new_value for c in changes if c.field == "personal_effects_payload_kilograms"] == [
+        201
+    ]

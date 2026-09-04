@@ -494,6 +494,29 @@ not stop the bad diff.
 If they are ever wanted, each needs its own `fmlv_manufacturer` matching what FMLV
 literally holds, plus an adapter scoped to that brand's ranges.
 
+## Two pipeline bugs the payload work surfaced
+
+Both were found on 4 September 2026 while wiring the derived payload, and neither is
+Swift-specific.
+
+**Every caravan gap was described with the wrong wording.** `store.changes`'s
+`_missing_field_snippet` chose between "marked in-scope for automated collection, but was
+not found on the manufacturer's site this run" and "the adapter could not determine this
+field" by testing `missing.field in schema.IN_SCOPE` — the **motorhome** set. Caravans name
+their fields differently (`height_mm`, not `mh_height_mm`), so *every* in-scope caravan gap
+fell through to the out-of-scope wording and told the reviewer the adapter could not
+determine a field it was in fact required to find. 72 rows on Swift's first caravan run, and
+Bailey's before it. `MissingField` now carries an `in_scope` flag, set where the right
+`FieldProfile` is already in hand, and nothing downstream re-derives it.
+
+**A new product was asked about empty out-of-scope fields.** `persist_diff` proposes every
+field an adapter records provenance for, which on a new product includes the ones recorded
+with no value — so the optional-payload row above appeared on the two genuinely new
+caravans as `None -> None`, a decision for no reason. Now skipped when the field is out of
+scope. An empty *in-scope* field is still proposed, which is the point of the exception:
+that is how `swift._body_type_basis` offers the reviewer a choice the adapter could not
+make, on a product with no baseline to preserve.
+
 ## Re-verify after the NEC show
 
 Swift are mid-launch: the guides are stamped "Issued September 2026", three vehicles
@@ -567,17 +590,31 @@ provenance quotes the guide's figure alongside the arithmetic —
 145kg`. Where the guide has nothing to say the payload is still emitted and the provenance
 says the subtraction stands alone.
 
-**The caveat that prompted the original decision is real, and now surfaces as a warning.**
-FMLV has *two* payload columns and expects them to sum to `MTPLM - MRO`. On the four
-Elegance Grandes it uses both: `personal_effects` 160kg plus `optional_equipment` 41kg
-makes 201kg. The adapter proposes the 201kg total, because Swift publish no split and it
-cannot apportion one — so accepting it leaves the out-of-scope 41kg in place and the row
-reading 242kg against 201kg of real capacity.
+**And where FMLV holds a split, the adapter asks for it to be cleared.** FMLV has *two*
+payload columns and expects them to sum to `MTPLM - MRO`. On the four Elegance Grandes it
+uses both: `personal_effects` 160kg plus `optional_equipment` 41kg makes 201kg. Since the
+derived total goes into the personal-effects column, leaving that 41kg in place would make
+the row read 242kg against 201kg of real capacity.
 
-That is not silent. `validation._validate_caravan_payload` compares exactly those two
-figures and warns on the generated CSV, naming the product. Those four need the optional
-column clearing by hand, or the earlier personal-effects figure keeping. The adapter cannot
-see the baseline, so it narrates the case once per run rather than pretending to detect it.
+The requester's rule, given the same day: *where a model previously had a split and no
+longer does, take the one published figure and use it as the personal-effects total.* So
+the adapter records provenance for `optional_equipment_payload_kilograms` **with no
+value** — "Swift publish one payload figure and no split, so there is no separate
+optional-equipment payload" — and `diff.compare` turns that into a confirm-or-clear row
+wherever the baseline holds one. The reviewer clears it with **Leave blank**.
+
+Asked for rather than done silently, deliberately: `diff.compare` routes a
+value-to-nothing change down the confirm-or-replace path precisely so no field is emptied
+by an "accept". On the other 22 products FMLV already holds it blank, so the field comes
+back confirmed and no row appears — run #68 raised exactly four, one per Elegance Grande.
+
+Verified end to end on that run: accepting the 835's payload and clearing its optional
+column writes `personal_effects_payload_kilograms=201`,
+`optional_equipment_payload_kilograms=` (empty) against MTPLM 2123 and MRO 1922, and
+`_validate_caravan_payload` reports nothing — 201 is exactly `MTPLM - MRO`. Accepting the
+payload *without* clearing the split reports
+`published payload 242kg does not match mtplm - mro (201kg)`, naming the product, which is
+the backstop working.
 
 **This falsifies `docs/adapters/README.md`'s "blank on all 92 real caravan products"** —
 true of Bailey and Adria, not of Swift.

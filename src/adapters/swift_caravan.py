@@ -67,16 +67,25 @@ corroborated rather than merely computed: the quick guide's `Max Payload` matche
 subtraction on all 26, so the provenance quotes the guide where it has an entry and says
 so plainly where it does not.
 
-**One caveat, on four products, and it surfaces as a warning rather than silently.** FMLV
-has *two* payload columns and expects them to sum to `MTPLM - MRO`. On the four Elegance
-Grandes it uses both: `personal_effects` 160kg plus `optional_equipment` 41kg makes the
-201kg the guide prints. This adapter proposes 201 into the personal-effects column, which
-is the total, so accepting it leaves the out-of-scope 41kg in place and the row reading
-242kg against 201kg of real capacity. That is not silent —
-`validation._validate_caravan_payload` compares exactly those two figures and warns on the
-generated CSV, naming the product — but it does need the 41kg clearing by hand on those
-four, or the earlier figure keeping. Swift publish no split (nor did the 2026 brochure),
-so the adapter cannot apportion it and does not guess.
+**And where FMLV holds a split, the adapter asks for it to be cleared.** FMLV has *two*
+payload columns and expects them to sum to `MTPLM - MRO`. On the four Elegance Grandes it
+uses both: `personal_effects` 160kg plus `optional_equipment` 41kg makes the 201kg the
+guide prints. Since the derived total goes into the personal-effects column, leaving that
+41kg in place would make the row read 242kg against 201kg of real capacity.
+
+The requester's rule (4 September 2026) settles it: *where a model previously had a split
+and no longer does, take the one published figure and use it as the personal-effects
+total.* So this adapter records provenance for `optional_equipment_payload_kilograms`
+with **no value** — saying "Swift publish no such figure" — which `diff.compare` turns
+into a confirm-or-clear row wherever the baseline holds one. The reviewer clears it with
+the "Leave blank" action, and the two columns then sum to the published total.
+
+It is asked for rather than done silently, deliberately: `diff.compare` routes a
+value-to-nothing change down the confirm-or-replace path precisely so no field is emptied
+by an "accept". On the other 22 products FMLV already holds it blank, so the field comes
+back confirmed and no row appears. `validation._validate_caravan_payload` is the backstop
+either way — it compares the two figures and warns on the generated CSV, naming any
+product where they still disagree.
 
 Note the split contradicts `docs/adapters/README.md`'s "blank on all 92 real caravan
 products", which was true of Bailey and Adria and is not true of Swift.
@@ -479,6 +488,16 @@ def build_extracted(
             f"({product.mtplm_kilograms} - {product.mro_kilograms})"
             f"{'; ' + payload_basis if payload_basis else ''}",
         )
+        # Recorded with no value on the product, which is the point: it says the adapter
+        # looked and Swift publish nothing here. Where FMLV holds a figure that becomes a
+        # confirm-or-clear row; where it holds none — 22 of the 26 — the field comes back
+        # confirmed and the reviewer sees nothing.
+        record(
+            "optional_equipment_payload_kilograms",
+            "Swift publish one payload figure and no split, so there is no separate "
+            "optional-equipment payload. Leave this blank so the two payload columns sum "
+            f"to the published {product.derived_payload_kilograms}kg",
+        )
     if product.shipping_length_mm is not None:
         record(
             "shipping_length_mm",
@@ -615,13 +634,12 @@ def collect(
             "preserved"
         )
         # Narrated unconditionally rather than detected, because an adapter has no view of
-        # the baseline: this is the one place the derived payload can disagree with FMLV's
-        # own bookkeeping, and `validation` will name the products at upload.
+        # the baseline. The row itself only appears where FMLV holds an optional figure.
         on_progress(
             "payload is derived as MTPLM - MRO and corroborated by the quick guide on every "
-            "layout — but FMLV splits that total across both payload columns on the Elegance "
-            "Grande (160kg personal effects + 41kg optional equipment), so accepting the "
-            "derived figure there needs the optional column cleared by hand"
+            "layout; where FMLV also holds an optional-equipment figure — the four Elegance "
+            "Grandes, 160kg + 41kg — that column is offered for clearing so the two sum to "
+            "the published total"
         )
 
     return extracted

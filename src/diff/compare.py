@@ -201,17 +201,23 @@ class FieldChange:
 
 @dataclass(frozen=True)
 class MissingField:
-    """An in-scope field the adapter didn't find on a matched, existing product.
+    """A field the adapter didn't find on a matched, existing product.
 
-    `schema.IN_SCOPE` fields are a requirement for every update, unlike other
-    fields where "the adapter never looked" is silently fine. `old_value` is the
-    baseline's current figure — offered to the reviewer to confirm/keep or
-    replace, rather than the field just going unchecked (the user's ask this
-    feature implements).
+    In-scope fields are a requirement for every update, unlike other fields where
+    "the adapter never looked" is silently fine. `old_value` is the baseline's current
+    figure — offered to the reviewer to confirm/keep or replace, rather than the field
+    just going unchecked (the user's ask this feature implements).
     """
 
     field: str
     old_value: Any
+    #: Whether this field is in scope for automated collection, which decides the wording
+    #: the reviewer is shown. Recorded here rather than re-derived downstream: the
+    #: in-scope set differs per product area, and `store.changes` used to test caravan
+    #: fields against the *motorhome* set — so every caravan gap was described as one the
+    #: adapter "could not determine" rather than one it was required to find. Set at
+    #: construction, where the right `FieldProfile` is already in hand.
+    in_scope: bool = True
     #: The adapter's own evidence, when it recorded some. Populated only for a field the
     #: adapter *attempted* and could not fill — an unfound in-scope field has no
     #: provenance by construction, so this stays `None` there. It is what lets the review
@@ -256,6 +262,7 @@ def compare_fields(
                 MissingField(
                     field=field_path,
                     old_value=old_value,
+                    in_scope=field_path in profile.in_scope,
                     provenance=extracted.provenance.get(field_path),
                 )
             )
@@ -279,7 +286,7 @@ def compare_fields(
         new_value = field_value(extracted.product, field_path)
         if old_value is None or new_value is not None:
             continue  # nothing on record, or the adapter found a value some other way
-        missing.append(MissingField(field=field_path, old_value=old_value))
+        missing.append(MissingField(field=field_path, old_value=old_value, in_scope=True))
 
     return changes, confirmed, missing
 

@@ -1024,13 +1024,26 @@ The requester's instruction (4 September 2026) is that two published masses dete
 payload, so a blank column beside them is the wrong answer: derive it as `mtplm - mro`,
 exactly as `swift.py` does for `mh_payload_kilograms`, and say so in the provenance.
 
-Where FMLV holds a **non-blank optional figure**, accepting that total leaves the
-out-of-scope optional column in place and the row over-stating its capacity — Swift's four
-Elegance Grandes read 242kg against 201kg. That is caught rather than silent:
-`_validate_caravan_payload` compares the two and warns on the generated CSV, naming the
-product, so the optional column can be cleared by hand. Check the export for a non-blank
-optional figure so you know in advance which products will need it — do not withhold the
-field to avoid the warning.
+Where FMLV holds a **non-blank optional figure**, that total would leave the optional
+column in place and the row over-stating its capacity — Swift's four Elegance Grandes would
+read 242kg against 201kg. The requester's rule (4 September 2026) resolves it: *where a
+model previously had a split and no longer does, take the one published figure and use it
+as the personal-effects total.*
+
+So **record provenance for `optional_equipment_payload_kilograms` with no value.**
+`diff.compare` turns a value-to-nothing change into a confirm-or-clear row rather than a
+silent blanking, so the reviewer clears it with the "Leave blank" action and the two
+columns then sum to the published total. Where FMLV already holds it blank the field comes
+back confirmed and no row appears. `_validate_caravan_payload` is the backstop either way.
+
+Two things this leans on, both worth knowing before copying it:
+
+- `compare_fields` walks **every field an adapter records provenance for**, in scope or
+  not — which is what lets an adapter speak about an out-of-scope column at all.
+- On a **new** product an empty out-of-scope field is skipped rather than proposed, since
+  there is no stored figure to clear. An empty *in-scope* one is still proposed: that is
+  `swift._body_type_basis`'s feature, where the reviewer is offered a choice the adapter
+  could not make.
 
 **Body type is nearly always `type_rigid`.** `type_micro` needs **both** the
 manufacturer's own naming **and** MTPLM of 1250kg or lower — a micro should be towable by

@@ -30,6 +30,18 @@ _LAYOUT_GROUP_FIELDS: tuple[str, ...] = (
     "heating",
 )
 
+#: The shortest a real motorhome or campervan can be. The smallest vehicle this project
+#: has seen is a 5.4m campervan, so 4m is well clear of anything legitimate while still
+#: catching a mis-keyed or mis-parsed figure. Bailey's own Endeavour B65 page published
+#: `Overall Body Length: 1.951m` (the truth, given by a comparison table further down
+#: that same page, is 5.980m); the adapter read it faithfully, a reviewer accepted it,
+#: and nothing downstream objected, so a 1.9m campervan reached FMLV on 20 Aug 2026.
+#: Once the baseline and the site agree on a wrong figure the diff reports it as
+#: verified-unchanged, which is precisely when a reviewer stops being shown it — hence a
+#: floor here, in the shared layer every adapter's upload passes through, rather than in
+#: the one adapter whose source happened to be wrong.
+MIN_PLAUSIBLE_LENGTH_MM = 4000
+
 
 @dataclass(frozen=True)
 class Issue:
@@ -61,6 +73,7 @@ def validate(motorhome: Motorhome) -> list[Issue]:
             )
 
     issues.extend(_validate_payload(motorhome, key))
+    issues.extend(_validate_length(motorhome, key))
     issues.extend(_validate_automatic(motorhome, key))
 
     for field_name in _LAYOUT_GROUP_FIELDS:
@@ -95,6 +108,38 @@ def _validate_payload(motorhome: Motorhome, key: str) -> list[Issue]:
             ),
             product_key=key,
             field="mh_payload_kilograms",
+        )
+    ]
+
+
+def _validate_length(motorhome: Motorhome, key: str) -> list[Issue]:
+    """Catch a length no motorhome or campervan could really have.
+
+    An `error` rather than a `warning`, so `generate_upload` reports `has_errors` and
+    the review app's banner points at the issues file instead of announcing a clean
+    CSV — the requester's condition (2026-09-04) was that a sub-4m vehicle must never
+    be accepted without being highlighted. It does not block the write: per this
+    module's docstring problems are reported as data, so a reviewer who has looked at
+    the figure and stands by it is not stuck.
+
+    Only a length below the floor is flagged. A missing figure is `missing_required`'s
+    business, and no upper bound is imposed — the longest products here are 8.1m
+    Autographs, but nothing rules out a longer one arriving legitimately.
+    """
+    length = motorhome.mh_length_mm
+    if length is None or length >= MIN_PLAUSIBLE_LENGTH_MM:
+        return []
+    return [
+        Issue(
+            severity="error",
+            code="implausible_length",
+            message=(
+                f"length {length}mm is under the {MIN_PLAUSIBLE_LENGTH_MM}mm floor for a "
+                f"motorhome or campervan — check the source page against a sibling "
+                f"model before uploading, as a mis-keyed figure looks like this"
+            ),
+            product_key=key,
+            field="mh_length_mm",
         )
     ]
 

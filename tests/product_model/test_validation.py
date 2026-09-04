@@ -63,6 +63,32 @@ def test_payload_mismatch_is_a_warning_not_an_error() -> None:
     assert issues[0].severity == "warning"
 
 
+def test_length_under_the_floor_is_an_error() -> None:
+    """The real Bailey Endeavour B65 figure — see MIN_PLAUSIBLE_LENGTH_MM."""
+    motorhome = make_motorhome(mh_length_mm=1951)
+    issues = validation.validate(motorhome)
+    errors = [i for i in issues if i.severity == "error"]
+    assert len(errors) == 1
+    assert errors[0].code == "implausible_length"
+    assert errors[0].field == "mh_length_mm"
+    assert "1951mm" in errors[0].message
+
+
+def test_length_on_the_floor_is_accepted() -> None:
+    assert validation.validate(make_motorhome(mh_length_mm=4000)) == []
+
+
+def test_a_long_length_is_not_flagged() -> None:
+    """No upper bound — a longer product than today's 8.1m maximum is not an error."""
+    assert validation.validate(make_motorhome(mh_length_mm=9500)) == []
+
+
+def test_missing_length_is_only_reported_as_missing_required() -> None:
+    """A blank length is `missing_required`'s business, not the plausibility floor's."""
+    issues = validation.validate(make_motorhome(mh_length_mm=None))
+    assert [i.code for i in issues] == ["missing_required"]
+
+
 def test_partial_automatic_variant_is_flagged() -> None:
     motorhome = make_motorhome(
         automatic=AutomaticVariant(rrp_pounds=80095)  # the other three left blank

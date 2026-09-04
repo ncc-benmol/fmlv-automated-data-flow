@@ -1018,14 +1018,19 @@ the personal-effects figure alone. **Swift's four Elegance Grandes are the count
 a 201kg derived payload. Report a mismatch rather than dropping the product: six of Bailey's
 81 fail it on FMLV's own published figures.
 
-**So a manufacturer's single published payload figure may be the total, not the
-personal-effects half — and where it is, emit nothing.** Swift publish one `Max Payload`
-per layout and no split. Writing it to `personal_effects_payload_kilograms` would propose
-160 -> 201 on those four Elegance Grandes while the out-of-scope 41kg survived untouched,
-leaving 242kg of payload against 201kg of real capacity: an internally inconsistent product
-arriving as a routine-looking update. `swift_caravan.py` uses the figure as its self-check
-and emits neither payload column. Check the export for a non-blank optional figure before
-deciding which the manufacturer's number is.
+**A manufacturer's single published payload figure may be the total rather than the
+personal-effects half — emit it anyway, and know which four products it will argue with.**
+The requester's instruction (4 September 2026) is that two published masses determine the
+payload, so a blank column beside them is the wrong answer: derive it as `mtplm - mro`,
+exactly as `swift.py` does for `mh_payload_kilograms`, and say so in the provenance.
+
+Where FMLV holds a **non-blank optional figure**, accepting that total leaves the
+out-of-scope optional column in place and the row over-stating its capacity — Swift's four
+Elegance Grandes read 242kg against 201kg. That is caught rather than silent:
+`_validate_caravan_payload` compares the two and warns on the generated CSV, naming the
+product, so the optional column can be cleared by hand. Check the export for a non-blank
+optional figure so you know in advance which products will need it — do not withhold the
+field to avoid the warning.
 
 **Body type is nearly always `type_rigid`.** `type_micro` needs **both** the
 manufacturer's own naming **and** MTPLM of 1250kg or lower — a micro should be towable by

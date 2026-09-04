@@ -551,21 +551,36 @@ caravan's habitable space by 1.5-1.7m while looking entirely plausible on any on
 adapter wrong. **This was checked, not reasoned about**, and it is the reason the survey
 opened the retired brochure at all.
 
-## The payload is a total, so it is not emitted
+## Payload is derived from the two masses — reversed 4 September 2026
 
-Swift publish `Max Payload`, which equals `MTPLM - MRO` on all 26. FMLV has *two* payload
-columns, and on the four Elegance Grandes it uses both: `personal_effects` 160kg plus
-`optional_equipment` 41kg makes the 201kg the guide prints.
+The adapter shipped on 3 September emitting no payload at all, reasoning that Swift's one
+published figure is a *total* and FMLV splits it on the Elegance Grande. **The requester
+overruled that the next day, on seeing the field arrive blank beside the two masses that
+determine it:** MTPLM and MRO are published on every layout, `MTPLM - MRO` is the payload,
+and that is the same arithmetic `swift.py` already does for `mh_payload_kilograms`. A gap
+beside the figures that fill it is the wrong answer.
 
-Emitting 201 as the personal-effects figure would propose 160 -> 201 on those four, and
-because `optional_equipment_payload_kilograms` is out of scope its 41kg would survive
-untouched — leaving 242kg of payload against 201kg of real capacity. An internally
-inconsistent product, arriving as a routine-looking update a reviewer would accept.
+So `personal_effects_payload_kilograms` is now derived, and corroborated rather than merely
+computed: the quick guide's `Max Payload` matches the subtraction on all 26, so the
+provenance quotes the guide's figure alongside the arithmetic —
+`Payload: 145kg, derived as MTPLM - MRO (1247 - 1102); quick guide agrees: Max Payload
+145kg`. Where the guide has nothing to say the payload is still emitted and the provenance
+says the subtraction stands alone.
 
-Swift publish no split (the 2026 brochure does not either), so the adapter supplies none:
-the figure is the self-check and nothing else. **This falsifies
-`docs/adapters/README.md`'s "blank on all 92 real caravan products"** — true of Bailey and
-Adria, not of Swift.
+**The caveat that prompted the original decision is real, and now surfaces as a warning.**
+FMLV has *two* payload columns and expects them to sum to `MTPLM - MRO`. On the four
+Elegance Grandes it uses both: `personal_effects` 160kg plus `optional_equipment` 41kg
+makes 201kg. The adapter proposes the 201kg total, because Swift publish no split and it
+cannot apportion one — so accepting it leaves the out-of-scope 41kg in place and the row
+reading 242kg against 201kg of real capacity.
+
+That is not silent. `validation._validate_caravan_payload` compares exactly those two
+figures and warns on the generated CSV, naming the product. Those four need the optional
+column clearing by hand, or the earlier personal-effects figure keeping. The adapter cannot
+see the baseline, so it narrates the case once per run rather than pretending to detect it.
+
+**This falsifies `docs/adapters/README.md`'s "blank on all 92 real caravan products"** —
+true of Bailey and Adria, not of Swift.
 
 ## The self-check is cross-document, and came out an exact bijection
 
@@ -609,9 +624,9 @@ the name. `RANGE_NAME_CORRECTIONS` is therefore absent from this module — the 
 where Swift's caravans are simpler than its motorhomes, where the Trekker collision needs
 it.
 
-## Four fields Swift published and no longer publish
+## Three fields Swift published and no longer publish
 
-All four were in the retired brochure; none appears anywhere on the 2027 site or in the
+All three were in the retired brochure; none appears anywhere on the 2027 site or in the
 quick guide. Each is left unset so it arrives as a `MissingField`, showing a reviewer
 FMLV's own figure beside "nothing scraped" and leaving the stored value alone.
 
@@ -620,7 +635,9 @@ FMLV's own figure beside "nothing scraped" and leaving the stored value alone.
 | `internal_length_mm` | brochure "Internal Length (At Bed Box Height)" | 3420-6360 |
 | `height_mm` | brochure "Overall Height (Inc. Tv Aerial)" | 2590 / 2610 |
 | `awning_length_mm` | brochure "Awning A/A Dimension" | 7950-10590 |
-| `personal_effects_payload_kilograms` | never published as such — see above | 111-201 |
+
+`personal_effects_payload_kilograms` was a fourth row here until 4 September 2026 — it is
+now derived from the two masses instead. See above.
 
 Back-filling any of them from the 2026 brochure was considered and rejected for the same
 reason `swift.py` rejects it for motorhome heights: last season's document is not 2027
@@ -700,9 +717,10 @@ fields verified unchanged. Everything predicted by the survey, and nothing else:
 - **Real 2027 spec changes:** Conqueror 480 lengthened 6450 -> 6530mm with MTPLM 1459 ->
   1460; Conqueror 580 MTPLM 1660 -> 1675 and MRO 1503 -> 1518. All corroborated by the
   guide.
-- **96 in-scope fields not found** = the four withdrawn fields times the 24 products with
-  a baseline, each a flagged no-op that preserves FMLV's figure. The two new products have
-  no baseline to preserve, so those four stay blank on them.
+- **96 in-scope fields not found** = the four then-withdrawn fields times the 24 products
+  with a baseline, each a flagged no-op that preserves FMLV's figure. The two new products
+  have no baseline to preserve, so those four stayed blank on them. From 4 September this
+  is **72**, payload having become a derived field rather than a gap.
 
 ## No layout flags, and the bed-size tables do not change that
 

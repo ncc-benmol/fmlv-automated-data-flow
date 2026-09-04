@@ -43,8 +43,8 @@ brochure, which files every Grande as a *model* under its parent range ("Challen
 Grande 580") — following the printed document instead of the site would have proposed
 nine renames FMLV does not want.
 
-**Four fields Swift published in the brochure and no longer publish at all**, so all four
-are deliberately not emitted and are narrated once per run instead. FMLV holds good
+**Three fields Swift published in the brochure and no longer publish at all**, so none
+of the three is emitted and all three are narrated once per run instead. FMLV holds good
 figures for every one of them on the 24 carried-over products, and per
 `docs/adapters/README.md` a figure that could not be found must be left alone rather than
 guessed at or back-filled from last season's document — the same call `swift.py` makes
@@ -54,21 +54,32 @@ for motorhome heights, and for the same reason.
   `exterior_body_length_mm`, which is out of automated scope globally.
 * `height_mm` — brochure only (2.59m/2.61m).
 * `awning_length_mm` — brochure's "Awning A/A Dimension" only.
-* `personal_effects_payload_kilograms` — see below. This one is subtler.
 
-**THE PAYLOAD IS A TOTAL, AND MUST NOT BE WRITTEN TO THE PERSONAL-EFFECTS COLUMN.**
-Swift publish one figure, `Max Payload`, and it equals `MTPLM - MRO` on all 26. FMLV has
-*two* payload columns, and on the four Elegance Grandes it uses both: `personal_effects`
-160kg plus `optional_equipment` 41kg makes the 201kg the guide prints. Emitting 201 as
-the personal-effects figure would propose 160 -> 201 on those four, and since
-`optional_equipment_payload_kilograms` is out of scope its 41kg would survive untouched —
-leaving 242kg of payload against 201kg of actual capacity, an internally inconsistent
-product that reads as a routine update. Swift do not publish the split (the 2026 brochure
-does not either), so this adapter cannot supply it and does not try. The figure is used
-as the self-check and nowhere else.
+`personal_effects_payload_kilograms` was a fourth until 4 September 2026, on the same
+reasoning. The requester overruled it: two published masses determine the payload, so
+withholding it left a reviewer looking at a blank beside the figures that fill it. See
+below.
 
-Note this contradicts `docs/adapters/README.md`'s "blank on all 92 real caravan products",
-which was true of Bailey and Adria and is not true of Swift.
+**Payload is derived as `MTPLM - MRO`**, the same arithmetic and the same wording
+`swift.py` uses for `mh_payload_kilograms` — the requester's instruction, 4 September
+2026, on seeing the field arrive blank beside two masses that determine it. It is
+corroborated rather than merely computed: the quick guide's `Max Payload` matches the
+subtraction on all 26, so the provenance quotes the guide where it has an entry and says
+so plainly where it does not.
+
+**One caveat, on four products, and it surfaces as a warning rather than silently.** FMLV
+has *two* payload columns and expects them to sum to `MTPLM - MRO`. On the four Elegance
+Grandes it uses both: `personal_effects` 160kg plus `optional_equipment` 41kg makes the
+201kg the guide prints. This adapter proposes 201 into the personal-effects column, which
+is the total, so accepting it leaves the out-of-scope 41kg in place and the row reading
+242kg against 201kg of real capacity. That is not silent —
+`validation._validate_caravan_payload` compares exactly those two figures and warns on the
+generated CSV, naming the product — but it does need the 41kg clearing by hand on those
+four, or the earlier figure keeping. Swift publish no split (nor did the 2026 brochure),
+so the adapter cannot apportion it and does not guess.
+
+Note the split contradicts `docs/adapters/README.md`'s "blank on all 92 real caravan
+products", which was true of Bailey and Adria and is not true of Swift.
 
 **The self-check is cross-document and came out an exact bijection.** The JSON publishes
 MTPLM and MRO but no payload; the quick guide publishes payload, length, width and MTPLM
@@ -303,9 +314,10 @@ class SwiftCaravan:
 
     @property
     def derived_payload_kilograms(self) -> int | None:
-        """`MTPLM - MRO`, the total the guide's `Max Payload` is checked against.
+        """`MTPLM - MRO` — the payload, and the figure the guide's `Max Payload` checks.
 
-        Not emitted as `personal_effects_payload_kilograms` — see the module docstring.
+        Emitted as `personal_effects_payload_kilograms`; see the module docstring for the
+        four Elegance Grandes where FMLV splits this total across both payload columns.
         """
         if self.mtplm_kilograms is None or self.mro_kilograms is None:
             return None
@@ -403,8 +415,16 @@ def unsplittable_titles(page_html: str, *, slug: str) -> list[str]:
     ]
 
 
-def build_extracted(product: SwiftCaravan, source_url: str) -> ExtractedCaravan:
-    """One parsed layout as a `Caravan` plus the provenance a reviewer sees beside it."""
+def build_extracted(
+    product: SwiftCaravan, source_url: str, *, payload_basis: str | None = None
+) -> ExtractedCaravan:
+    """One parsed layout as a `Caravan` plus the provenance a reviewer sees beside it.
+
+    `payload_basis` is what the quick guide had to say about this layout, from
+    `GuideSpecs.check`, so the payload's provenance can cite a published figure rather
+    than only the subtraction that produced it. `None` means the guide was unavailable —
+    the payload is still emitted, and its provenance says the arithmetic stands alone.
+    """
     caravan = Caravan(
         manufacturer=MANUFACTURER,
         manufacturer_display_name=MANUFACTURER_DISPLAY_NAME,
@@ -414,6 +434,7 @@ def build_extracted(product: SwiftCaravan, source_url: str) -> ExtractedCaravan:
         rrp_pounds=product.rrp_pounds,
         mtplm_kilograms=product.mtplm_kilograms,
         mro_kilograms=product.mro_kilograms,
+        personal_effects_payload_kilograms=product.derived_payload_kilograms,
         shipping_length_mm=product.shipping_length_mm,
         overall_width_mm=product.overall_width_mm,
         headroom_mm=product.headroom_mm,
@@ -451,6 +472,13 @@ def build_extracted(product: SwiftCaravan, source_url: str) -> ExtractedCaravan:
         record("mtplm_kilograms", f"MTPLM: {product.mtplm_kilograms}kg")
     if product.mro_kilograms is not None:
         record("mro_kilograms", f"MRO: {product.mro_kilograms}kg")
+    if product.derived_payload_kilograms is not None:
+        record(
+            "personal_effects_payload_kilograms",
+            f"Payload: {product.derived_payload_kilograms}kg, derived as MTPLM - MRO "
+            f"({product.mtplm_kilograms} - {product.mro_kilograms})"
+            f"{'; ' + payload_basis if payload_basis else ''}",
+        )
     if product.shipping_length_mm is not None:
         record(
             "shipping_length_mm",
@@ -566,7 +594,9 @@ def collect(
                 continue
             if not product.mtplm_kilograms or not product.mro_kilograms:
                 on_progress(f"{product.label}: {reason}")
-            extracted.append(build_extracted(product, url))
+            # The guide's own words travel with the payload, so a reviewer sees a
+            # published figure beside the subtraction rather than arithmetic alone.
+            extracted.append(build_extracted(product, url, payload_basis=reason))
             on_progress(f"read {product.label}")
 
     for mtplm in guide.unmatched():
@@ -581,9 +611,17 @@ def collect(
     if extracted:
         on_progress(
             f"emitted {len(extracted)} caravan(s) with no internal length, height or awning "
-            "size — Swift publish none of them for 2027, and no personal effects payload: "
-            "their Max Payload is the MTPLM - MRO total, which FMLV splits across two "
-            "columns on the Elegance Grande"
+            "size — Swift publish none of the three for 2027, so FMLV's own figures are "
+            "preserved"
+        )
+        # Narrated unconditionally rather than detected, because an adapter has no view of
+        # the baseline: this is the one place the derived payload can disagree with FMLV's
+        # own bookkeeping, and `validation` will name the products at upload.
+        on_progress(
+            "payload is derived as MTPLM - MRO and corroborated by the quick guide on every "
+            "layout — but FMLV splits that total across both payload columns on the Elegance "
+            "Grande (160kg personal effects + 41kg optional equipment), so accepting the "
+            "derived figure there needs the optional column cleared by hand"
         )
 
     return extracted

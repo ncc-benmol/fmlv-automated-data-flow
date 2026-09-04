@@ -408,24 +408,72 @@ def test_a_built_caravan_carries_the_fields_swift_publish() -> None:
     assert caravan.body_type is CaravanBodyType.RIGID
 
 
-def test_the_payload_total_is_never_written_to_the_personal_effects_column() -> None:
-    """The guide's `Max Payload` is a *total*, and FMLV splits it on the Elegance Grande.
+def test_payload_is_derived_from_the_two_published_masses() -> None:
+    """The requester's instruction, 4 September 2026, and `swift.py`'s own arithmetic.
+
+    Swift publish MTPLM and MRO on every layout, and those two determine the payload —
+    so leaving the column blank showed a reviewer a gap beside the figures that fill it.
+    Same subtraction and same provenance wording `swift.py` uses for
+    `mh_payload_kilograms`.
+    """
+    alpine = by_model(SPRITE, "Alpine 4")
+    assert (alpine.mtplm_kilograms, alpine.mro_kilograms) == (1247, 1102)
+    assert alpine.derived_payload_kilograms == 145
+    caravan = swift_caravan.build_extracted(alpine, "https://example.test").caravan
+    assert caravan.personal_effects_payload_kilograms == 145
+
+
+def test_the_payload_provenance_cites_the_guide_as_well_as_the_arithmetic() -> None:
+    """A published figure beside the subtraction, not arithmetic on its own."""
+    alpine = by_model(SPRITE, "Alpine 4")
+    extracted = swift_caravan.build_extracted(
+        alpine, "https://example.test", payload_basis="quick guide agrees: Max Payload 145kg"
+    )
+    snippet = extracted.provenance["personal_effects_payload_kilograms"].snippet
+    assert "derived as MTPLM - MRO (1247 - 1102)" in snippet
+    assert "Max Payload 145kg" in snippet
+
+
+def test_the_payload_is_still_emitted_with_no_guide_to_corroborate_it() -> None:
+    """The guide is the corroboration, not the source — two masses are enough."""
+    alpine = by_model(SPRITE, "Alpine 4")
+    extracted = swift_caravan.build_extracted(alpine, "https://example.test")
+    caravan = extracted.caravan
+    assert caravan.personal_effects_payload_kilograms == 145
+    snippet = extracted.provenance["personal_effects_payload_kilograms"].snippet
+    assert "derived as MTPLM - MRO" in snippet
+
+
+def test_the_derived_payload_is_a_total_on_the_elegance_grande() -> None:
+    """The one caveat, and it is FMLV's bookkeeping rather than a parse fault.
 
     FMLV holds the 835 as 160kg personal effects plus 41kg optional equipment — the 201kg
-    the guide prints. Emitting 201 here would propose 160 -> 201 while the out-of-scope
-    41kg survived untouched, leaving 242kg of payload against 201kg of real capacity: an
-    inconsistent product that reads as a routine update. Swift publish no split, so this
-    adapter supplies none.
+    the guide prints. The adapter proposes the 201kg total, because Swift publish no split
+    and it cannot apportion one, so accepting it leaves the out-of-scope 41kg in place and
+    the row reading 242kg against 201kg of real capacity. That is caught rather than
+    silent: `validation` compares those two figures and warns, naming the product.
     """
     elegance = by_model(ELEGANCE_GRANDE, "835")
-    assert elegance.derived_payload_kilograms == 201
     caravan = swift_caravan.build_extracted(elegance, "https://example.test").caravan
-    assert caravan.personal_effects_payload_kilograms is None
+    assert caravan.personal_effects_payload_kilograms == 201
+    assert caravan.derived_payload_kilograms == 201
+    # The adapter never supplies the optional half — out of scope, and unknowable here.
     assert caravan.optional_equipment_payload_kilograms is None
 
+    from src.product_model import validation
 
-def test_the_four_withdrawn_dimensions_are_left_for_fmlv_to_keep() -> None:
-    """All four were in the retired brochure and are published nowhere for 2027.
+    split = caravan.model_copy(
+        update={
+            "personal_effects_payload_kilograms": 201,
+            "optional_equipment_payload_kilograms": 41,
+        }
+    )
+    codes = [issue.code for issue in validation.validate_caravan(split)]
+    assert "payload_mismatch" in codes
+
+
+def test_the_withdrawn_dimensions_are_left_for_fmlv_to_keep() -> None:
+    """All three were in the retired brochure and are published nowhere for 2027.
 
     Leaving them unset makes each arrive as a `MissingField`, which shows a reviewer the
     baseline figure beside "nothing scraped" and leaves the stored value alone.
@@ -435,6 +483,8 @@ def test_the_four_withdrawn_dimensions_are_left_for_fmlv_to_keep() -> None:
     assert caravan.exterior_body_length_mm is None
     assert caravan.height_mm is None
     assert caravan.awning_length_mm is None
+    # Payload is *not* in this list any more — it is derived from the two masses.
+    assert caravan.personal_effects_payload_kilograms == 156
 
 
 def test_a_sub_1250kg_caravan_is_still_rigid() -> None:
@@ -483,6 +533,7 @@ def test_no_provenance_is_recorded_for_a_field_that_was_not_found() -> None:
     """A field is only real if it has provenance — `docs/adapters/README.md`."""
     bare = swift_caravan.SwiftCaravan(manufacturer_range="Sprite", model="Alpine 4")
     extracted = swift_caravan.build_extracted(bare, "https://example.test")
+    # No masses, so no derived payload either — the subtraction has nothing to work on.
     assert set(extracted.provenance) == {
         "manufacturer_range",
         "model",

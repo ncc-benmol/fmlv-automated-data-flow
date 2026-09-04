@@ -236,6 +236,53 @@ Three products hand-checked against the source page and the run's own proposed c
 Confirmed end to end: `Bailey` appears in the review app's trigger dropdown, filtered by
 `adapter_for()`.
 
+## Second run — 4 September 2026: a quiet run, and one wrong figure already in FMLV
+
+The requester triggered a run, saw **4 pending changes** and an upload CSV carrying only
+**4 models**, and asked what had gone wrong given the range is 22 models. Nothing had:
+the run was reproduced exactly (run #69 — 22 of 22 scraped, 24 baseline, 4 changed,
+18 unchanged, 0 new, 2 disappeared, **282 fields checked and unchanged**).
+
+**Why a full run can be almost silent.** The MY2027 data was accepted and uploaded after
+the first run, so FMLV already agreed with the site on nearly everything. The 2026-09-03
+export holds 22 rows at year 2027 where the 2026-08-20 one held 23 at 2026, and
+`Adamo XL` has gone as a range — its three layouts are now filed under `Adamo`, exactly
+the merge the first run proposed. The 4 survivors are pure letter-case on the model
+suffix (`75-4i`→`75-4I`, `69-4i`→`69-4I`, `79-4i`→`79-4I`, `79-4t`→`79-4T`); they recur
+every run because they were left **undecided** rather than rejected, and only a rejection
+is remembered (`store/changes.py`'s `was_previously_rejected`, keyed on the exact
+`(product, field, new_value)` triple).
+
+**Why the download carried 4 models and not 22.** The upload CSV is a delta, not a
+roster: `output/build.py`'s `build_upload_products` skips any product with no accepted or
+corrected decision. Four changes across four models is four rows. This is by design and
+is not a symptom of a short collect.
+
+**`Endeavour B65`'s published length is wrong, and it was already in FMLV.** The page
+states `Overall Body Length: 1.951m / 6'5"` in both the summary block and the technical
+specification; the comparison table further down the same page gives **5.980m**, matching
+every sibling campervan. The adapter read the published figure faithfully, it was
+accepted on 20 August, and from that point the field reported as verified-unchanged — so
+it never came back to a reviewer's attention. The requester corrected FMLV to 5980mm on
+4 September 2026.
+
+Two consequences worth carrying forward:
+
+1. **The next run will propose reverting it.** While Bailey keep the typo the adapter will
+   keep reading 1.951m and proposing `mh_length_mm: 5980 → 1951`. **Reject it** rather
+   than leaving it pending; a rejection suppresses that literal value on later runs, and
+   if Bailey ever fix the page it will simply match the baseline and go quiet.
+2. **A plausibility floor now guards the whole pipeline.**
+   `validation.MIN_PLAUSIBLE_LENGTH_MM = 4000` makes a sub-4m motorhome or campervan an
+   upload `error`, so `has_errors` is set and an issues file is written rather than a
+   clean CSV being announced. It went in the shared layer rather than `bailey.py` — see
+   [`README.md`](README.md#a-published-figure-can-be-wrong-and-once-accepted-it-stops-being-shown).
+   Bailey's own comparison table was considered as an automatic cross-check instead and
+   rejected: it appears on only **3 of the 22** model pages.
+
+Still outstanding at the end of this run: the `B63`/`B64` disappearance notices, which
+recur every run until those products are deactivated on the FMLV Nova site.
+
 ## What happened to the requester's URLs
 
 Both used directly as the model of what every page looks like — no near-miss document to

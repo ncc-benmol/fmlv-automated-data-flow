@@ -194,7 +194,48 @@ values — this is why the present design exists) versus **"attempted and not fo
 weight was searched for and is absent). Only the second should propose a blank. New
 products already behave correctly, since there is no baseline to inherit from, and
 `validation.py` flags the blank as `missing_required` — but only for a field the adapter
-attempted at all; see the next section for the third case, which is silent.
+attempted at all; see [A field is only real if it has provenance](#a-field-is-only-real-if-it-has-provenance)
+for the third case, which is silent.
+
+### A published figure can be wrong, and once accepted it stops being shown
+
+The rule above covers a figure that is **absent**. This one covers a figure that is
+**present and wrong** — the harder case, because nothing in the pipeline is suspicious of
+it. An adapter that reads its source faithfully will propose it, a reviewer with no
+sibling figure in front of them will accept it, and from then on the baseline and the site
+agree. `diff/compare.py` then reports the field as verified-unchanged on every subsequent
+run, which is exactly when a reviewer stops being shown it. **A wrong figure is loudest on
+the run that introduces it and silent forever after**, so the check has to sit on that
+first run or it may as well not exist.
+
+Bailey's Endeavour B65 page is the worked example (4 September 2026). It publishes
+`Overall Body Length: 1.951m` in both its summary block and its technical specification;
+a comparison table further down that same page gives the truth, 5.980m. A 1.9m campervan
+reached FMLV in the 20 August upload and then went quiet — the field was reported as
+verified-unchanged on the next run, alongside 281 genuinely-confirmed ones.
+
+**So a dimension gets a plausibility floor in `validation.py`, not in the adapter.**
+`MIN_PLAUSIBLE_LENGTH_MM = 4000` flags anything shorter as an `error`, which makes
+`generate_upload` report `has_errors` and points the review app's banner at the issues
+file instead of announcing a clean CSV. Three things about the shape of that check are
+deliberate and worth copying for the next one:
+
+- **It lives in the shared layer.** Every adapter's upload passes through `validation.py`,
+  and a mis-keyed dimension is nobody's brand-specific quirk. The one adapter whose source
+  happened to be wrong is the wrong place for it.
+- **It highlights rather than blocks.** Per `validation.py`'s own docstring, problems are
+  reported as data — a reviewer who has checked a figure and stands by it must not be
+  stuck. The requester's condition (4 September 2026) was that such a figure "should not
+  be accepted without being highlighted", which is a bar on silence, not on the upload.
+- **It is a floor, not a range.** The longest products here are 8.1m Autographs, but
+  nothing rules out a longer one arriving legitimately, so no upper bound is imposed. A
+  bound you cannot justify from the data becomes a false positive a reviewer learns to
+  click past.
+
+**A cross-check inside the source is better than a floor when the source offers one, but
+check how often it really does.** Bailey's comparison table would have caught B65 exactly,
+and it was rejected as an automatic check for one reason: it appears on only 3 of the 22
+model pages. A check that fires on an eighth of the roster reads as reliable and is not.
 
 ### Spell the base vehicle FMLV's way, not the manufacturer's
 

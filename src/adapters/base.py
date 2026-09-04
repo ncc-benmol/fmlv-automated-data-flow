@@ -21,6 +21,7 @@ from typing import Protocol
 
 from ..fetch.browser import BrowserFetcher
 from ..fetch.http import Fetcher
+from ..product_model.caravan import Caravan
 from ..product_model.model import Motorhome
 
 
@@ -154,6 +155,41 @@ class ExtractedMotorhome:
     motorhome: Motorhome
     provenance: dict[str, Provenance] = field(default_factory=dict)
 
+    @property
+    def product(self) -> Motorhome:
+        """The vehicle, under a name that does not assume the product area.
+
+        `ExtractedCaravan` exposes the same property, so code that only needs "the thing
+        this adapter found" can read it from either without branching.
+        """
+        return self.motorhome
+
+
+@dataclass
+class ExtractedCaravan:
+    """One touring caravan read from a manufacturer's site, with per-field provenance.
+
+    The caravan counterpart of `ExtractedMotorhome`. `provenance` is keyed by `Caravan`
+    field name, and a field the adapter could not find simply has no entry.
+
+    `product` is the name the pipeline should use when it does not care which product area
+    it is looking at — both classes expose it, so `diff` and `store` can read the vehicle
+    out of either without branching on type.
+    """
+
+    caravan: Caravan
+    provenance: dict[str, Provenance] = field(default_factory=dict)
+
+    @property
+    def product(self) -> Caravan:
+        return self.caravan
+
+
+#: One extracted product of either area. Both classes expose `.product`, so code that
+#: only needs "the vehicle this adapter found" can read it from either without branching
+#: — `diff` and `store` annotate this.
+ExtractedProduct = ExtractedMotorhome | ExtractedCaravan
+
 
 class Adapter(Protocol):
     """Turns one manufacturer's website into canonical products.
@@ -161,9 +197,14 @@ class Adapter(Protocol):
     Two things every adapter also declares, which a `Protocol` cannot express because
     they are module-level constants rather than methods:
 
-    * `MANUFACTURER` — the key this adapter is registered under in `ADAPTERS`, and it
-      must equal the registry row's `fmlv_manufacturer` exactly. Also
+    * `MANUFACTURER` — half the key this adapter is registered under in `ADAPTERS`, and
+      it must equal the registry row's `fmlv_manufacturer` exactly. Also
       `MANUFACTURER_DISPLAY_NAME` and `BASE_URL`.
+    * `VEHICLE_CLASS: VehicleClass` — optional, the other half of that key. Absent means
+      motorhomes and campervans, which is what every adapter written before touring
+      caravans came into scope produces. A manufacturer that builds both gets **two
+      adapter modules**, not one with a flag: they are different URLs, a different spec
+      table and a differently-shaped product (DESIGN.md §3).
     * `DEFAULT_RANGES: tuple[tuple[str, str], ...]` — optional, `(path, label)` pairs.
       `cli.resolve_ranges` looks for it with `getattr` and treats its absence as "this
       adapter does not support `--range`", so it stays genuinely opt-in.

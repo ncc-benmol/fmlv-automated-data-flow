@@ -2,15 +2,20 @@
 
 DESIGN.md §6.3: accept/reject/correct is *per field*, so a run's approved output is
 assembled one field at a time — start from the baseline row (or a blank one for a
-`NEW_PRODUCT`), then apply every `accept`/`correct` decision on top of it. A `reject`,
-or a proposal never decided at all, leaves that field exactly as the baseline had it.
+`NEW_PRODUCT`), then apply every `accept`/`correct`/`blank` decision on top of it. A
+`reject`, or a proposal never decided at all, leaves that field exactly as the baseline
+had it.
 Carry-through fields (DESIGN.md §4.2) are untouched by construction: they're copied
 from the baseline `Motorhome` and no adapter ever proposes a change to them (the one
 exception, `year`, is handled the same way as any other field — see
 `store/changes.py`'s year-rollover note).
 
-A product with no `accept`/`correct` decision at all contributes nothing to the
-output — there is nothing approved to upload for it.
+A product with no `accept`/`correct`/`blank` decision at all contributes nothing to
+the output — there is nothing approved to upload for it.
+
+`blank` is the odd one out and is deliberately in that list: it is the only decision
+whose approved value is *emptiness*, so a product whose sole decision is a `blank`
+still contributes a row — one that clears a column FMLV currently fills.
 """
 
 from __future__ import annotations
@@ -34,11 +39,22 @@ from ..product_model.enums import (
     Refrigeration,
     SleepingArea,
 )
+from ..product_model.caravan import Caravan
+from ..product_model.caravan_io import write_csv as write_caravan_csv
+from ..product_model.enums import CaravanBodyType, CaravanSleepingArea
 from ..product_model.io import write_csv as write_fmlv_csv
 from ..product_model.model import AutomaticVariant, Motorhome
-from ..product_model.validation import Issue, format_issues, validate_all
+from ..product_model.product import Product
+from ..product_model.validation import (
+    Issue,
+    format_issues,
+    validate_all,
+    validate_all_caravans,
+)
 from ..registry.models import Manufacturer
 from ..store.changes import LIST_SEPARATOR, ChangeQueueEntry, list_change_queue
+from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from ..vehicle_class import VehicleClass
 
 #: Plain integer fields (weights, dimensions, prices, counts) plus `year` — the one
 #: carry-through field that can legitimately appear as a proposed change, via the
@@ -99,51 +115,144 @@ _AUTOMATIC_FIELDS: dict[str, str] = {
 }
 
 
+#: The caravan equivalents. Four length fields where a motorhome has one, a split payload,
+#: `twin_axle` in place of `rear_garage`, and no automatic group at all — a towed vehicle
+#: has no gearbox.
+_CARAVAN_INT_FIELDS: frozenset[str] = frozenset(
+    {
+        "year",
+        "berths",
+        "rrp_pounds",
+        "price_min_range_pounds",
+        "price_max_range_pounds",
+        "mtplm_kilograms",
+        "mro_kilograms",
+        "optional_equipment_payload_kilograms",
+        "personal_effects_payload_kilograms",
+        "internal_length_mm",
+        "exterior_body_length_mm",
+        "shipping_length_mm",
+        "awning_length_mm",
+        "overall_width_mm",
+        "height_mm",
+        "headroom_mm",
+    }
+)
+
+#: No `base_vehicle_manufacturer` — a caravan is towed.
+_CARAVAN_STR_FIELDS: frozenset[str] = frozenset(
+    {"manufacturer", "manufacturer_display_name", "manufacturer_range", "model"}
+)
+
+_CARAVAN_BOOL_FIELDS: frozenset[str] = frozenset({"twin_axle", "microwave"})
+
+_CARAVAN_ENUM_FIELDS: dict[str, type[ColumnEnum]] = {
+    "body_type": CaravanBodyType,
+    "sleeping_area": CaravanSleepingArea,
+    "kitchen_location": KitchenLocation,
+    "bathroom_layout": BathroomLayout,
+    "lounge_location": LoungeLocation,
+    "heating": Heating,
+    "refrigeration": Refrigeration,
+}
+
+
+@dataclass(frozen=True)
+class UploadProfile:
+    """Everything about building an upload row that differs between the product areas.
+
+    Held together rather than branched on at each use, for the same reason
+    `diff.compare.FieldProfile` is: the difference between the two areas belongs in one
+    readable place, and `apply_field` should not grow an `isinstance` ladder.
+    """
+
+    int_fields: frozenset[str]
+    str_fields: frozenset[str]
+    bool_fields: frozenset[str]
+    enum_fields: dict[str, type[ColumnEnum]]
+    #: Dotted path -> attribute on the nested variant. Empty for caravans.
+    automatic_fields: dict[str, str]
+
+
+MOTORHOME_UPLOAD = UploadProfile(
+    int_fields=_INT_FIELDS,
+    str_fields=_STR_FIELDS,
+    bool_fields=_BOOL_FIELDS,
+    enum_fields=_ENUM_FIELDS,
+    automatic_fields=_AUTOMATIC_FIELDS,
+)
+
+CARAVAN_UPLOAD = UploadProfile(
+    int_fields=_CARAVAN_INT_FIELDS,
+    str_fields=_CARAVAN_STR_FIELDS,
+    bool_fields=_CARAVAN_BOOL_FIELDS,
+    enum_fields=_CARAVAN_ENUM_FIELDS,
+    automatic_fields={},
+)
+
+
+def upload_profile(vehicle_class: VehicleClass) -> UploadProfile:
+    """The upload profile for one product area."""
+    return CARAVAN_UPLOAD if VehicleClass(vehicle_class) is VehicleClass.CARAVAN else MOTORHOME_UPLOAD
+
+
+def profile_for_product(product: Product) -> UploadProfile:
+    return CARAVAN_UPLOAD if isinstance(product, Caravan) else MOTORHOME_UPLOAD
+
+
 def _parse_int(raw: str | None) -> int | None:
     if raw is None or raw == "":
         return None
     return int(raw)
 
 
-def apply_field(motorhome: Motorhome, field_name: str, raw_value: str | None) -> Motorhome:
-    """Return a copy of `motorhome` with one field set from a stored decision value.
+def apply_field(product: Product, field_name: str, raw_value: str | None) -> Product:
+    """Return a copy of `product` with one field set from a stored decision value.
 
     `raw_value` is a `proposed_change.new_value`/`decision.corrected_value` string —
     the same serialisation `store.changes._serialize` produces — so this is that
     function's inverse, one field at a time.
+
+    Works on a `Motorhome` or a `Caravan`; which field names are valid, and which enum a
+    layout field parses into, comes from the product's own `UploadProfile`. A caravan's
+    `body_type` is a `CaravanBodyType`, and feeding it a motorhome's `type_a_class` raises
+    here rather than writing a column the caravan importer does not have.
     """
-    if field_name in _INT_FIELDS:
-        return motorhome.model_copy(update={field_name: _parse_int(raw_value)})
+    profile = profile_for_product(product)
 
-    if field_name in _STR_FIELDS:
-        return motorhome.model_copy(update={field_name: raw_value or None})
+    if field_name in profile.int_fields:
+        return product.model_copy(update={field_name: _parse_int(raw_value)})
 
-    if field_name in _BOOL_FIELDS:
-        return motorhome.model_copy(update={field_name: raw_value == "True"})
+    if field_name in profile.str_fields:
+        return product.model_copy(update={field_name: raw_value or None})
 
-    if field_name in _ENUM_FIELDS:
-        enum_cls = _ENUM_FIELDS[field_name]
+    if field_name in profile.bool_fields:
+        return product.model_copy(update={field_name: raw_value == "True"})
+
+    if field_name in profile.enum_fields:
+        enum_cls = profile.enum_fields[field_name]
         value = enum_cls(raw_value) if raw_value else None
-        return motorhome.model_copy(update={field_name: value})
+        return product.model_copy(update={field_name: value})
 
     if field_name == "bed_types":
         bed_types = (
             [BedType(part) for part in raw_value.split(LIST_SEPARATOR)] if raw_value else []
         )
-        return motorhome.model_copy(update={"bed_types": bed_types})
+        return product.model_copy(update={"bed_types": bed_types})
 
-    if field_name in _AUTOMATIC_FIELDS:
-        automatic_field = _AUTOMATIC_FIELDS[field_name]
-        automatic = (motorhome.automatic or AutomaticVariant()).model_copy(
+    if field_name in profile.automatic_fields:
+        assert isinstance(product, Motorhome)
+        automatic_field = profile.automatic_fields[field_name]
+        automatic = (product.automatic or AutomaticVariant()).model_copy(
             update={automatic_field: _parse_int(raw_value)}
         )
-        return motorhome.model_copy(update={"automatic": automatic})
+        return product.model_copy(update={"automatic": automatic})
 
     msg = f"don't know how to apply a decision for field {field_name!r}"
     raise ValueError(msg)
 
 
-def _mirror_guide_price(motorhome: Motorhome) -> Motorhome:
+def _mirror_guide_price(product: Product) -> Product:
     """Keep `price_min_range_pounds` equal to `rrp_pounds`, as FMLV holds it.
 
     **FMLV carries one price in two columns.** The NCC-side rule (20 August 2026) is
@@ -163,43 +272,60 @@ def _mirror_guide_price(motorhome: Motorhome) -> Motorhome:
     Only ever copied where there is a price to copy. Swift, Rimor and Chausson publish
     none at all, and a blank must stay blank rather than becoming a figure nobody read.
     """
-    if motorhome.rrp_pounds is None:
-        return motorhome
-    return motorhome.model_copy(update={"price_min_range_pounds": motorhome.rrp_pounds})
+    if product.rrp_pounds is None:
+        return product
+    return product.model_copy(update={"price_min_range_pounds": product.rrp_pounds})
 
 
 def _approved_value(entry: ChangeQueueEntry) -> str | None:
-    """The value to write for one approved entry — the correction if there was one."""
+    """The value to write for one approved entry — the correction if there was one.
+
+    `"blank"` returns `None`, which `apply_field` maps to an empty column for every
+    field type it accepts. That is the whole mechanism: a reviewer answering "the
+    manufacturer no longer publishes this, so stop showing the old figure" writes an
+    empty cell rather than the preserved one an `"accept"` would write.
+    """
     assert entry.decision is not None
+    if entry.decision.action == "blank":
+        return None
     if entry.decision.action == "correct":
         return entry.decision.corrected_value
     return entry.change.new_value
 
 
-def build_upload_motorhomes(
+def build_upload_products(
     connection: sqlite3.Connection,
     *,
     run_id: int,
     manufacturer: Manufacturer,
-    baseline: Iterable[Motorhome],
-) -> list[Motorhome]:
+    baseline: Iterable[Product],
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
+) -> list[Product]:
     """Apply every accepted/corrected decision for a run on top of the baseline.
 
     A product with no `accept`/`correct` decision contributes nothing — see the
     module docstring. Products are returned in `list_change_queue`'s order (by range,
     then model), which is stable and matches what the reviewer saw.
+
+    `vehicle_class` decides what a **new** product is constructed as, where there is no
+    baseline row to copy. It cannot be inferred from the baseline: a run that finds only
+    new products has no baseline row to look at, which is exactly the case where getting
+    it wrong would write a motorhome row into a caravan upload.
     """
     baseline_by_product_id = {
-        motorhome.product_id: motorhome
-        for motorhome in baseline
-        if motorhome.product_id is not None
+        product.product_id: product
+        for product in baseline
+        if product.product_id is not None
     }
+    new_product_cls = (
+        Caravan if VehicleClass(vehicle_class) is VehicleClass.CARAVAN else Motorhome
+    )
 
     entries_by_product: dict[int, list[ChangeQueueEntry]] = defaultdict(list)
     for entry in list_change_queue(connection, run_id):
         entries_by_product[entry.product.id].append(entry)
 
-    results: list[Motorhome] = []
+    results: list[Product] = []
     for entries in entries_by_product.values():
         approved = [
             e for e in entries if e.decision is not None and e.decision.action != "reject"
@@ -207,25 +333,29 @@ def build_upload_motorhomes(
         if not approved:
             continue
 
-        product = entries[0].product
-        baseline_motorhome = baseline_by_product_id.get(product.fmlv_product_id)
-        motorhome = (
-            baseline_motorhome.model_copy(deep=True)
-            if baseline_motorhome is not None
-            else Motorhome(
+        stored = entries[0].product
+        baseline_product = baseline_by_product_id.get(stored.fmlv_product_id)
+        product: Product = (
+            baseline_product.model_copy(deep=True)
+            if baseline_product is not None
+            else new_product_cls(
                 manufacturer=manufacturer.fmlv_manufacturer,
                 manufacturer_display_name=manufacturer.fmlv_display_name,
-                manufacturer_range=product.manufacturer_range,
-                model=product.model,
+                manufacturer_range=stored.manufacturer_range,
+                model=stored.model,
             )
         )
 
         for entry in approved:
-            motorhome = apply_field(motorhome, entry.change.field, _approved_value(entry))
+            product = apply_field(product, entry.change.field, _approved_value(entry))
 
-        results.append(_mirror_guide_price(motorhome))
+        results.append(_mirror_guide_price(product))
 
     return results
+
+
+#: The old name, kept so nothing that imported it breaks. New code should say `products`.
+build_upload_motorhomes = build_upload_products
 
 
 @dataclass
@@ -233,7 +363,9 @@ class UploadResult:
     """What `generate_upload` produced: the CSV path plus anything worth a reviewer's eye."""
 
     path: Path
-    motorhomes: list[Motorhome] = field(default_factory=list)
+    #: The rows written. Named `motorhomes` from before caravans existed; it holds
+    #: whichever product area the run was for.
+    motorhomes: list[Product] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
     issues_path: Path | None = None
 
@@ -243,7 +375,10 @@ class UploadResult:
 
 
 def write_upload_csv(
-    motorhomes: list[Motorhome], path: Path | str
+    products: list[Product],
+    path: Path | str,
+    *,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
 ) -> tuple[list[Issue], Path | None]:
     """Validate then write the upload CSV. Never blocks the write — see `validation.py`:
     problems are reported as data so a reviewer can see exactly what's wrong with which
@@ -257,8 +392,16 @@ def write_upload_csv(
     (`paths.upload_issues_path`), so a reviewer can download and read them rather than
     the JSON shape `Issue` itself has — no file is written when there's nothing to
     report."""
-    issues = validate_all(motorhomes)
-    write_fmlv_csv(motorhomes, path, leading_blank_rows=2)
+    if VehicleClass(vehicle_class) is VehicleClass.CARAVAN:
+        caravans = [p for p in products if isinstance(p, Caravan)]
+        assert len(caravans) == len(products), "a caravan upload cannot carry motorhome rows"
+        issues = validate_all_caravans(caravans)
+        write_caravan_csv(caravans, path, leading_blank_rows=2)
+    else:
+        motorhomes = [p for p in products if isinstance(p, Motorhome)]
+        assert len(motorhomes) == len(products), "a motorhome upload cannot carry caravan rows"
+        issues = validate_all(motorhomes)
+        write_fmlv_csv(motorhomes, path, leading_blank_rows=2)
 
     issues_path: Path | None = None
     if issues:
@@ -273,18 +416,23 @@ def generate_upload(
     *,
     run_id: int,
     manufacturer: Manufacturer,
-    baseline: Iterable[Motorhome],
+    baseline: Iterable[Product],
     path: Path | str,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
 ) -> UploadResult:
     """Build and write one run's approved changes as an upload-ready CSV.
 
     `path` is the caller's choice — `paths.upload_csv_path(run_id)` is the standard
     location (DESIGN.md §5: `data/uploads/run<run>_<date>_<time>_motorhome-campervans.csv`).
     """
-    motorhomes = build_upload_motorhomes(
-        connection, run_id=run_id, manufacturer=manufacturer, baseline=baseline
+    products = build_upload_products(
+        connection,
+        run_id=run_id,
+        manufacturer=manufacturer,
+        baseline=baseline,
+        vehicle_class=vehicle_class,
     )
-    issues, issues_path = write_upload_csv(motorhomes, path)
+    issues, issues_path = write_upload_csv(products, path, vehicle_class=vehicle_class)
     return UploadResult(
-        path=Path(path), motorhomes=motorhomes, issues=issues, issues_path=issues_path
+        path=Path(path), motorhomes=products, issues=issues, issues_path=issues_path
     )

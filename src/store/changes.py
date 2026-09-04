@@ -47,9 +47,10 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from ..diff.classify import ChangeKind, ProductDiff
-from ..diff.compare import MissingField, field_value
+from ..diff.compare import MissingField, field_value, profile_for
 from ..diff.year_rollover import bump_year, can_bump_year
-from ..product_model import schema
+from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from ..vehicle_class import VehicleClass
 from . import products as products_store
 from .decisions import Decision
 from .products import Product
@@ -72,7 +73,7 @@ DISAPPEARANCE_NOTE = (
 )
 
 #: `source_snippet` for a `diff.MissingField` proposal — an in-scope field
-#: (`schema.IN_SCOPE`) the adapter couldn't find this run. Reviewer templates match
+#: (its area's `IN_SCOPE`) the adapter couldn't find this run. Reviewer templates match
 #: on this exact text (`webapp.app`'s `is_missing_field` global) the same way
 #: `ARCHIVE_SNIPPET`/`YEAR_ROLLOVER_SNIPPET` are matched on, since `proposed_change`
 #: has no column of its own for "why was this proposed".
@@ -115,7 +116,7 @@ def _missing_field_snippet(missing: MissingField) -> str:
     """
     base = (
         MISSING_FIELD_SNIPPET
-        if missing.field in schema.IN_SCOPE
+        if missing.in_scope
         else UNDETERMINED_FIELD_SNIPPET
     )
     if missing.provenance and missing.provenance.snippet:
@@ -370,6 +371,7 @@ def persist_diff(
     diffs: list[ProductDiff],
     bump_year_all: bool = False,
     today: date | None = None,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
 ) -> PersistResult:
     """Persist one run's worth of `diff_products` output.
 
@@ -383,6 +385,11 @@ def persist_diff(
     when triggering the run. A genuinely new product is never given one: it has no
     baseline year to bump. Either route is capped by `year_rollover.can_bump_year`
     (`today`, injectable for tests, defaults to the real today).
+
+    `vehicle_class` is carried into every `upsert_seen` so a product's identity is scoped
+    to the FMLV export it came from. It does not affect the `proposed_change` rows
+    themselves — those are keyed on the product, and `field` is free text, which is why
+    the whole review and decision path needed no changes for caravans.
     """
     proposed = 0
     verified = 0
@@ -402,6 +409,7 @@ def persist_diff(
                 manufacturer_range=diff.baseline.manufacturer_range,
                 model=diff.baseline.model,
                 run_id=run_id,
+                vehicle_class=vehicle_class,
             )
             record_disappearance_notice(
                 connection, run_id=run_id, product_id=product.id, note=DISAPPEARANCE_NOTE
@@ -414,20 +422,38 @@ def persist_diff(
             connection,
             manufacturer_id=manufacturer_id,
             fmlv_product_id=diff.fmlv_product_id,
-            manufacturer_range=diff.extracted.motorhome.manufacturer_range,
-            model=diff.extracted.motorhome.model,
+            manufacturer_range=diff.extracted.product.manufacturer_range,
+            model=diff.extracted.product.model,
             run_id=run_id,
+            vehicle_class=vehicle_class,
         )
 
         if diff.kind == ChangeKind.NEW_PRODUCT:
+            profile = profile_for(diff.extracted.product)
             for field_name, provenance in diff.extracted.provenance.items():
+                value = field_value(diff.extracted.product, field_name)
+                if value is None and field_name not in profile.in_scope:
+                    # Nothing to say. A *new* product has no stored figure to confirm or
+                    # clear, and an out-of-scope field carries no obligation to fill one,
+                    # so this would be a `None -> None` row a reviewer has to decide for
+                    # no reason. Swift's caravans hit it: they record
+                    # `optional_equipment_payload_kilograms` with no value, to ask for a
+                    # stale split to be cleared, and on the two genuinely new caravans
+                    # there was never a split.
+                    #
+                    # **In-scope fields are deliberately still proposed when empty.** That
+                    # is `swift._body_type_basis`'s feature — an adapter that knows the
+                    # family but not the subtype records provenance with no value so the
+                    # reviewer is offered the choice, rather than the field going blank
+                    # forever on a product with no baseline to preserve.
+                    continue
                 record_proposed_change(
                     connection,
                     run_id=run_id,
                     product_id=product.id,
                     field=field_name,
                     old_value=None,
-                    new_value=_serialize(field_value(diff.extracted.motorhome, field_name)),
+                    new_value=_serialize(value),
                     source_url=provenance.source_url,
                     source_snippet=provenance.snippet,
                 )

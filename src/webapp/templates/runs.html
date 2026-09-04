@@ -2,7 +2,7 @@
 {% block title %}Runs — FMLV Automated Data Ingestion{% endblock %}
 {% block content_shell_class %}wide{% endblock %}
 {% block content %}
-  {% set qs = "&manufacturer_id=%s&status=%s&start_date=%s"|format(selected_manufacturer_id or "", selected_status or "", selected_start_date or "") %}
+  {% set qs = "&manufacturer_id=%s&status=%s&start_date=%s&vehicle_class=%s"|format(selected_manufacturer_id or "", selected_status or "", selected_start_date or "", selected_vehicle_class or "") %}
   <div id="runs-page" hx-get="/runs?limit={{ limit }}{{ qs }}" hx-trigger="every 10s" hx-select="#runs-page" hx-target="#runs-page" hx-swap="outerHTML">
   <h1>Runs</h1>
   <div class="run-filter">
@@ -26,13 +26,19 @@
       <option value="succeeded" {{ "selected" if selected_status == "succeeded" }}>Succeeded</option>
       <option value="failed" {{ "selected" if selected_status == "failed" }}>Failed</option>
     </select>
+    <select name="vehicle_class" onchange="this.form.submit()">
+      <option value="">All product areas</option>
+      {% for cls in vehicle_classes %}
+        <option value="{{ cls.value }}" {{ "selected" if selected_vehicle_class == cls.value }}>{{ cls.label }}</option>
+      {% endfor %}
+    </select>
     <input type="date" name="start_date" value="{{ selected_start_date }}" onchange="this.form.submit()">
-    {% if selected_manufacturer_id or selected_status or selected_start_date %}
+    {% if selected_manufacturer_id or selected_status or selected_start_date or selected_vehicle_class %}
       <a href="/runs?limit={{ limit }}">Clear filter</a>
     {% endif %}
   </form>
   {% if not runs %}
-    {% if selected_manufacturer_id or selected_status or selected_start_date %}
+    {% if selected_manufacturer_id or selected_status or selected_start_date or selected_vehicle_class %}
       <p class="muted">No runs match this filter.</p>
     {% else %}
       <p class="muted">No runs recorded yet.</p>
@@ -63,6 +69,7 @@
               {% else %}
                 <a href="/runs/{{ run.id }}">{{ run.fmlv_manufacturer }}</a>
               {% endif %}
+              <span class="badge vehicle-class {{ run.vehicle_class.value }}" title="{{ run.vehicle_class.label }}">{{ run.vehicle_class.badge }}</span>
             </td>
             <td>{{ run.range_label or "" }}</td>
             <td>{{ run.trigger }}</td>

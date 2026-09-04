@@ -1,4 +1,4 @@
-"""Grouped layout attributes from the FMLV motorhome schema.
+"""Grouped layout attributes from the FMLV export schemas.
 
 The export represents these as ~40 independent Yes/No columns, but the field guide
 (`config/field_guide_motorhome.csv`) shows they are really constrained groups:
@@ -45,6 +45,37 @@ class SleepingArea(ColumnEnum):
     REAR = "sleeping_area_rear"
     BOTH = "sleeping_area_both"
     SEPARATE_CHILDRENS_AREA = "sleeping_area_separate_childrens_area"
+
+
+class CaravanBodyType(ColumnEnum):
+    """Guide: SELECT 'YES' AGAINST ONE 'TYPE' PER MODEL IN THIS SECTION.
+
+    Nothing in common with `BodyType` beyond `micro`, and even that means something
+    different: a caravan is a micro only where **the manufacturer calls it one and** its
+    MTPLM is 1250kg or lower — it should be towable by a very small car. Weight alone is
+    not the test. Bailey's Discovery D4-2 is 995kg and FMLV holds it as rigid; across
+    Bailey's 81 caravans and Adria's 11, thirteen sit under 1250kg and not one is a micro.
+
+    See `config/field_guide_caravan.csv`, which carries that rule in the NCC's own column.
+    """
+
+    RIGID = "type_rigid"
+    FOLDING = "type_folding"
+    POP_UP = "type_pop_up"
+    MICRO = "type_micro"
+
+
+class CaravanSleepingArea(ColumnEnum):
+    """Guide: SELECT 'YES' AGAINST ONE 'SLEEPING AREA' OPTION.
+
+    The motorhome group's fourth option, `sleeping_area_separate_childrens_area`, has no
+    column in the caravan export — hence a separate enum rather than a shared one. Writing
+    a caravan row through `SleepingArea` would emit a column the importer does not have.
+    """
+
+    FRONT = "sleeping_area_front"
+    REAR = "sleeping_area_rear"
+    BOTH = "sleeping_area_both"
 
 
 class BedType(ColumnEnum):
@@ -105,10 +136,23 @@ class Refrigeration(ColumnEnum):
     FRIDGE_FREEZER = "fridge_freezer"
 
 
-#: Every single-select group, for validation and round-tripping.
+#: Every single-select group in the motorhome schema, for validation and round-tripping.
 SINGLE_SELECT_GROUPS: tuple[type[ColumnEnum], ...] = (
     BodyType,
     SleepingArea,
+    KitchenLocation,
+    BathroomLayout,
+    LoungeLocation,
+    Heating,
+    Refrigeration,
+)
+
+#: The same, for touring caravans. Six of the eight groups are shared outright — the two
+#: exports describe kitchens, bathrooms, lounges, heating, refrigeration and bed types with
+#: identical column names — so only body type and sleeping area need their own enum.
+CARAVAN_SINGLE_SELECT_GROUPS: tuple[type[ColumnEnum], ...] = (
+    CaravanBodyType,
+    CaravanSleepingArea,
     KitchenLocation,
     BathroomLayout,
     LoungeLocation,

@@ -1,8 +1,13 @@
 # Manufacturer registry — field guide
 
-> **Scope:** the prototype covers **motorhomes and campervans only**. Touring caravans are
-> a later phase. Keep the `categories` column populated anyway — rows marked `caravan` are
-> simply skipped by the runner for now, so caravans can be switched on without a schema change.
+> **Scope:** both product areas are live. Motorhomes and campervans came first; **touring
+> caravans shipped 3 September 2026** (Bailey and Swift), and a run is now always *for one
+> area* — `fmlv run <name> --class caravan`, keyed to a separate adapter, schema, baseline
+> export and upload CSV. So `categories` is no longer a promise about a later phase:
+> populate it for both areas a manufacturer actually builds. Note only the `motorhome`
+> value is read by code today (`Manufacturer.includes_motorhomes`); `caravan` is recorded
+> for people, and `VehicleClass.registry_category` is the hook if a caravan sweep ever
+> needs the same filter.
 
 `manufacturers.csv` is the seed list that drives every run. One row per manufacturer.
 Fill in what you know; leave the rest blank or `unknown` — the exploration spike will

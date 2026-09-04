@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
+from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from ..vehicle_class import VehicleClass
+
 Trigger = Literal["manual", "scheduled"]
 RunStatus = Literal["running", "succeeded", "failed"]
 
@@ -29,6 +32,10 @@ class Run:
     finished_at: str | None
     error_message: str | None
     range_label: str | None = None
+    #: Which FMLV product area this run swept. Defaulted for the same reason the column
+    #: is (`store/schema.sql`) — every run recorded before caravans existed was a
+    #: motorhome run, and reads back as one.
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> Run:
@@ -42,6 +49,7 @@ class Run:
             finished_at=row["finished_at"],
             error_message=row["error_message"],
             range_label=row["range_label"],
+            vehicle_class=VehicleClass(row["vehicle_class"]),
         )
 
 
@@ -56,19 +64,34 @@ def start_run(
     fmlv_manufacturer: str,
     trigger: Trigger,
     range_label: str | None = None,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
 ) -> Run:
     """Record the start of a run. Status is 'running' until `finish_run`/`fail_run`.
 
     `range_label` is the human label of any `--range`/range-box restriction (e.g.
     "Matrix", or "Supersonic, Sonic" for more than one) — `None` for an unrestricted
     full-manufacturer run, which is what most of DESIGN.md's scheduled sweeps will be.
+
+    `vehicle_class` is what makes two runs over the same manufacturer distinguishable.
+    Eight of the sixteen registered manufacturers build both motorhomes and caravans, and
+    a full sweep of either carries no `range_label` — so without this a Bailey caravan run
+    and a Bailey motorhome run were two identical rows on the runs page.
     """
     cursor = connection.execute(
         """
-        INSERT INTO run (manufacturer_id, fmlv_manufacturer, trigger, status, started_at, range_label)
-        VALUES (?, ?, ?, 'running', ?, ?)
+        INSERT INTO run
+            (manufacturer_id, fmlv_manufacturer, trigger, status, started_at, range_label,
+             vehicle_class)
+        VALUES (?, ?, ?, 'running', ?, ?, ?)
         """,
-        (manufacturer_id, fmlv_manufacturer, trigger, _now(), range_label),
+        (
+            manufacturer_id,
+            fmlv_manufacturer,
+            trigger,
+            _now(),
+            range_label,
+            VehicleClass(vehicle_class).value,
+        ),
     )
     connection.commit()
     assert cursor.lastrowid is not None
@@ -109,8 +132,13 @@ def list_runs(
     *,
     manufacturer_id: int | None = None,
     status: RunStatus | None = None,
+    vehicle_class: VehicleClass | None = None,
 ) -> list[Run]:
-    """List runs, most recent first, optionally scoped to one manufacturer and/or status."""
+    """List runs, most recent first, optionally scoped by manufacturer, status and/or class.
+
+    Every filter defaults to `None` meaning "don't filter" — in particular `vehicle_class`,
+    so the runs page keeps showing both product areas together unless a reviewer narrows it.
+    """
     clauses: list[str] = []
     params: list[object] = []
     if manufacturer_id is not None:
@@ -119,6 +147,9 @@ def list_runs(
     if status is not None:
         clauses.append("status = ?")
         params.append(status)
+    if vehicle_class is not None:
+        clauses.append("vehicle_class = ?")
+        params.append(VehicleClass(vehicle_class).value)
 
     query = "SELECT * FROM run"
     if clauses:

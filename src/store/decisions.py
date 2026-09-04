@@ -1,4 +1,4 @@
-"""Reviewer decisions on proposed changes: accept / reject / correct / undo.
+"""Reviewer decisions on proposed changes: accept / reject / correct / blank / undo.
 
 DESIGN.md §6.3: "Accept / reject / correct is per field, and the reviewer can type a
 corrected value." A proposed change can be decided more than once — a reviewer
@@ -19,7 +19,20 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
-Action = Literal["accept", "reject", "correct", "undo"]
+#: "blank" is the third answer to a field the adapter could not find, alongside
+#: "accept" (keep what FMLV holds) and "correct" (replace it with a value). It clears the
+#: field outright, for the case the requester raised on 3 September 2026: a manufacturer
+#: has withdrawn a spec, and FMLV showing a stale figure is worse than showing nothing.
+#:
+#: A distinct action rather than a "correct" carrying an empty string, because the two are
+#: different editorial judgements and the history has to say which was made — DESIGN.md
+#: §6.7, "Everything is logged". It also keeps `corrected_value` meaning one thing: the
+#: value a reviewer typed, never the absence of one.
+#:
+#: **This blanking is not the silent kind `diff.compare` guards against.** That code
+#: refuses to propose `None` over a good baseline value precisely so a reviewer cannot
+#: blank a field by clicking "accept"; this is the same reviewer asking for it explicitly.
+Action = Literal["accept", "reject", "correct", "blank", "undo"]
 
 
 @dataclass(frozen=True)
@@ -61,7 +74,9 @@ def record_decision(
 
     `corrected_value` is only meaningful for `action="correct"`; a "correct" decision
     with no `corrected_value` is nonsensical but not rejected here — the caller (the
-    review app's form) is where that gets validated, close to the reviewer.
+    review app's form) is where that gets validated, close to the reviewer. A "blank"
+    decision carries no `corrected_value` by definition: clearing the field *is* the
+    value, and `output.build` writes an empty column for it.
     """
     cursor = connection.execute(
         """

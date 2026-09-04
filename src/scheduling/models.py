@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 from enum import Enum
 from zoneinfo import ZoneInfo
 
+from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from ..vehicle_class import VehicleClass
+
 #: `first_run` is written by hand in the CSV as a UK wall-clock time — this is the
 #: zone it's interpreted in, matching the review app's own display convention
 #: (`webapp/app.py`'s `_LOCAL_TZ`).
@@ -42,6 +45,11 @@ class ScheduleEntry:
     frequency_value: int
     frequency_unit: FrequencyUnit
     enabled: bool
+    #: Which FMLV product area this row sweeps. Defaulted, so every schedule written
+    #: before caravans existed keeps meaning what it meant — and so a manufacturer that
+    #: builds both needs two rows rather than one ambiguous one. Their model years do not
+    #: roll over together, so they want separate cadences anyway.
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS
     notes: str | None = None
 
     @property

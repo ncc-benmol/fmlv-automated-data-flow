@@ -64,12 +64,21 @@ from .adapters import Adapter, adapter_for
 from .diff import DEFAULT_THRESHOLD, diff_products
 from .fetch.browser import BrowserFetcher
 from .fetch.http import Fetcher
-from .fetch.ncc import NccCredentials, NccCredentialsError, NccExportError, download_export
+from .fetch.ncc import (
+    NccCredentials,
+    NccCredentialsError,
+    NccExportError,
+    caravan_export_path,
+    download_export,
+)
 from .output import generate_upload
-from .product_model import io
+from .product_model import caravan_io, io
 from .product_model.model import Motorhome
+from .product_model.product import Product
 from .registry import Manufacturer, loader
 from .store.runs import Trigger
+from .vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from .vehicle_class import VehicleClass
 
 #: Export file types `product_model.io.read_export` can dispatch on.
 EXPORT_SUFFIXES = (".xlsx", ".csv")
@@ -121,30 +130,55 @@ def find_manufacturer(manufacturers: Sequence[Manufacturer], needle: str) -> Man
     raise CommandError(msg)
 
 
-def latest_export(*, root: Path, manufacturer_id: int, manufacturer_name: str) -> Path:
-    """The most recently modified FMLV export for one manufacturer.
+def latest_export(
+    *,
+    root: Path,
+    manufacturer_id: int,
+    manufacturer_name: str,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
+) -> Path:
+    """The most recently modified FMLV export for one manufacturer and product area.
 
     `fetch/ncc.py`'s download is per-manufacturer (the NCC site offers exports no
     other way), so the search is scoped to that manufacturer's own subdirectory under
     `data/exports/` — otherwise a stale export downloaded for a *different*
     manufacturer could silently become today's baseline. `fetch-export` names each
-    download `<date>_<manufacturer>_motorhome-campervans.xlsx` directly in that
-    subdirectory (no per-date nesting), so "newest file wins" is the right default for
-    a scheduled run; `--export` overrides it when testing against one specific baseline.
+    download `<date>_<manufacturer>_<area>.xlsx` directly in that subdirectory (no
+    per-date nesting), so "newest file wins" is the right default for a scheduled run;
+    `--export` overrides it when testing against one specific baseline.
+
+    **The area is part of the filter, not a nicety.** One export action saves both
+    sheets side by side in that directory, so "newest file wins" alone would hand a
+    caravan run whichever of the two happened to be written last — and a motorhome
+    baseline against caravan scrapes classifies all 23 caravans as new products and all
+    45 motorhomes as disappeared.
     """
     directory = paths.manufacturer_exports_dir(manufacturer_id, manufacturer_name, root=root)
+    stem = VehicleClass(vehicle_class).export_stem
     candidates = [
         path
         for path in directory.rglob("*")
-        if path.is_file() and path.suffix.lower() in EXPORT_SUFFIXES
+        if path.is_file() and path.suffix.lower() in EXPORT_SUFFIXES and stem in path.name
     ]
     if not candidates:
         msg = (
-            f"no {' or '.join(EXPORT_SUFFIXES)} export found under {directory} — "
-            f"run `fmlv fetch-export` first, or point at one with --export"
+            f"no {' or '.join(EXPORT_SUFFIXES)} export matching {stem!r} found under "
+            f"{directory} — run `fmlv fetch-export` first, or point at one with --export"
         )
         raise CommandError(msg)
     return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def read_baseline(path: Path | str, vehicle_class: VehicleClass) -> list[Product]:
+    """Every product in one export, parsed against that product area's schema.
+
+    The two schemas share a file format and almost no columns, so reading a caravan
+    export through `io.read_export` yields 81 products with every dimension blank rather
+    than an error — which is why the caller states the area rather than this guessing it.
+    """
+    if VehicleClass(vehicle_class) is VehicleClass.CARAVAN:
+        return list(caravan_io.read_export(path).caravans)
+    return list(io.read_export(path).motorhomes)
 
 
 def fetch_export(
@@ -153,12 +187,20 @@ def fetch_export(
     data_root: Path,
     headless: bool = True,
     on_progress: Callable[[str], None] = lambda message: None,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
 ) -> Path:
     """Log in to the NCC site and download one manufacturer's current export.
 
     The shared implementation behind `fmlv fetch-export` and, via `execute_run`'s
     `refresh_export`, the automatic baseline refresh a triggered run does before
     diffing — so the two never drift apart on what "the current export" means.
+
+    **Both sheets are always downloaded** — one NCC export action returns them together —
+    and `vehicle_class` decides which of the two this returns as *the baseline for this
+    run*. Getting that wrong is silent and total rather than an error: a caravan run
+    handed the motorhome sheet parses 45 motorhomes as caravans with every dimension
+    blank, matches none of them, and reports every caravan as a new product. It did
+    exactly that on the first real caravan run, on 3 September 2026.
     """
     if not manufacturer.ncc_supplier_name:
         msg = (
@@ -175,6 +217,8 @@ def fetch_export(
         raise CommandError(str(exc)) from exc
 
     safe_name = paths.safe_path_component(manufacturer.fmlv_manufacturer)
+    # `download_export` is told where to put the motorhome sheet and derives the caravan
+    # one from it (`ncc.caravan_export_path`), so the pair stay named and dated together.
     dest_path = (
         paths.manufacturer_exports_dir(
             manufacturer.manufacturer_id, manufacturer.fmlv_manufacturer, root=data_root
@@ -192,6 +236,20 @@ def fetch_export(
         )
     except NccExportError as exc:
         raise CommandError(str(exc)) from exc
+
+    if VehicleClass(vehicle_class) is VehicleClass.CARAVAN:
+        caravan_path = caravan_export_path(dest_path)
+        if not caravan_path.exists():
+            # A motorhome-only supplier's export has no caravan sheet. Silently falling
+            # back to the motorhome one is the failure this whole argument exists to
+            # prevent, so refuse instead.
+            msg = (
+                f"{manufacturer.fmlv_manufacturer!r}'s export contains no touring-caravan "
+                f"sheet, so there is no caravan baseline to diff against. Check the "
+                f"manufacturer really does list caravans on the NCC site."
+            )
+            raise CommandError(msg)
+        return caravan_path
 
     return dest_path
 
@@ -329,6 +387,7 @@ def execute_run(
     trigger: Trigger = "manual",
     bump_year: bool = False,
     refresh_export: bool = False,
+    vehicle_class: VehicleClass = DEFAULT_VEHICLE_CLASS,
     collect_kwargs: dict[str, Any] | None = None,
     on_progress: Callable[[str], None] = lambda message: None,
     on_run_started: Callable[[store.Run], None] = lambda run: None,
@@ -352,6 +411,10 @@ def execute_run(
     favour of the freshly downloaded one. Exactly one of `export_path` and
     `refresh_export` must be usable, checked before the `run` row is even created —
     this is a caller mistake, not something to record as a failed run.
+
+    `vehicle_class` names which FMLV product area is being swept, and is recorded on the
+    `run` row so the review app can tell a Bailey caravan run from a Bailey motorhome one.
+    It defaults to motorhomes, which is what every adapter written so far produces.
     """
     if export_path is None and not refresh_export:
         msg = "execute_run needs export_path, or refresh_export=True to fetch one"
@@ -368,6 +431,7 @@ def execute_run(
             fmlv_manufacturer=manufacturer.fmlv_manufacturer,
             trigger=trigger,
             range_label=range_label,
+            vehicle_class=vehicle_class,
         )
         on_run_started(run)
         snapshot_dir = paths.snapshot_dir(manufacturer.manufacturer_id, run.id, root=data_root)
@@ -380,21 +444,23 @@ def execute_run(
                     f"Fetching latest {manufacturer.fmlv_manufacturer} export from FMLV..."
                 )
                 export_path = _export_fetcher(
-                    manufacturer=manufacturer, data_root=data_root, on_progress=on_progress
+                    manufacturer=manufacturer,
+                    data_root=data_root,
+                    on_progress=on_progress,
+                    vehicle_class=vehicle_class,
                 )
                 on_progress(
                     f"Using export {export_path} "
                     f"(FMLV login + download took {time.monotonic() - fetch_started:.1f}s)"
                 )
 
-            read = io.read_export(export_path)
             baseline = _dedupe_baseline(
-                motorhome
-                for motorhome in read.motorhomes
-                if motorhome.manufacturer == manufacturer.fmlv_manufacturer
-                and not motorhome.archived
-                and _is_current_model_year(motorhome.year)
-                and (in_scope is None or in_scope(motorhome))
+                product
+                for product in read_baseline(export_path, vehicle_class)
+                if product.manufacturer == manufacturer.fmlv_manufacturer
+                and not product.archived
+                and _is_current_model_year(product.year)
+                and (in_scope is None or in_scope(product))
             )
 
             # One browser process and one HTTP client for the whole run — the browser
@@ -422,6 +488,7 @@ def execute_run(
                 manufacturer_id=manufacturer.manufacturer_id,
                 diffs=diffs,
                 bump_year_all=bump_year,
+                vehicle_class=vehicle_class,
             )
             on_progress(
                 f"Compared {len(scraped)} scraped against {len(baseline)} baseline product(s) "
@@ -520,14 +587,23 @@ def _run_command(args: argparse.Namespace) -> int:
 
     manufacturer = find_manufacturer(registry.manufacturers, args.manufacturer)
 
-    adapter = adapter_for(manufacturer.fmlv_manufacturer)
+    vehicle_class = VehicleClass(args.vehicle_class)
+    adapter = adapter_for(manufacturer.fmlv_manufacturer, vehicle_class)
     if adapter is None:
-        from .adapters import ADAPTERS
+        from .adapters import ADAPTERS, adapters_for
 
+        # Name the product area. Bailey has a motorhome adapter and (for now) no caravan
+        # one, so a bare "no adapter written for 'Bailey'" would read as plainly wrong to
+        # someone who has just run Bailey successfully.
+        other_areas = sorted(other.label for other in adapters_for(manufacturer.fmlv_manufacturer))
+        available = sorted(f"{name} ({registered.value})" for name, registered in ADAPTERS)
         msg = (
-            f"no adapter written for {manufacturer.fmlv_manufacturer!r} yet. "
-            f"Adapters exist for: {', '.join(sorted(ADAPTERS)) or '(none)'}"
+            f"no {vehicle_class.value} adapter written for "
+            f"{manufacturer.fmlv_manufacturer!r} yet."
         )
+        if other_areas:
+            msg += f" It does have: {', '.join(other_areas)}."
+        msg += f" Adapters exist for: {', '.join(available) or '(none)'}"
         raise CommandError(msg)
 
     # Ranges before the export: a mistyped `--range` is answerable from the arguments
@@ -540,6 +616,7 @@ def _run_command(args: argparse.Namespace) -> int:
         root=data_root,
         manufacturer_id=manufacturer.manufacturer_id,
         manufacturer_name=manufacturer.fmlv_manufacturer,
+        vehicle_class=vehicle_class,
     )
     if not export_path.exists():
         msg = f"export not found: {export_path}"
@@ -553,6 +630,7 @@ def _run_command(args: argparse.Namespace) -> int:
             data_root=data_root,
             trigger=args.trigger,
             bump_year=args.bump_year,
+            vehicle_class=vehicle_class,
             collect_kwargs=collect_kwargs,
             on_progress=_print_with_timestamp,
         )
@@ -631,18 +709,18 @@ def _generate_upload_command(args: argparse.Namespace) -> int:
             root=data_root,
             manufacturer_id=manufacturer.manufacturer_id,
             manufacturer_name=manufacturer.fmlv_manufacturer,
+            vehicle_class=run.vehicle_class,
         )
         if not export_path.exists():
             msg = f"export not found: {export_path}"
             raise CommandError(msg)
 
-        read = io.read_export(export_path)
         baseline = _dedupe_baseline(
-            motorhome
-            for motorhome in read.motorhomes
-            if motorhome.manufacturer == manufacturer.fmlv_manufacturer
-            and not motorhome.archived
-            and _is_current_model_year(motorhome.year)
+            product
+            for product in read_baseline(export_path, run.vehicle_class)
+            if product.manufacturer == manufacturer.fmlv_manufacturer
+            and not product.archived
+            and _is_current_model_year(product.year)
         )
 
         queue = store.list_change_queue(connection, run.id)
@@ -659,7 +737,10 @@ def _generate_upload_command(args: argparse.Namespace) -> int:
             run_id=run.id,
             manufacturer=manufacturer,
             baseline=baseline,
-            path=paths.upload_csv_path(run.id, root=data_root),
+            path=paths.upload_csv_path(
+                run.id, vehicle_class=run.vehicle_class, root=data_root
+            ),
+            vehicle_class=run.vehicle_class,
         )
     finally:
         connection.close()
@@ -733,6 +814,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "propose bumping year on every product of this manufacturer (DESIGN.md "
             "§6.9 route 1). Still reviewed and accepted per product like any change."
+        ),
+    )
+    run_parser.add_argument(
+        "--class",
+        dest="vehicle_class",
+        choices=tuple(member.value for member in VehicleClass),
+        default=DEFAULT_VEHICLE_CLASS.value,
+        help=(
+            "which FMLV product area to sweep — a manufacturer that builds both has a "
+            "separate adapter for each (default: %(default)s)"
         ),
     )
     run_parser.set_defaults(handler=_run_command)

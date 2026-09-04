@@ -494,7 +494,301 @@ not stop the bad diff.
 If they are ever wanted, each needs its own `fmlv_manufacturer` matching what FMLV
 literally holds, plus an adapter scoped to that brand's ranges.
 
+## Two pipeline bugs the payload work surfaced
+
+Both were found on 4 September 2026 while wiring the derived payload, and neither is
+Swift-specific.
+
+**Every caravan gap was described with the wrong wording.** `store.changes`'s
+`_missing_field_snippet` chose between "marked in-scope for automated collection, but was
+not found on the manufacturer's site this run" and "the adapter could not determine this
+field" by testing `missing.field in schema.IN_SCOPE` — the **motorhome** set. Caravans name
+their fields differently (`height_mm`, not `mh_height_mm`), so *every* in-scope caravan gap
+fell through to the out-of-scope wording and told the reviewer the adapter could not
+determine a field it was in fact required to find. 72 rows on Swift's first caravan run, and
+Bailey's before it. `MissingField` now carries an `in_scope` flag, set where the right
+`FieldProfile` is already in hand, and nothing downstream re-derives it.
+
+**A new product was asked about empty out-of-scope fields.** `persist_diff` proposes every
+field an adapter records provenance for, which on a new product includes the ones recorded
+with no value — so the optional-payload row above appeared on the two genuinely new
+caravans as `None -> None`, a decision for no reason. Now skipped when the field is out of
+scope. An empty *in-scope* field is still proposed, which is the point of the exception:
+that is how `swift._body_type_basis` offers the reviewer a choice the adapter could not
+make, on a product with no baseline to preserve.
+
 ## Re-verify after the NEC show
 
 Swift are mid-launch: the guides are stamped "Issued September 2026", three vehicles
 carry *New for 2027* badges, and prices are already up. Specs may still move.
+
+# Swift — touring caravans
+
+Surveyed and built 3 September 2026, second of its kind after Bailey's. `swift_caravan.py`
+produces `Caravan`s and registers under `("Swift Group Ltd", caravan)` alongside
+`swift.py`'s `("Swift Group Ltd", motorhome)`.
+
+## Built on the motorhome sibling, not on Bailey's caravan adapter
+
+Bailey's caravans are one page per vehicle with a literal `Range`/`Model` spec table.
+Swift's are the same shape as Swift's *motorhomes* — one page per range, carrying a
+`<script type="application/json" data-product-layouts-data>` block with one object per
+layout — so every parsing helper is imported from `swift.py` unchanged, `range_and_model`
+included. `bailey_caravan.py` contributed the field mapping and the domain rules;
+`swift.py` contributed the fetching. That split is the general lesson: which sibling to
+copy depends on the *site's* shape, not on the product area.
+
+Seven range pages, 26 layouts:
+
+| Range | Page | Layouts |
+|---|---|---|
+| Sprite | `/caravans/product/1303/swift-sprite/` | 4 |
+| Sprite Grande | `/caravans/product/1304/swift-sprite-grande/` | 1 |
+| Challenger | `/caravans/product/1305/swift-challenger/` | 6 |
+| Challenger Grande | `/caravans/product/1306/swift-challenger-grande/` | 4 |
+| Conqueror | `/caravans/product/72924/swift-conqueror/` | 3 |
+| Conqueror Grande | `/caravans/product/72943/swift-conqueror-grande/` | 4 |
+| Elegance Grande | `/caravans/product/1309/swift-elegance-grande/` | 4 |
+
+Three base ranges each have a Grande sibling; Elegance exists only as a Grande. Conqueror's
+node id is six digits where the other six are four — its pages were rebuilt — which is why
+paths are always rediscovered from `/caravans/` rather than constructed.
+
+Unlike Bailey, whose `/caravans/` serves an `image/png` with a 200 status, Swift's
+guessable URL is the right one.
+
+## `length` is the shipping length, and nothing on the site says so
+
+The single most consequential mapping here. Swift publish **one** length per layout and
+never label it. Two independent sources settle it:
+
+- The 2026 brochure's "Specification at a glance" table *does* label its columns, and
+  gives the Sprite Alpine 4 an **Internal Length** of 4.74m against an **Overall Length**
+  of 6.45m.
+- FMLV holds that product as `internal_length_mm=4740`, `shipping_length_mm=6450`.
+
+The site publishes `"length":"6.45m"`. So it is the overall figure, and it maps to
+`shipping_length_mm` alone. Reading it as the internal length would overstate every
+caravan's habitable space by 1.5-1.7m while looking entirely plausible on any one product
+— which `docs/adapters/README.md` names as the most likely single way to get a caravan
+adapter wrong. **This was checked, not reasoned about**, and it is the reason the survey
+opened the retired brochure at all.
+
+## Payload is derived from the two masses — reversed 4 September 2026
+
+The adapter shipped on 3 September emitting no payload at all, reasoning that Swift's one
+published figure is a *total* and FMLV splits it on the Elegance Grande. **The requester
+overruled that the next day, on seeing the field arrive blank beside the two masses that
+determine it:** MTPLM and MRO are published on every layout, `MTPLM - MRO` is the payload,
+and that is the same arithmetic `swift.py` already does for `mh_payload_kilograms`. A gap
+beside the figures that fill it is the wrong answer.
+
+So `personal_effects_payload_kilograms` is now derived, and corroborated rather than merely
+computed: the quick guide's `Max Payload` matches the subtraction on all 26, so the
+provenance quotes the guide's figure alongside the arithmetic —
+`Payload: 145kg, derived as MTPLM - MRO (1247 - 1102); quick guide agrees: Max Payload
+145kg`. Where the guide has nothing to say the payload is still emitted and the provenance
+says the subtraction stands alone.
+
+**And where FMLV holds a split, the adapter asks for it to be cleared.** FMLV has *two*
+payload columns and expects them to sum to `MTPLM - MRO`. On the four Elegance Grandes it
+uses both: `personal_effects` 160kg plus `optional_equipment` 41kg makes 201kg. Since the
+derived total goes into the personal-effects column, leaving that 41kg in place would make
+the row read 242kg against 201kg of real capacity.
+
+The requester's rule, given the same day: *where a model previously had a split and no
+longer does, take the one published figure and use it as the personal-effects total.* So
+the adapter records provenance for `optional_equipment_payload_kilograms` **with no
+value** — "Swift publish one payload figure and no split, so there is no separate
+optional-equipment payload" — and `diff.compare` turns that into a confirm-or-clear row
+wherever the baseline holds one. The reviewer clears it with **Leave blank**.
+
+Asked for rather than done silently, deliberately: `diff.compare` routes a
+value-to-nothing change down the confirm-or-replace path precisely so no field is emptied
+by an "accept". On the other 22 products FMLV already holds it blank, so the field comes
+back confirmed and no row appears — run #68 raised exactly four, one per Elegance Grande.
+
+Verified end to end on that run: accepting the 835's payload and clearing its optional
+column writes `personal_effects_payload_kilograms=201`,
+`optional_equipment_payload_kilograms=` (empty) against MTPLM 2123 and MRO 1922, and
+`_validate_caravan_payload` reports nothing — 201 is exactly `MTPLM - MRO`. Accepting the
+payload *without* clearing the split reports
+`published payload 242kg does not match mtplm - mro (201kg)`, naming the product, which is
+the backstop working.
+
+**This falsifies `docs/adapters/README.md`'s "blank on all 92 real caravan products"** —
+true of Bailey and Adria, not of Swift.
+
+## The self-check is cross-document, and came out an exact bijection
+
+The JSON has MTPLM and MRO but no payload; the quick guide
+(`/media/jcelqit3/2027-swift-caravan-quick-guide.pdf`) has payload, length, width and
+MTPLM but no MRO. So `payload == MTPLM - MRO` is a real check across two documents rather
+than an arithmetic tautology, and the guide's length and width corroborate the site's on
+top of it.
+
+On 3 September 2026: **26 guide blocks, 26 site products, every one agreeing on all three
+figures, none left over.**
+
+Entries are keyed on **MTPLM, not on the model name**, because Swift's own two documents
+disagree about names — the guide calls the Elegance layouts `Grande 850 L` and
+`Grande 860 L` where the site *and FMLV* call them `850` and `860`, and it prefixes
+`Grande ` to every model the site leaves bare. MTPLM is published identically by both and
+is near-unique: the only repeat across all 26 is 1886kg, shared by Conqueror Grande 645
+and 650L, which carry the same payload as each other anyway.
+
+The guide corroborates two more things it is not read for. Its per-range counts
+(Challenger 7 single / 3 twin, Conqueror 5 single / 2 twin, Sprite 4 / 1, Elegance Grande
+0 / 4) reproduce the site's 26 `axleType` values exactly, and its 8ft-wide counts
+reproduce the widths.
+
+## Range names needed no corrections — because the export was fetched first
+
+`docs/adapters/README.md` says to fetch the baseline before choosing `manufacturer_range`
+and `model`. Doing so answered the one question the site could not:
+
+FMLV already holds `Sprite`, `Challenger`, `Challenger Grande`, `Conqueror`,
+`Conqueror Grande` and `Elegance Grande` exactly as the site's range pages divide them —
+`Conqueror Grande` + `560L` with no space, `Elegance Grande` + `850` with no `L`. And
+`Sprite Grande` is already in the export from an earlier model year, so 2027's Quattro FB
+joins a range FMLV knows.
+
+The **brochure** files every Grande as a *model* under its parent range ("Challenger /
+Grande 580"). Following the printed document instead of the site would have proposed nine
+renames FMLV does not want, and per the README's "Let the FMLV export decide the range and
+model strings" each would have had to move both halves of the identity to avoid corrupting
+the name. `RANGE_NAME_CORRECTIONS` is therefore absent from this module — the one place
+where Swift's caravans are simpler than its motorhomes, where the Trekker collision needs
+it.
+
+## Three fields Swift published and no longer publish
+
+All three were in the retired brochure; none appears anywhere on the 2027 site or in the
+quick guide. Each is left unset so it arrives as a `MissingField`, showing a reviewer
+FMLV's own figure beside "nothing scraped" and leaving the stored value alone.
+
+| Field | Where it used to be | FMLV holds |
+|---|---|---|
+| `internal_length_mm` | brochure "Internal Length (At Bed Box Height)" | 3420-6360 |
+| `height_mm` | brochure "Overall Height (Inc. Tv Aerial)" | 2590 / 2610 |
+| `awning_length_mm` | brochure "Awning A/A Dimension" | 7950-10590 |
+
+`personal_effects_payload_kilograms` was a fourth row here until 4 September 2026 — it is
+now derived from the two masses instead. See above.
+
+Back-filling any of them from the 2026 brochure was considered and rejected for the same
+reason `swift.py` rejects it for motorhome heights: last season's document is not 2027
+evidence, and FMLV's figures are already good. If Swift start publishing any of them
+again, `collect`'s closing narration is the line that should stop being printed.
+
+## Headroom is scraped, and is the one range-level figure
+
+Every range page states `1.95m (6'5") headroom` in its own highlights, and FMLV holds
+1950mm on all 26 — the brochure confirms 1.95m for every model of every range going back.
+It is read off each page rather than hard-coded so a range that changes it, or a page that
+stops saying it, comes out narrated instead of silently wrong.
+
+## Width: the JSON, not the construction prose
+
+The Sprite page's "Exterior & Construction" list says **`Overall body width 2.25m/7'5"`**
+and it is wrong. That page's own JSON, the quick guide and FMLV's baseline all say 2.23m
+for all four Sprites; 2.25m is the figure Swift use for the Challenger — a CMS
+copy-paste. Conqueror Grande's prose says 2.45m where its JSON says 2.46m on all four.
+
+Per-layout JSON is the only width source read. Covered by a test that asserts the wrong
+prose figure is present in the fixture and absent from the output.
+
+## `optionalWeightPlateUpgrade` is not the MTPLM
+
+Every layout carries one — 1300kg beside the Alpine 4's real 1247kg. It is an optional
+dealer upgrade, and the site says so: *"If a higher payload is required, then the MTPLM
+can be increased on certain models."* `docs/adapters/README.md` says record the base
+figure, so nothing here reads it. Named in the docstring and covered by a test because it
+sits immediately beside `weightMtplm` in the same object and is the obvious wrong pick.
+
+## Everything is rigid, and the micro trap is live
+
+All 26 are `type_rigid`. The micro rule needs **the manufacturer's own naming and MTPLM
+of 1250kg or lower**, and the weight half fires here: Challenger 390 is 1118kg and Sprite
+Alpine 4 is 1247kg. Swift market no micro. Their one genuinely small caravan, **Basecamp**
+at 1043kg MTPLM, was held by FMLV as rigid too — and is discontinued for 2027.
+
+## The bug the first live run found — in the pipeline, not the adapter
+
+The first run diffed 26 caravans against the **motorhome** export and classified all 26 as
+new and all 31 motorhomes as disappeared.
+
+`cli.latest_export` takes a `vehicle_class` and its docstring is explicit that "the area
+is part of the filter, not a nicety", predicting this exact symptom. It was correct and had
+three tests. **The one line calling it from the `run` command omitted the argument**, so
+every caravan run silently took the motorhome default. The apply path passed it correctly;
+only `run` did not.
+
+Bailey never showed it because `data/exports/28_Bailey/` only ever held the caravan sheet,
+so newest-file-wins happened to be right. It *had* already bitten once —
+`deploy/discard_run.py` exists precisely because Bailey's first caravan run recorded 24
+invented products this way on 3 September 2026 — but the cleanup script was written and the
+root cause was not fixed. Swift's directory holds both sheets, which is what exposed it.
+
+Fixed by passing `vehicle_class=vehicle_class`, and covered by
+`test_the_run_command_asks_for_the_baseline_of_the_area_it_is_sweeping`, which drives the
+command rather than the function, because the seam was the bug. The bad run was discarded
+with `deploy/discard_run.py 65 --apply` (57 product rows: 31 motorhomes misfiled as
+caravans plus the 26 real caravans that had matched nothing) and re-run.
+
+## First run — 3 September 2026, run #65
+
+26 scraped against 26 baseline; **24 changed, 2 new, 2 disappeared**, 172 proposals, 234
+fields verified unchanged. Everything predicted by the survey, and nothing else:
+
+- **2 new:** Conqueror 565 (the guide's "NEW 565 LAYOUT FOR 2027") and Sprite Grande
+  Quattro FB (the guide's "For 2027, a new 8ft-wide model").
+- **2 disappeared:** Basecamp 2 and Conqueror 645 — the latter replaced in the base range
+  by the 565, with Grande 645 continuing.
+- **26 price rises**, e.g. Sprite Alpine 4 £21,645 -> £22,585, Elegance Grande 835
+  £49,695 -> £51,935.
+- **2 twin-axle corrections**, both `True` -> `False`: Challenger Grande 580 and Conqueror
+  Grande 580. Three Swift sources agree against FMLV's field — the 2027 JSON's
+  `axleType`, the 2027 guide's per-range axle counts, and the 2026 brochure's own "Number
+  of Axles" column, which already said 1. This is the adapter working.
+- **Real 2027 spec changes:** Conqueror 480 lengthened 6450 -> 6530mm with MTPLM 1459 ->
+  1460; Conqueror 580 MTPLM 1660 -> 1675 and MRO 1503 -> 1518. All corroborated by the
+  guide.
+- **96 in-scope fields not found** = the four then-withdrawn fields times the 24 products
+  with a baseline, each a flagged no-op that preserves FMLV's figure. The two new products
+  have no baseline to preserve, so those four stayed blank on them. From 4 September this
+  is **72**, payload having become a derived field rather than a gap.
+
+## No layout flags, and the bed-size tables do not change that
+
+The quick guide carries a **structured bed-size table** per range, one row per model,
+naming positions explicitly — Front Double, Front Single (Nearside/Offside), Side Single,
+Side Bunk, Side Double, Side Fixed Upper/Lower Bunk, Rear Double, with dimensions. It is a
+table, not marketing prose, and it covers all 26 models. That is more than Bailey's pages
+give, so it was examined for the layout flags on 3 September 2026 and **rejected**.
+
+It gives bed *position and size*, not bed *type*, and the FMLV columns need type:
+
+- **A caravan's front lounge converts to a double on almost every model**, so "Front
+  Double" appears on nearly all 26 rows. The table cannot say whether it is a
+  `fixed_bed` or one of the `make_up_beds` — which is the whole distinction.
+- **`island_bed` against `transverse_bed` is orientation**, and the table never states it.
+  Bed dimensions hint at it, which is exactly the "enough to guess from and not enough to
+  be right" trap `bailey_caravan.py` refuses.
+- The guide's one fixed-bed signal is a **range-level footnote**, `^Fixed beds` against
+  equipment lines like "Exclusive Duvalay Duvalite Strato mattress^". It marks which
+  equipment applies to fixed-bed models, not which models have one.
+- Nearside/offside is stated, and per the requester's standing rule it is never recorded
+  from a table without the drawing.
+
+So Swift's caravans take the same line as Bailey's: no layout flags, and
+`sleeping_area_*` stays blank. Filling them needs the floorplan drawings, which is the
+habitation-layout-pack job, not the adapter's. Recorded here so the bed-size table is not
+re-proposed as a shortcut to it.
+
+## Re-verify after the NEC show
+
+Same caveat as the motorhomes: the guide is stamped "Issued September 2026" and carries
+*NEW* flags on the Conqueror 565 and the Sprite Grande. Specs may still move. If a
+2027 full brochure ever appears, the four withdrawn fields become collectable again — but
+`/brochures/` must still never be read for product data.

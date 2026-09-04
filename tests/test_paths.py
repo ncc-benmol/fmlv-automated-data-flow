@@ -7,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from src import paths
+from src.vehicle_class import VehicleClass
 
 
 def test_snapshot_dir_is_scoped_by_manufacturer_and_run() -> None:
@@ -54,3 +55,37 @@ def test_upload_csv_path_differs_between_two_generations_of_the_same_run() -> No
     first = paths.upload_csv_path(10, generated_at=datetime(2026, 8, 7, 9, 0), root=root)
     second = paths.upload_csv_path(10, generated_at=datetime(2026, 8, 7, 9, 1), root=root)
     assert first != second
+
+
+def test_upload_csv_path_names_a_caravan_run_for_the_caravan_importer() -> None:
+    """The reviewer uploads this file by hand into one of two importers.
+
+    A caravan CSV named `motorhome-campervans` would invite the wrong choice on the one
+    irreversible step in the pipeline, so the stem is the NCC's own filename for the area.
+    """
+    root = Path("data")
+    generated_at = datetime(2026, 9, 3, 14, 10)
+
+    motorhome = paths.upload_csv_path(10, generated_at=generated_at, root=root)
+    caravan = paths.upload_csv_path(
+        10, vehicle_class=VehicleClass.CARAVAN, generated_at=generated_at, root=root
+    )
+
+    assert motorhome.name == "run10_2026-09-03_1410_motorhome-campervans.csv"
+    assert caravan.name == "run10_2026-09-03_1410_touring-caravans.csv"
+
+
+def test_upload_csv_path_defaults_to_motorhomes() -> None:
+    generated_at = datetime(2026, 9, 3, 14, 10)
+    assert paths.upload_csv_path(10, generated_at=generated_at) == paths.upload_csv_path(
+        10, vehicle_class=VehicleClass.MOTORHOME, generated_at=generated_at
+    )
+
+
+def test_field_guide_path_is_per_product_area() -> None:
+    root = Path("config")
+    assert paths.field_guide_path(root=root).name == "field_guide_motorhome.csv"
+    assert (
+        paths.field_guide_path(VehicleClass.CARAVAN, root=root).name
+        == "field_guide_caravan.csv"
+    )

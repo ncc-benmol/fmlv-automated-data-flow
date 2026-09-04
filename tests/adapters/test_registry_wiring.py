@@ -25,6 +25,7 @@ import pytest
 
 from src import adapters, paths, registry
 from src.adapters.base import fmlv_base_vehicle
+from src.vehicle_class import VehicleClass
 
 #: Modules in `src/adapters/` that are infrastructure rather than a manufacturer.
 _NOT_ADAPTERS = {"base"}
@@ -77,13 +78,60 @@ def test_module_declares_a_manufacturer(name: str) -> None:
 
 @pytest.mark.parametrize("name", ADAPTER_NAMES)
 def test_module_is_registered_in_adapters(name: str) -> None:
-    # Edit 2 of 3: the ADAPTERS dict entry. This is the one that actually breaks running.
+    # Edit 2 of 3: the `_MODULES` entry. This is the one that actually breaks running.
     module = getattr(adapters, name)
     manufacturer = module.MANUFACTURER
-    assert adapters.ADAPTERS.get(manufacturer) is module, (
-        f"adapter_for({manufacturer!r}) does not return src/adapters/{name}.py — add "
-        f"`{name}.MANUFACTURER: {name},` to ADAPTERS in src/adapters/__init__.py"
+    vehicle_class = adapters.adapter_vehicle_class(module)
+    assert adapters.ADAPTERS.get((manufacturer, vehicle_class)) is module, (
+        f"adapter_for({manufacturer!r}, {vehicle_class.value!r}) does not return "
+        f"src/adapters/{name}.py — add `{name},` to _MODULES in src/adapters/__init__.py"
     )
+
+
+@pytest.mark.parametrize("name", ADAPTER_NAMES)
+def test_module_declares_a_usable_vehicle_class(name: str) -> None:
+    """`VEHICLE_CLASS` is optional and means motorhomes when absent.
+
+    A typo'd or misspelled one must fail here rather than at `ADAPTERS` construction
+    time, where it would take the whole package down on import and obscure which module
+    was at fault.
+    """
+    module = getattr(adapters, name)
+    declared = getattr(module, "VEHICLE_CLASS", None)
+    if declared is None:
+        return
+    assert declared in tuple(VehicleClass), (
+        f"src/adapters/{name}.py declares VEHICLE_CLASS = {declared!r}, which is not one "
+        f"of {[member.value for member in VehicleClass]}"
+    )
+
+
+def test_one_manufacturer_can_hold_an_adapter_per_product_area() -> None:
+    """Eight registered manufacturers build both motorhomes and touring caravans.
+
+    The key is a `(manufacturer, class)` pair so Bailey's two adapters can coexist; before
+    that the second one registered would have silently replaced the first.
+    """
+    registered = {manufacturer for manufacturer, _ in adapters.ADAPTERS}
+    assert len(adapters.ADAPTERS) == len(adapters._MODULES)
+    assert len(registered) <= len(adapters.ADAPTERS)
+
+    bailey = adapters.adapters_for("Bailey")
+    assert VehicleClass.MOTORHOME in bailey
+    assert adapters.adapter_for("Bailey") is bailey[VehicleClass.MOTORHOME]
+
+
+def test_asking_for_an_unwritten_product_area_returns_none_not_the_other_one() -> None:
+    """The trap the tuple key exists to prevent.
+
+    A lookup that fell back to the manufacturer's only adapter would run a *motorhome*
+    scraper for a caravan run and file the results against the caravan export. Asserted
+    against Adria, who build both but have only the motorhome adapter written — Bailey
+    and Swift can no longer make the point, each having gained a caravan adapter of its
+    own, and this assertion moves to the next brand on the list every time one lands.
+    """
+    assert adapters.adapter_for("Adria Mobil", VehicleClass.MOTORHOME) is not None
+    assert adapters.adapter_for("Adria Mobil", VehicleClass.CARAVAN) is None
 
 
 @pytest.mark.parametrize("name", ADAPTER_NAMES)

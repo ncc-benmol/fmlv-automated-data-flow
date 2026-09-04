@@ -247,6 +247,52 @@ labelled "permitted", the lower bound is a homologation minimum, not a fitment c
 corroborate it before recording it, and leave the field unset (and *unregistered*) if you
 cannot. See [`burstner.md`](burstner.md).
 
+### `sleeping_area_separate_childrens_area` is always blank
+
+Rule from the NCC side, 3 September 2026: **never select it.** *"We don't use the separate
+children's area field … We always leave that blank because it might be suitable for
+children, but it's not a designated children's area. And to be honest, no manufacturers at
+the moment specify that."*
+
+So `sleeping_area` only ever takes `front`, `rear` or `both`. A rear bunk pair is a
+sleeping area at the rear like any other, and the fourth option stays empty on every
+product — it is reserved for a *designated* children's area that no manufacturer currently
+declares.
+
+**The trap is that a family layout invites it.** Weinsberg's CaraHome 600 DKG is the worked
+example: the layout code literally spells it — `D` double, `K` Kinder, `G` garage — the
+drawing shows two narrow rear bunks partitioned off, and the range page sells it as the
+family motorhome. All of that is evidence about who sleeps there, and none of it is a
+manufacturer declaring a designated children's area. Record `both` and move on.
+
+The value stays in `SleepingArea` and in `config/field_guide_motorhome.csv` because it is
+FMLV's own schema — this is a rule about what to *emit*, not a reason to delete a column.
+No adapter sets `sleeping_area` at all today; it is filled by hand from the habitation
+pack, so the rule belongs there as much as here.
+
+### Count three-point belts only — a lap belt is not a travel seat
+
+Rule from the NCC side, 3 September 2026: **`mh_passenger_seats_inc_driver` counts
+three-point belted seats and nothing else.** *"Lap belts aren't safe for adults, we should
+only count 3 point seat belts in our output."*
+
+This decides a question that would otherwise recur on every European brand, because the
+manufacturers publish the two separately and invite the sum. Weinsberg's CaraHome price
+list prints `Three-point belts in driving direction 2 2 2` **and**
+`Lap seat belts against driving direction 2 2`, so a 6-berth family alcove looks like it
+seats four; on the rule it seats **two**. `weinsberg.py` reads only the three-point row and
+says in the provenance why the other is refused.
+
+Two things follow:
+
+- **A lap-belt row is not a tie-break for an ambiguous seats figure.** It had looked like
+  the resolution for CaraHome — 2 three-point plus 2 lap belts reconciling neatly with the
+  6 that FMLV's baseline and the `Max. belt-secured seats` row both suggested. That
+  reconciliation is exactly the trap: it makes a wrong figure look corroborated.
+- **The rule is about safety, not about counting**, so it holds however the manufacturer
+  labels or positions the seat. Do not reinstate a lap belt because a brand calls it a
+  travel seat, prices it as one, or homologates the vehicle for the higher number.
+
 **And when a scrape proposes changing a value FMLV already holds, treat the baseline as
 evidence, not just as a target.** Several products disagreeing *the same way* is a signal
 about the parse, far more often than it is several stale records. Bürstner's run proposed
@@ -671,6 +717,72 @@ Two follow-on questions the later surveys added:
   often exactly the roster or comparison view an adapter wants, and nobody links to them
   because they are not part of the sales funnel.
 
+### A download card can name the right market and link the wrong one
+
+Weinsberg, 3 September 2026, and it is the nastiest near-miss found so far — because the
+label is not merely unhelpful, it is *reassuring*.
+
+`weinsberg.com/en-uk/support/catalogues-price-lists/` offers three documents on cards
+reading **"Price list, UK"**. All three link the `global`, `DE-EN` editions, which quote
+`List price in EUR including 19% VAT` on every spec page; the word `GBP` appears **zero
+times** in either in-scope document. The sterling per-range lists exist, and are linked
+from the range pages instead.
+
+Every other rule in this file would have waved it through. It is the current model year, it
+is the only price list on the downloads page, it is not a glossy catalogue, its filename is
+undated in the way that matters, and the card says UK. "Read what a customer sees" —
+the rule that caught Etrusco's mislabelled year — actively points the wrong way here,
+because what the customer sees is the word UK.
+
+So the check that works is not about the label or the filename at all:
+
+- **Read the currency, and the tax rate, out of the document you actually downloaded, and
+  assert on them.** `weinsberg.py` requires `List price in GBP including 20% VAT` on a page
+  before it will take a price from it, and narrates a page offering EUR instead. That is one
+  line, it is checked every run, and it is the only thing standing between a euro figure and
+  `rrp_pounds`.
+- **The same assertion makes a foreign-currency document safely reusable.** Weinsberg's one
+  UK-priced range with no UK price list, X-PEDITION, has its specification read out of the
+  euro document and its price taken from a sterling index card. Because the parser refuses
+  the euro price by rule rather than by which file it was handed, pointing it at the
+  European list costs nothing.
+
+Generalise it as: **a price is the one field where the document's own units have to be
+verified, not inferred from where the document was found.** Dimensions and weights announce
+their units in the row label; a price announces its currency somewhere else entirely, and a
+manufacturer selling into thirteen markets publishes the same table thirteen ways.
+
+### A 404 can arrive with HTTP 200, so check the title
+
+Also Weinsberg. `/en-uk/motorhomes/caracore/layouts/650-meg/` is served **200** with
+`<title>404 - Page not Found | WEINSBERG</title>` and 34KB of chrome. Anything branching on
+`status_code` reads that as a successful fetch of a page with no specification on it —
+which is indistinguishable from a template change, and on a site where the per-layout page
+is the thing you are looking for, it is indistinguishable from the page existing and being
+empty.
+
+Probing for a page that may not exist is a normal thing for an adapter to do (it is how
+Weinsberg's two `EDITION [FIRE]` slugs were confirmed under `/en-uk/`), so **test the title
+as well as the status** on any site whose 404 behaviour has not been checked. It costs one
+`in` and it is the difference between "this range was withdrawn" and "this range parsed to
+nothing".
+
+### A card that renders is not a card that links
+
+Third from the same site, and the reason "no single menu is a complete roster" needs one
+more clause: `/en-uk/camper-vans/` renders a full card — name, price, key facts — for all
+four campervan ranges, and **links only one of them.** The other three cards are
+`<div class="link__button">` with no `href` anywhere in the served HTML.
+
+So a link-following crawl of that page finds one range in four, while a human reading the
+same page sees all four. Two consequences:
+
+- **A card is a roster signal even when it is not a link.** Weinsberg's index is where
+  X-PEDITION's only published sterling price lives, and where the survey first learned the
+  range existed at all — its URL had to come from the German sitemap's slug.
+- **Count the cards, then count what you can reach.** The gap between the two is the
+  measure of how much of the roster the crawl is missing, and it is free.
+
 ### If the document is behind a name/email form
 
 Two things, in this order.
@@ -857,3 +969,84 @@ as a generic capability, not something specific to Adria.
   — but `cli._is_current_model_year` already drops them, because they carry 2024 and 2022.
   The baseline the diff sees was 29 and nothing disappeared. Count against the *filtered*
   baseline, not the raw export.
+
+## Writing a caravan adapter
+
+Bailey's is the first (`src/adapters/bailey_caravan.py`, `docs/adapters/bailey.md`), and
+the shape it settled is worth reusing.
+
+**A manufacturer that builds both gets two adapter modules, not one with a flag.** They
+are different URLs, a different specification table and a differently-shaped product.
+Declare `VEHICLE_CLASS = VehicleClass.CARAVAN` at module level — omitting it means
+motorhomes, which is why none of the seventeen motorhome adapters needed an edit — and
+register the module in `_MODULES`; the `(manufacturer, class)` key is derived from what
+the module declares, so it cannot drift.
+
+Import the sibling's parsing helpers rather than reimplementing them. Bailey's caravan
+pages use markup identical to its motorhome pages, so `bailey_caravan.py` imports
+`_field`, `_kilograms`, `_metres_to_mm` and `_leading_int` from `bailey.py` unchanged.
+`swift_caravan.py` goes further and imports `parse_layouts_json`, `range_and_model` and
+`find_quick_guide_url` too: Swift's caravan ranges are served by the same CMS template as
+its motorhome ranges, one `data-product-layouts-data` block per range page.
+
+**Which existing adapter to copy is decided by the site's shape, not by the product
+area.** Bailey's caravan adapter is one page per vehicle with a literal spec table; Swift's
+is one page per range with embedded JSON, so it was built on `swift.py` and took only the
+field mapping and the domain rules from `bailey_caravan.py`. Reaching for the nearest
+caravan adapter because the run is a caravan run is the wrong instinct.
+
+**Four lengths, and they are not interchangeable.** `internal_length_mm` is the habitable
+space; `exterior_body_length_mm` is the body; `shipping_length_mm` adds the towing hitch,
+so it is always the larger of those two; and `awning_length_mm` is an awning rail
+measurement rather than a vehicle dimension at all — it routinely exceeds the body length.
+Getting shipping and exterior body the wrong way round is the most plausible single
+mistake available: both are lengths, both sit in the same table, and on any one product
+either ordering looks reasonable. `validation` makes it an error rather than leaving it to
+a reviewer's eye.
+
+**`exterior_body_length_mm` is out of automated scope.** Bailey do not publish it at all,
+and the requester reads that as an industry trend rather than one brand's omission
+(3 September 2026). Do not add it back for a manufacturer that happens to publish it
+without asking first — whatever FMLV already holds is left untouched.
+
+**The payload check is `mtplm - mro == published_payload`, and `published_payload` is not
+always one column.** There are two — `personal_effects_payload_kilograms` and
+`optional_equipment_payload_kilograms` — and they must *sum* to `mtplm - mro`. On Bailey's
+and Adria's 92 products the optional column is blank throughout, so the check collapses to
+the personal-effects figure alone. **Swift's four Elegance Grandes are the counter-example**
+(3 September 2026): FMLV holds 160kg personal effects plus 41kg optional equipment against
+a 201kg derived payload. Report a mismatch rather than dropping the product: six of Bailey's
+81 fail it on FMLV's own published figures.
+
+**A manufacturer's single published payload figure may be the total rather than the
+personal-effects half — emit it anyway, and know which four products it will argue with.**
+The requester's instruction (4 September 2026) is that two published masses determine the
+payload, so a blank column beside them is the wrong answer: derive it as `mtplm - mro`,
+exactly as `swift.py` does for `mh_payload_kilograms`, and say so in the provenance.
+
+Where FMLV holds a **non-blank optional figure**, that total would leave the optional
+column in place and the row over-stating its capacity — Swift's four Elegance Grandes would
+read 242kg against 201kg. The requester's rule (4 September 2026) resolves it: *where a
+model previously had a split and no longer does, take the one published figure and use it
+as the personal-effects total.*
+
+So **record provenance for `optional_equipment_payload_kilograms` with no value.**
+`diff.compare` turns a value-to-nothing change into a confirm-or-clear row rather than a
+silent blanking, so the reviewer clears it with the "Leave blank" action and the two
+columns then sum to the published total. Where FMLV already holds it blank the field comes
+back confirmed and no row appears. `_validate_caravan_payload` is the backstop either way.
+
+Two things this leans on, both worth knowing before copying it:
+
+- `compare_fields` walks **every field an adapter records provenance for**, in scope or
+  not — which is what lets an adapter speak about an out-of-scope column at all.
+- On a **new** product an empty out-of-scope field is skipped rather than proposed, since
+  there is no stored figure to clear. An empty *in-scope* one is still proposed: that is
+  `swift._body_type_basis`'s feature, where the reviewer is offered a choice the adapter
+  could not make.
+
+**Body type is nearly always `type_rigid`.** `type_micro` needs **both** the
+manufacturer's own naming **and** MTPLM of 1250kg or lower — a micro should be towable by
+a very small car. Weight alone would have mislabelled thirteen products across Bailey and
+Adria; Bailey's Discovery D4-2 is 995kg and FMLV holds it as rigid, as is Swift's 1043kg
+Basecamp. Folding and pop-up exist in the schema but no surveyed brand builds one yet.

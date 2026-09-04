@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from src import store
+from src.vehicle_class import VehicleClass
 
 
 @pytest.fixture
@@ -364,3 +365,91 @@ def test_list_products_filters_by_manufacturer(
     adria_products = store.list_products(connection, manufacturer_id=3)
     assert len(adria_products) == 1
     assert adria_products[0].fmlv_product_id == 101
+
+
+def test_the_same_range_and_model_in_two_product_areas_are_two_products(
+    connection: sqlite3.Connection,
+) -> None:
+    """A caravan named like a motorhome is a different vehicle, not the same one.
+
+    Bailey's two line-ups don't currently share a single range or model name, and nor do
+    Adria's — but the identity key must not depend on that luck holding for every brand.
+    """
+    run = store.start_run(
+        connection, manufacturer_id=28, fmlv_manufacturer="Bailey", trigger="manual"
+    )
+    motorhome = store.upsert_seen(
+        connection,
+        manufacturer_id=28,
+        fmlv_product_id=None,
+        manufacturer_range="Discovery",
+        model="D4-4",
+        run_id=run.id,
+        vehicle_class=VehicleClass.MOTORHOME,
+    )
+    caravan = store.upsert_seen(
+        connection,
+        manufacturer_id=28,
+        fmlv_product_id=None,
+        manufacturer_range="Discovery",
+        model="D4-4",
+        run_id=run.id,
+        vehicle_class=VehicleClass.CARAVAN,
+    )
+
+    assert motorhome.id != caravan.id
+    assert motorhome.vehicle_class is VehicleClass.MOTORHOME
+    assert caravan.vehicle_class is VehicleClass.CARAVAN
+
+
+def test_upsert_seen_still_matches_within_one_product_area(
+    connection: sqlite3.Connection,
+) -> None:
+    run = store.start_run(
+        connection, manufacturer_id=28, fmlv_manufacturer="Bailey", trigger="manual"
+    )
+    first = store.upsert_seen(
+        connection,
+        manufacturer_id=28,
+        fmlv_product_id=None,
+        manufacturer_range="Unicorn Deluxe",
+        model="Cabrera",
+        run_id=run.id,
+        vehicle_class=VehicleClass.CARAVAN,
+    )
+    again = store.upsert_seen(
+        connection,
+        manufacturer_id=28,
+        fmlv_product_id=None,
+        manufacturer_range="Unicorn Deluxe",
+        model="Cabrera",
+        run_id=run.id,
+        vehicle_class=VehicleClass.CARAVAN,
+    )
+
+    assert first.id == again.id
+
+
+def test_list_products_can_scope_to_one_product_area(connection: sqlite3.Connection) -> None:
+    run = store.start_run(
+        connection, manufacturer_id=28, fmlv_manufacturer="Bailey", trigger="manual"
+    )
+    for vehicle_class, model in (
+        (VehicleClass.MOTORHOME, "60-2"),
+        (VehicleClass.CARAVAN, "Cabrera"),
+    ):
+        store.upsert_seen(
+            connection,
+            manufacturer_id=28,
+            fmlv_product_id=None,
+            manufacturer_range="R",
+            model=model,
+            run_id=run.id,
+            vehicle_class=vehicle_class,
+        )
+
+    everything = store.list_products(connection, 28)
+    caravans = store.list_products(connection, 28, vehicle_class=VehicleClass.CARAVAN)
+
+    assert len(everything) == 2
+    assert [product.model for product in caravans] == ["Cabrera"]

@@ -26,6 +26,27 @@
         </select>
       </div>
       <div class="form-row">
+        <label for="vehicle_class">Product area</label>
+        <select id="vehicle_class" name="vehicle_class" required>
+          {% for cls in vehicle_classes %}
+            <option value="{{ cls.value }}"
+              {% if cls.value == (submitted_vehicle_class or "motorhome") %}selected{% endif %}>
+              {{ cls.label }}
+            </option>
+          {% endfor %}
+        </select>
+        <p class="muted">
+          A manufacturer that builds both has a separate adapter for each.
+          {%- for manufacturer in manufacturers %}
+            {%- set areas = areas_by_manufacturer.get(manufacturer.fmlv_manufacturer, []) %}
+            {%- if areas | length > 1 %}
+              {{ manufacturer.fmlv_display_name or manufacturer.fmlv_manufacturer }} has
+              {{ areas | map(attribute='label') | join(' and ') | lower }}.
+            {%- endif %}
+          {%- endfor %}
+        </p>
+      </div>
+      <div class="form-row">
         <label for="range_name">Range (optional)</label>
         <input type="text" id="range_name" name="range_name" value="{{ submitted_range or '' }}"
                placeholder="e.g. Matrix — leave blank for every range">

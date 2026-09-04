@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+from ..vehicle_class import DEFAULT as DEFAULT_VEHICLE_CLASS
+from ..vehicle_class import VehicleClass
 from .models import FrequencyUnit, LOCAL_TZ, ScheduleEntry
 
 Severity = Literal["error", "warning"]
@@ -195,6 +197,27 @@ def _row_to_entry(row: dict[str, str], row_number: int) -> tuple[ScheduleEntry |
         )
         enabled = False
 
+    vehicle_class_text = (_clean(row.get("vehicle_class")) or "").lower()
+    if not vehicle_class_text:
+        vehicle_class = DEFAULT_VEHICLE_CLASS
+    else:
+        try:
+            vehicle_class = VehicleClass(vehicle_class_text)
+        except ValueError:
+            issues.append(
+                Issue(
+                    severity="warning",
+                    code="unknown_vehicle_class",
+                    message=(
+                        f"vehicle_class {vehicle_class_text!r} not recognised, treating as "
+                        f"{DEFAULT_VEHICLE_CLASS.value!r}"
+                    ),
+                    row_number=row_number,
+                    schedule_id=schedule_id,
+                )
+            )
+            vehicle_class = DEFAULT_VEHICLE_CLASS
+
     if (
         schedule_id is None
         or manufacturer_id is None
@@ -212,6 +235,7 @@ def _row_to_entry(row: dict[str, str], row_number: int) -> tuple[ScheduleEntry |
         frequency_value=frequency_value,
         frequency_unit=frequency_unit,
         enabled=enabled,
+        vehicle_class=vehicle_class,
         notes=_clean(row.get("notes")),
     )
     return entry, issues

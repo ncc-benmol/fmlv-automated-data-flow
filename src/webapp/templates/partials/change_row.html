@@ -1,5 +1,6 @@
 {% set missing = is_missing_field(entry.change) %}
-{% set choices = field_choices(entry.change.field) %}
+{# `run` is in scope from run_detail.html; both areas name their layout fields the same things while meaning different enums, so the area has to be passed. #}
+{% set choices = field_choices(entry.change.field, run.vehicle_class) %}
 <div id="change-{{ entry.change.id }}" class="change-row{% if missing %} missing-field-row{% endif %}">
   <div class="field-name">
     {{ entry.change.field }}
@@ -43,6 +44,8 @@
       <div class="decision decision-{{ entry.decision.action }}">
         {% if missing and entry.decision.action == "accept" %}
           kept existing value
+        {% elif entry.decision.action == "blank" %}
+          cleared the value
         {% elif entry.decision.action == "correct" %}
           {{ entry.decision.action }} → {{ choice_label(entry.decision.corrected_value) if choices else entry.decision.corrected_value }}
         {% else %}
@@ -68,6 +71,15 @@
         hx-include="#reviewer-name"
       >
         <button type="submit" name="action" value="accept" class="btn btn-accept">Keep existing value</button>
+        {# The third answer: the manufacturer has withdrawn this spec, so a stale figure
+           is worse than none. Only where the column can actually hold a blank — a boolean
+           would be written `No` and an identity string would orphan the product's FMLV
+           id. See `webapp.choices.can_be_blanked`. #}
+        {% if can_be_blanked(entry.change.field, run.vehicle_class) %}
+        {% set required = is_required_field(entry.change.field, run.vehicle_class) %}
+        <button type="submit" name="action" value="blank" class="btn btn-blank"
+                title="{% if required %}Clear this field in FMLV. It is a required column, so the generated CSV will report this row as missing it — deliberate, but check that is what you want.{% else %}Clear this field in FMLV — for a spec the manufacturer no longer publishes.{% endif %}">Leave blank{% if required %} <span class="blank-required-flag" aria-hidden="true">!</span>{% endif %}</button>
+        {% endif %}
         {% if choices %}<select name="corrected_value" class="choice-select">
           <option value="">choose a value…</option>
           {% for group, options in choices %}

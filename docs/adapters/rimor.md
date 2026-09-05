@@ -1,274 +1,257 @@
 # Rimor — site survey and adapter notes
 
-Surveyed 13 August 2026, against the **2025-26 season** website and leaflets
-(`RIMOR - Pieghevole <range> 2025-26 ... WEB.pdf`, versions V2–V4).
+Rebuilt 5 September 2026 against the UK importer's site plus a redesigned factory site.
+The original survey (13 August 2026) read only `rimor.it`; see "What changed in
+September" at the end for why that no longer works and what it cost.
 
-Fifth manufacturer, and the first to break the pattern the previous four established.
-`README.md` opens with "is there a brochure or price list PDF?" — for Rimor the answer
-is *yes, and it is still the worse source*.
+Rimor is the first adapter to read **two different sites and let each decide different
+fields**. That is not an optimisation — neither site can answer the whole question.
 
-Be precise about why, because the obvious reading is wrong. **The catalogue is not
-thin**: it publishes everything the website does plus wheelbase, MTPLM, engine, tank
-capacities and equipment. It loses because it cannot say *which model a number belongs
-to* — see "Do not read per-model columns out of the catalogue" below. The website wins
-on **attribution**, not on content: one URL per model, one set of numbers on it.
-
-The leaflets are the different case: those really do carry a strict subset of what a
-model's own page gives, and earn their fetch only as the self-check.
-
-**41 layouts across 5 ranges**, all in server-rendered HTML. No JavaScript, no login,
-no AJAX, no state blob.
-
-| Range | Body styles | Layouts |
+| | decides | because |
 |---|---|---|
-| Horus | vans | 7 |
-| Kilig | low-profile 7, overcab 5 | 12 |
-| Sarus | low-profile 7, overcab 6 | 13 |
-| Sailer | low-profile | 5 |
-| Super Brig | overcab | 4 |
+| **MNC** (`motorhomesandcaravansltd.co.uk`) | which products exist, and the price | Rimor's exclusive UK importer, and Rimor publishes no price anywhere on earth |
+| **`rimor.it`** | every specification number | MNC's specs are a sales description, and demonstrably wrong in places |
 
-## The headline problem: no prices, and no usable payload
+**34 products**: Horus 7 (including the Rimor Van 238), Kilig 15, Sarus 3, Sailer 5,
+Super Brig 4. Both sites are plain server-rendered HTML — no JavaScript, no login.
 
-**Rimor publishes no price anywhere.** Not the HTML, not the leaflets, not the 60-page
-catalogue — zero hits for `€`, `EUR`, `£`, `price` or `prezzo` across the whole
-catalogue. The FAQ answers "Where can I find information on vehicle prices and delivery
-times?" by pointing at a dealership. `rrp_pounds` and the price-range fields are
-**never proposed**, exactly as for Swift.
+Confirmed with the requester on 5 September 2026: **MNC defines the UK range.** A layout
+MNC does not list is not a UK product and is not emitted, however complete its factory
+page. Today that excludes five factory layouts — `horus/45`, `kilig/73-plus`,
+`sarus/50`, `sarus/69-plus`, `sarus/95-plus` — each of which the run names explicitly
+rather than dropping silently.
 
-**Masses are nearly as thin.** The catalogue gives `Maximum overall weight (kg)` —
-MTPLM — but there is **no mass in running order and no payload figure per model**. All
-the catalogue carries is a general note that the calculated MRO "has a tolerance of
-+/- 5%". So `mro_kilograms` and `mh_payload_kilograms` stay empty, and the usual
-`payload == MTPLM − MRO` check is unavailable.
+## Why MNC cannot supply the specifications
 
-And the MTPLM that *is* published is uniform: **3500 kg on every one of the 16 spec
-pages**, i.e. every one of the 41 layouts. Every Rimor is a 3500 kg chassis. It is a
-real field worth filling, but it carries almost no information and will never move
-between runs. (An uprated 4400 kg chassis is offered on at least Sarus 9, quoted inside
-the seats cell as `6 (+1 opt 4400 kg)` — an option, not the standard figure, and not
-proposed.)
+This is the load-bearing part of the design, so it is evidenced rather than asserted.
+All three findings come from comparing the 28 layouts both sites describe.
 
-### The catalogue is presented behind a form, but the PDF is not protected
+**MNC's berth figure is not a berth count.** On the coachbuilts it repeats its own
+travel-seat count in the berth position:
 
-The catalogue is fronted by a lead-generation form at
-`/int/en/sfoglia-il-catalogo-richiesta` — name, email, city, phone and three consent
-checkboxes, posting back to itself with `lead-generation=1`. Only `privacy_1` ("I have
-read the privacy policy") is actually validated; `privacy_2` (profiling) and
-`privacy_3` (marketing) are optional.
+| | MNC says | rimor.it says |
+|---|---|---|
+| Kilig 5 | 6 berth with 6 travel seats | 6 seats (`6 / 5`), **4** berths |
+| Kilig 79 | 7 berth with 7 travel seats | 7 seats (`7 / 6`), **4** berths |
+| Kilig 67 | 4 berth with 4 travel seats | 4 seats, **2** berths |
 
-**None of that is necessary.** The PDF itself is unauthenticated and sits at a
-predictable path:
+**26 of 34** MNC listings have `berths == seats`, and where the factory can be checked
+MNC is too high in **11 of 21** cases — always too high, never too low. Berths therefore
+always come from the factory. (Horus is the exception that proves it is a coachbuilt
+template bug: MNC's Horus pages do print two different figures, and they agree.)
 
-```
-/public/local/simplex/Marchi/rimor/Lingue/catalogo/raw/RIMOR - Catalogo 2025-26 - EU - V7.pdf
-```
+**MNC truncates dimensions to whole centimetres.** Kilig 55 Plus is 7338 mm on the
+factory page and `7.33m` on MNC — truncated, not rounded, so MNC is systematically 0–9 mm
+low. That cap is what makes the cross-site check below usable.
 
-`EU` is the English edition; `FR` (V6) and `DE` (V5) also exist, each on its own version
-number. No form, no cookie, no token.
+**At least two MNC layouts carry another layout's figures.**
 
-**But it is linked from no page on the site.** This is the one genuinely awkward thing
-about it, and it inverts the rule every other adapter follows: there is nothing to
-rediscover the URL *from*, so it has to be probed by season and version. The season
-(`2025-26`) and the per-language version (`V7`) will both move.
+* Kilig 79 — MNC prints `6.75m`, which is the *78*'s length; the factory says 6970 mm.
+* Kilig 99 — MNC prints `7.44m × 2.90m` against the factory's 7308 × 2845 mm.
 
-The adapter therefore treats the catalogue as **optional enrichment**: probe descending
-version numbers for the current and next season, and if nothing resolves, still emit all
-41 products from the HTML with `mtplm_kilograms` and `base_vehicle_manufacturer` left
-empty. A 404 here must never fail a run.
+Both are caught by the self-check on every run and narrated, with the factory figure
+kept.
 
-### Do not read per-model columns out of the catalogue
+## Why the factory cannot supply the price
 
-The spec tables look parseable and are not. pypdf returns an entire row as a **single
-text run**:
+**Rimor publishes no price anywhere** — not the HTML, not the leaflets, not the 60-page
+catalogue (zero hits for any currency symbol), and the FAQ directs price questions to
+dealers. MNC's is the only price that exists.
+
+Prices are **banded by range** rather than set per layout: Horus and Kilig £56,995–61,995,
+Sarus £64,995, Sailer and Super Brig £69,995. That is worth knowing before reading a
+uniform column as a parse failure.
+
+## Site shapes
 
 ```
-y=546: x=45: 'Wheelbase (mm) 3450 4035'
-y=533: x=45: 'Outside length (mm) 5413 5998'
-y=520: x=45: 'Outside width - inside width (mm) 2050 - 1850'
+MNC     /product-category/new-motorhomes-for-sale/new-rimor-motorhomes/<range>
+          -> /product/rimor-<range>-<layout>-<year>[-variant]    price, body type
+rimor.it /int/en/gamma/<range>
+          -> /int/en/gamma/<range>/<body-style>
+               -> /int/en/gamma/<range>/modello/<layout>         every specification
 ```
 
-That page covers **three** models (Horus 12, 38, 45) but the length row has **two**
-values, because the layout prints a value once where it spans several columns. The x
-coordinates give nothing — every run starts at x=45 — so there is no way to recover
-which column a merged value spans. This is precisely the silent-misalignment failure
-`README.md` warns about, and here it is unrecoverable rather than merely fiddly.
+Two entry-point quirks. **MNC spells Sailer's category `sailer`, not `rimor-sailer`** —
+the other four carry the prefix, and guessing costs a 404. And the factory has no
+`/int/en/gamma` index (it 404s) and no sitemap, so the five ranges are listed in the
+adapter rather than discovered.
 
-The way out is that **the two fields worth having are page-constant**: MTPLM (3500) and
-engine (one per range) are the same for every column on the page, so they can be taken
-without solving alignment at all. Everything varying per model — lengths, widths,
-heights, seats, berths — comes from the HTML, where each model has its own page and no
-alignment question exists.
+`DEFAULT_RANGES` therefore carries **three** elements per entry — MNC slug, factory slug,
+label — where every other adapter carries two. `cli.resolve_ranges` was changed to read
+only the entry's *last* element as the label and pass the rest back untouched, which
+leaves the other adapters exactly as they were.
 
-## Site shape
+## Stock units are not products
 
-Three levels, all plain HTML:
+MNC sells actual vehicles alongside its layout listings, which is the thing to get right
+here. **48 URLs reduce to 34 products.**
 
-```
-/int/en                                  # homepage nav — the only list of the 5 ranges
-  /int/en/gamma/<range>                  # links body-style pages + the range leaflet PDF
-    /int/en/gamma/<range>/<body-style>   # lists the models (name, seats, berths)
-      /int/en/gamma/<range>/modello/<slug>   # dimensions, bedding solution
-```
+* **Demo vans** carry a struck-through price and `Demo` in the title.
+* **`-copy` slugs** are WordPress duplicates whose slug is the only thing wrong with them.
+* **`-automatic` variants** are a transmission option on the same layout.
+* **10 URLs are 301s** onto a sibling that is already listed.
 
-Two things to know about the entry point: **there is no `/int/en/gamma` index — it
-404s** — and there is no sitemap, so the five ranges have to be read from the homepage
-navigation. Body styles are `low-profile`, `overcab` and `vans`.
+`select_listings` groups every URL by `(range, layout)` and prefers a plain listing, then
+a duplicate, then a demo unit; within that, the latest model year and then the shortest
+slug, which favours the base vehicle over an optioned variant.
 
-**Body type comes free from the URL segment.** No other manufacturer surveyed has
-handed this over so cleanly — Swift and Sunlight need it inferred from which catalogue
-a layout appeared in.
+**A demo or copy listing is still used when it is all a layout has.** Four layouts are in
+that position — Sailer 55 Plus, Sailer 56 Plus, Kilig 50 and Kilig 695 — and dropping
+them would lose layouts MNC genuinely sells.
 
-Model slugs are not all numeric: `modello/5` and `modello/9` sit alongside
-`modello/66-plus` and `modello/suite`. An early version of this survey used `\d+` and
-silently found 18 of the 41 layouts — a good illustration of why 1.5's public count
-matters, except that Rimor never states one, so see below.
+### Which price a discounted page gives
 
-## The self-check
+Two discounts that look identical in the markup mean opposite things, and the difference
+is what is being discounted:
 
-There is no payload arithmetic to lean on, because there are no masses. The redundancy
-is **cross-document**: each range's leaflet independently republishes every layout's
-`length x width`, and the model pages publish the same two numbers individually.
+| | MNC shows | take | why |
+|---|---|---|---|
+| Sailer 55 Plus (demo unit) | £69,995 → £64,995 | **£69,995** | the discount is on one van; £69,995 is exactly what the other three Sailers cost |
+| Horus 40 (range promotion) | £61,990 → £59,995 | **£59,995** | the whole Horus range is promoted, and £59,995 is the figure MNC's page leads with |
 
-Crucially this check is **order-independent** — compare the two as an unordered
-multiset, never by position. That matters because the leaflet text extracts in scrambled
-reading order, exactly as `README.md` warns. The Kilig leaflet's page 1 renders as:
+**`is_demo` must be read from the fetched page's title, never from the requested slug.**
+Several plain layout URLs 301 *onto* a demo listing — `rimor-sailer-55-plus-2026` lands on
+`rimor-sailer-55-plus-2026-automatic-demo-van`, and `rimor-horus-40-2026` lands on
+`-automatic` — so the slug asked for and the page returned routinely disagree. Only the
+page that comes back can say what was actually read.
 
-```
-7
-from 6970
-to 7308 mm
-...
-5
-from 6449
-to 7338 mm
-```
+## The join, and Rimor's renaming
 
-where the count `7` belongs with the `6449–7338` band (low-profile, 7 layouts) and `5`
-with `6970–7308` (overcab, 5 layouts). Read in order, both are wrong. Matching
-`(length, width)` pairs as a multiset sidesteps this entirely: it never asks where on
-the page a number sat.
+Rimor moved its **whole Kilig low-profile line** from `<n>` to `<n> Plus` for the new
+season while MNC still lists the old names. `_factory_slug` tries `<layout>`, then
+`<layout>-plus`, then `<layout>` with `-plus` removed, and only ever returns a slug the
+factory actually publishes — nothing is invented. Six Kilig layouts join that way today
+(66, 67, 69, 77, 78, 79), each reported in the run output.
 
-Verified at survey time across all four leaflets — **41/41 layouts, exact multiset
-equality, nothing missing in either direction**:
+This is exactly the "name drift is not a new model" case: treating those as new products
+would have proposed six creations and six disappearances instead of six matches.
 
-| Leaflet | Covers | Layouts | HTML ∖ leaflet | leaflet ∖ HTML |
-|---|---|---|---|---|
-| Horus UK | Horus | 7 | — | — |
-| Kilig | Kilig | 12 | — | — |
-| Sarus | Sarus | 13 | — | — |
-| SuperBrig-Sailer | Sailer + Super Brig | 9 | — | — |
+**The dimension check is what proves the join** rather than assuming it. `rimor.it` and
+MNC publish each layout's dimensions independently, so comparing them is a genuine second
+source and not the same number read twice. MNC's truncation caps an honest disagreement at
+9 mm, so the tolerance is 10 mm; anything larger is a real conflict, narrated loudly, with
+the factory figure kept. A conflict does **not** drop the product — MNC being wrong about
+a dimension says nothing about whether the layout is on sale.
 
-Note the fourth: **Sailer and Super Brig share one leaflet**, so the check is applied to
-the union of those two ranges, not per range.
+## Traps on the factory site
 
-A layout whose dimensions do not appear in its leaflet's multiset is dropped with an
-`on_progress` warning rather than proposed.
-
-**The catalogue was tested as a one-fetch replacement for the four leaflets and
-rejected.** It carries the same `length x width` pairs, but only **39 of the 41** — its
-Horus section is short by two `5998 x 2050` layouts. The leaflets are complete and the
-catalogue is not, so the self-check keeps the four leaflet fetches even though the
-catalogue is being fetched anyway for MTPLM and engine. Cheaper would have been wrong.
-
-## Traps
-
-**Seats and berths are only distinguishable by an Italian `title` attribute.** The
-listing card renders two visually identical spans:
+**Seats and berths are distinguishable only by Italian icon classes.** The two widgets
+are otherwise identical, and the site's English does not reach either:
 
 ```html
-<div title="numero posti omologati" class="caratteristica-modello">
-  <span class="valore-caratteristica-modello">6</span>
-<div title="numero posti letto" class="caratteristica-modello">
-  <span class="valore-caratteristica-modello">4 (+ 2 opt)</span>
+<span class="lc-icons-posti-omologati ..."></span>   <!-- homologated SEATS -->
+  <a href="#nota-numero_posti_omologati" ...>2</a>   <!-- footnote, skip it -->
+  <span class="valore-caratteristica-modello">6 / 5</span>
+<span class="lc-icons-posti-letto ..."></span>       <!-- BERTHS -->
+  <span class="valore-caratteristica-modello">4</span>
 ```
 
-`posti omologati` is homologated **seats**, `posti letto` is **berths**. Anchor on the
-title, never on position — the site is English-language but this attribute is not
-translated.
+Anchor on the name, never on position. These were `title="numero posti omologati"`
+attributes until the 2026 redesign; the Italian words survived the move to class names,
+and so does the rule.
 
-**Berths are strings, not integers.** `4 (+ 2 opt)`, `4 (+2+1 opt)`, `2 (+2 opt)`. The
-standard figure is the leading integer; the optional extras are exactly the "OPT"
-convention Sunlight uses and are dropped the same way. Seats are usually a bare integer
-but not always — Sailer and Super Brig layouts publish `4 (+1 opt)` for seats too.
+**Two fields publish a list, and the first entry is the FMLV figure.**
 
-**Whitespace inside the optional suffix is inconsistent** — `4 (+ 2 opt)` on Kilig 5,
-`4 (+2 opt)` on Kilig 77 Plus, `1150 x 650` vs `1150x650` for bed sizes on Kilig 9 and
-Kilig 79 Plus. Normalise before comparing.
+* Seats read `6 / 5` — the `5` is a reduced-seat homologation Rimor offers to free up
+  payload (85 kg per seat removed), not the standard figure.
+* MTPLM reads `3500 / 3550 / 4100` — the first is the standard chassis; the rest are paid
+  uprates. Sarus reads `3500 / 3650`, Horus a bare `3500`.
 
-**The dimensions block pairs outside with inside.** It reads `outside width - inside
-width 2340 - 2200 mm` and `maximum outside height inside height 3040 - 2060 mm`. Only
-the first of each pair is the FMLV figure. One page (Sarus 8) omits the spaces entirely:
-`3050-2075 mm`.
+**The dimension rows pair outside with inside.** `outside width - inside width
+2340 - 2200 mm` and `maximum outside height inside height 3040 - 2060 mm`. Only the first
+of each pair is the FMLV figure.
 
-**The models list appears twice** in every body-style page — once in the main content
-and once in a footer block. Deduplicate on URL.
+**The overview block must be scoped to.** Every model page also carries an "other range
+models" list, and the range and body-style links that name this layout appear again in the
+navigation. `_OVERVIEW` brackets on `id="panoramica-modello"` and an `END PANORAMICA
+MODELLO` **HTML comment** — worth knowing when trimming fixtures, since stripping comments
+destroys the closing marker.
 
-## Leaflets
+**Footnote links sit inside the label cell**, before its `</td>`, on any row carrying a
+note. `_spec_row` allows for that and for the padding described below, which is why all
+five table fields are built from one helper rather than written out five times.
 
-Linked from each range page under
-`/public/local/simplex/Marchi/rimor/Veicoli/Gamme/BrochureGamme/brochure/raw/`, with
-spaces and the season in the filename. **Rediscover per run from the range page** rather
-than hardcoding — the filename carries both a season (`2025-26`) and a version (`V2`,
-`V3`, `V4`) and the versions already differ between ranges.
+## The two products with no factory page
 
-Horus's is a **UK edition** (`- UK - V3 -`); the other three are `- EU -`. This is the
-only market-specific document Rimor publishes, and since no leaflet carries a price it
-buys nothing today — worth re-checking if prices ever appear, per the Sunlight lesson.
+Both keep MNC's price, body type and base vehicle, and nothing else MNC alone cannot be
+trusted on:
 
-## Product count
+* **Horus 12** — `/int/en/gamma/horus/modello/12` now 302s to `/`. MNC still sells it as a
+  2027, and publishes no dimensions for it at all.
+* **Rimor Van 238** — the factory gives it a standalone `/int/en/special/rimor-van` page
+  with no spec table. MNC files it under its **Horus** category, and MNC decides the
+  range, so `manufacturer_range` is Horus and the model is `Van 238`.
 
-Rimor **does not publish a layout count anywhere** — no "41 layouts across 5 ranges"
-claim on any index page, and there is no models index at all. This is the first
-manufacturer where 1.5 has no answer, so the count the tests assert (41) is the count
-observed on 13 August 2026, not a manufacturer claim. It is a weaker anchor than the
-other four adapters have, and a drift in it should be treated as "check the site"
-rather than "the manufacturer changed the range".
+For these two, MNC's seats and berths are taken **only when the two figures differ**
+(both publish `3 berth with 4 travel seats`). Two equal figures cannot be told apart from
+the repeat-the-seat-count bug, so they are left empty rather than guessed.
 
-The per-range and per-body-style counts above are the more useful assertion, since a
-selector breaking on one body-style page is the realistic failure and would show up
-there before it showed up in the total.
+## What changed in September, and what it cost
+
+The factory redesigned its model pages between 13 August and 5 September 2026 — a
+changeover consistent with Caravan Salon Düsseldorf running 28.08–06.09.2026. **Five of
+the previous adapter's six field extractors stopped matching**, leaving bed type as the
+only field still parsing:
+
+* The dimension cells gained `class="uc-first"` and newline padding, so `outside
+  length</td>` no longer matched `outside length\n    </td>`.
+* `title="numero posti omologati"` became `class="lc-icons-posti-omologati"`.
+
+A run in that state would have failed safe — every field absent, so every change a no-op
+and the stored figures preserved — but it would have silently stopped updating. That is
+the argument for the plausibility floor and for asserting per-range counts, not just a
+total.
+
+The range also moved **41 → 37 layouts**, with Sarus dropping 13 → 6 while Kilig gained
+12 → 16. Given the wholesale rename, that looks like a reshuffle between ranges rather
+than seven deletions, and it is worth re-checking rather than believing.
+
+**Two things got better.** The redesigned pages publish **MRO per model** (Kilig 5:
+`MRO 2961 kg` against `3500 / 3550 / 4100 kg`), so `mro_kilograms` and
+`mh_payload_kilograms` are available for the first time — 30 of 34 products carry a
+payload now. And that removed the last reason to fetch the catalogue PDF, which existed
+only for MTPLM and the chassis; the chassis now comes from MNC's `Vehicle:` line. **The
+catalogue and leaflet machinery is gone entirely**, along with its season-and-version URL
+probing, its unrecoverable column alignment, and the four leaflet fetches per run.
+
+The old cross-document check (each range's leaflet republishing every layout's
+`length × width`, compared as an unordered multiset) is replaced by the cross-site
+dimension check, which is cheaper, needs no PDF parsing, and immediately found two errors
+the leaflet check never could — because it compares MNC against the factory rather than
+the factory against itself.
 
 ## First run
 
-13 August 2026, all five ranges, ~130 seconds for 55 fetches:
+5 September 2026, all five ranges, **34 products and 390 fields with provenance**. Every
+per-range count matches the survey above. Hand-checked against both sources:
 
-```
-catalogue found (RIMOR - Catalogo 2025-26 - EU - V7.pdf): MTPLM and chassis for 5 range(s)
-[Horus]      leaflet lists 7 layout size(s)   /vans 7            -> 7 product(s)
-[Kilig]      leaflet lists 12 layout size(s)  /low-profile 7, /overcab 5  -> 12 product(s)
-[Sarus]      leaflet lists 13 layout size(s)  /low-profile 7, /overcab 6  -> 13 product(s)
-[Sailer]     leaflet lists 9 layout size(s)   /low-profile 5     -> 5 product(s)
-[Super Brig] leaflet lists 9 layout size(s)   /overcab 4         -> 4 product(s)
-41 product(s) collected
-```
-
-**41/41, nothing dropped**, and every per-range count matches the survey. Nine fields
-per product (369 proposed changes across 41 new products).
-
-Three hand-checked against the source:
-
-| | Horus 12 | Kilig 5 | Super Brig Suite |
+| | Kilig 66 Plus | Sailer 55 Plus | Van 238 |
 |---|---|---|---|
-| L / W / H (mm) | 5413 / 2050 / 2659 | 6970 / 2340 / 3040 | 6970 / 2340 / 3080 |
-| Seats / berths | 4 / 3 | 6 / 4 | 4 / 4 |
-| Body type | campervan | over-cab | over-cab |
-| Bed type | French bed → fixed | Transverse | Rear suite → fixed |
-| MTPLM / chassis | 3500 / Fiat | 3500 / Ford | 3500 / Ford |
+| MNC lists it as | Kilig 66 2026 | 55 Plus, demo van only | Van 238 2026-Automatic |
+| Price | £59,995 | £69,995 (pre-discount) | £56,995 |
+| L / W / H (mm) | 7338 / 2340 / 2845 | 7338 / 2340 / 2845 | — (MNC only) |
+| Seats / berths | 4 / 4 | 4 / 4 | 4 / 3 |
+| MTPLM / MRO / payload | 3500 / 3017 / 483 | 3500 / 3051 / 449 | — |
+| Body type | low profile | low profile | campervan |
 
-All three agree with the website and catalogue exactly. Note Kilig 5's berths: the page
-says `4 (+ 2 opt)` and the stored value is `4`, with the full string kept in provenance.
-
-The run was made against an **empty baseline**, since no FMLV export for Rimor exists
-yet — so all 41 classified as new and the `fmlv_manufacturer` join is still unproven.
-That is the one thing a real export will test that this run could not.
+Note Kilig 66 Plus: MNC calls it "Kilig 66", the factory now calls it "66 Plus", and the
+stored model is the factory's current name. Its 7330 mm on MNC against 7338 mm on the
+factory is truncation, within tolerance, and is what confirms the rename join is right.
 
 ## What is unverified
 
-- **`ncc_supplier_name`** is `Rimor`, inherited from the seed list and **not confirmed**
+* **`ncc_supplier_name`** is `Rimor`, inherited from the seed list and **not confirmed**
   against the NCC site's export dropdown.
-- **`fmlv_manufacturer`** is `Rimor` from `resources/manufacturers-full-list.csv` (id
-  `75`); it has not been checked against a real FMLV export, so the baseline join is
-  unproven.
-- **Model-year timing.** The season is labelled `2025-26` and the site was surveyed in
-  August 2026, so this is likely to be close to a changeover. Nobody has confirmed when
-  Rimor publishes a new season.
+* **`fmlv_manufacturer`** is `Rimor` from `resources/manufacturers-full-list.csv` (id
+  `75`); it has not been checked against a real FMLV export, so the baseline join is still
+  unproven and every run to date has classified all products as new.
+* **The Rimor Van 238's range.** Filed under Horus because MNC files it there; the factory
+  treats it as a standalone "RIMOR VAN". If FMLV would rather see a Rimor Van range, this
+  is a one-line change to `RANGE_LABELS`.
+* **Whether MNC's prices are on-the-road or ex-works.** The pages say only "£ 59,995" with
+  options priced separately, and carry a "check our full current and technical
+  specifications with us before placing your order" disclaimer.
+* **The Sarus gap.** MNC lists 3 of the factory's 6 Sarus layouts. Read as a deliberate
+  importer decision, per the rule that MNC defines the range — but it is the largest gap
+  of the five and worth confirming it is not simply a page MNC has not finished building.

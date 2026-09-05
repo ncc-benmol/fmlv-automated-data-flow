@@ -184,9 +184,14 @@ def test_manufacturer_matches_a_registry_row(name: str) -> None:
 def test_default_ranges_is_well_formed(name: str) -> None:
     """`DEFAULT_RANGES` is optional, but a malformed one only fails when `--range` is used.
 
-    `cli.resolve_ranges` reads it with `getattr` and unpacks each entry into
-    `(path, label)`, so a bare tuple of strings passes every other check in this file and
-    then raises on the first smoke run.
+    `cli.resolve_ranges` reads it with `getattr`, keys on each entry's **last** element as
+    the label and hands the entry back to the adapter untouched. So a bare tuple of
+    strings — where each "entry" is a single character — passes every other check in this
+    file and then behaves nonsensically on the first smoke run.
+
+    Most adapters carry `(path, label)`. What the earlier elements mean is the adapter's
+    own business: `rimor` carries `(MNC slug, factory slug, label)`, one for each of the
+    two sites it reads. Hence at least two parts rather than exactly two.
     """
     module = getattr(adapters, name)
     ranges = getattr(module, "DEFAULT_RANGES", None)
@@ -195,12 +200,19 @@ def test_default_ranges_is_well_formed(name: str) -> None:
 
     assert isinstance(ranges, tuple) and ranges, f"{name}.DEFAULT_RANGES must be a non-empty tuple"
     for entry in ranges:
-        assert isinstance(entry, tuple) and len(entry) == 2, (
-            f"{name}.DEFAULT_RANGES entries must be (path, label) pairs, got {entry!r}"
+        assert isinstance(entry, tuple) and len(entry) >= 2, (
+            f"{name}.DEFAULT_RANGES entries must be tuples of (path..., label), "
+            f"got {entry!r}"
         )
         assert all(isinstance(part, str) and part.strip() for part in entry), (
-            f"{name}.DEFAULT_RANGES entries must be two non-empty strings, got {entry!r}"
+            f"{name}.DEFAULT_RANGES entries must be non-empty strings, got {entry!r}"
         )
+
+    labels = [entry[-1] for entry in ranges]
+    assert len(labels) == len(set(labels)), (
+        f"{name}.DEFAULT_RANGES labels must be unique — `--range` keys on them, "
+        f"got {labels}"
+    )
 
 
 # --------------------------------------------------------------------------- #

@@ -335,25 +335,30 @@ def _dedupe_baseline(motorhomes: Iterable[Motorhome]) -> list[Motorhome]:
     return passthrough + deduped
 
 
-def resolve_ranges(adapter: Adapter, wanted: Sequence[str]) -> tuple[tuple[str, str], ...]:
+def resolve_ranges(adapter: Adapter, wanted: Sequence[str]) -> tuple[tuple[str, ...], ...]:
     """Narrow an adapter's ranges to the named ones, for a smoke run against one range.
 
     Ranges are not part of the `Adapter` protocol — what a "range" is, and whether a
     site even has them, is the adapter's business. So this is an opt-in escape hatch:
     it works for an adapter that publishes a `DEFAULT_RANGES` tuple (as `adria` does)
     and is a clear error for one that doesn't, rather than being silently ignored.
+
+    Each entry is passed back to the adapter untouched, and only its **last** element is
+    read, as the human-facing label. What the earlier elements mean is the adapter's
+    business too: most carry a single path, while `rimor` carries a slug for each of the
+    two sites it reads.
     """
-    default: tuple[tuple[str, str], ...] | None = getattr(adapter, "DEFAULT_RANGES", None)
+    default: tuple[tuple[str, ...], ...] | None = getattr(adapter, "DEFAULT_RANGES", None)
     if default is None:
         msg = f"adapter {getattr(adapter, '__name__', adapter)!r} does not support --range"
         raise CommandError(msg)
 
-    by_label = {label.lower(): (path, label) for path, label in default}
-    selected: list[tuple[str, str]] = []
+    by_label = {entry[-1].lower(): entry for entry in default}
+    selected: list[tuple[str, ...]] = []
     for name in wanted:
         match = by_label.get(name.strip().lower())
         if match is None:
-            known = ", ".join(label for _path, label in default)
+            known = ", ".join(entry[-1] for entry in default)
             msg = f"unknown range {name!r}. Known ranges: {known}"
             raise CommandError(msg)
         selected.append(match)

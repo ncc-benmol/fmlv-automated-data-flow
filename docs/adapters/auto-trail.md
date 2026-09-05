@@ -82,7 +82,9 @@ closes: £68,370 + £635 = £69,005, where the £635 is the price list's own foo
 website figure is taken as published, with no adjustment.
 
 An earlier revision of this document concluded that Auto-Trail publishes no
-machine-readable price and that `rrp_pounds` is never proposed, as for Swift and Rimor.
+machine-readable price and that `rrp_pounds` is never proposed, as for Swift.
+(Rimor was cited here too, and has since stopped being an example: the factory still
+publishes no price, but its UK importer does — see [Rimor](rimor.md).)
 That was right about the PDF and wrong about the manufacturer: the price was in the HTML
 all along, one level up from the model pages that were surveyed. **The lesson worth
 keeping is that "the document that should hold X does not" is not the same finding as

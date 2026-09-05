@@ -164,9 +164,14 @@ that with a second, always-identical price row to accept. Neither is worth a rev
 attention. Mirroring at the end keeps both columns in step with whatever price they
 actually approved.
 
-**A brand with no published price gets no mirrored value.** Swift, Rimor and Chausson
-publish none, so both columns stay blank rather than being filled with a figure nobody
-read.
+**A brand with no published price gets no mirrored value.** Swift, Chausson and
+Le Voyageur publish none, so both columns stay blank rather than being filled with a
+figure nobody read.
+
+**A manufacturer publishing none does not settle it — check the UK importer.** Rimor
+publishes no price anywhere in the world, and its products still carry one, because its
+exclusive UK importer prices every layout it sells. See [Rimor](rimor.md), which reads the
+importer for the price and the range and the factory for the specifications.
 
 ### A figure that could not be found must be visible, and must never be inherited
 

@@ -126,7 +126,7 @@ compartment volume, with no gaps. That is the field set to build on.
 ### Prices are not published anywhere
 
 No `£`, no `GBP`, no price on any of the 18 layout pages, on the index, or in the 2026
-catalogue. Le Voyageur joins Swift, Rimor and Chausson: `rrp_pounds` stays unset, and
+catalogue. Le Voyageur joins Swift and Chausson: `rrp_pounds` stays unset, and
 `output.build._mirror_guide_price` correctly leaves both price columns blank.
 
 ### The `Detailed specifications` block is ragged, in three ways
@@ -271,7 +271,9 @@ length dispute above, and it agrees with the website on MTPLM and length for all
 other families.
 
 So it is kept as a **cross-document check and nothing else**, exactly as Rimor's leaflets
-are.
+were. (Rimor's are no longer fetched — its check is now cross-*site*, against the UK
+importer. The principle is the same one: a second document that repeats a figure earns its
+fetch even when it adds no field.)
 
 Two mechanical notes if it is ever parsed further. Decimal separators are **inconsistent
 within the one document** — `7,05 m` on page 59, `7.91 m` on page 29 — and the thousands

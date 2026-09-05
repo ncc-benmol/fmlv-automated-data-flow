@@ -205,9 +205,11 @@ class Adapter(Protocol):
       caravans came into scope produces. A manufacturer that builds both gets **two
       adapter modules**, not one with a flag: they are different URLs, a different spec
       table and a differently-shaped product (DESIGN.md §3).
-    * `DEFAULT_RANGES: tuple[tuple[str, str], ...]` — optional, `(path, label)` pairs.
-      `cli.resolve_ranges` looks for it with `getattr` and treats its absence as "this
-      adapter does not support `--range`", so it stays genuinely opt-in.
+    * `DEFAULT_RANGES: tuple[tuple[str, ...], ...]` — optional, usually `(path, label)`
+      pairs. `cli.resolve_ranges` looks for it with `getattr` and treats its absence as
+      "this adapter does not support `--range`", so it stays genuinely opt-in. Only the
+      **last** element of an entry is read, as the label; the rest is the adapter's
+      business, and `rimor` uses that to carry a slug for each of its two sites.
     """
 
     def collect(

@@ -1,3 +1,4 @@
 schedule_id,manufacturer_id,ranges,first_run,frequency_value,frequency_unit,enabled,notes
 adria-full-weekly,3,,2026-08-15 03:00,7,days,true,Full Adria sweep - every range, once a week
 adria-matrix-daily,3,Matrix,2026-08-13 11:05,1,days,true,"Single range test - daily"
+rimor-monthly,75,,2026-09-28 04:00,4,weeks,true,"Post-changeover re-check agreed 5 Sept 2026, then monthly. Rimor was mid-rollover when the adapter was rebuilt: the factory range moved 41 -> 37 with Sarus losing 7 and Kilig gaining 4, which looks like a reshuffle between ranges rather than deletions. Late September is when that should have settled. Monthly thereafter because the range and every price come from MNC, a dealer whose stock and promotions move far faster than a factory site."

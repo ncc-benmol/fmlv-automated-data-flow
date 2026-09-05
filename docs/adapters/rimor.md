@@ -134,6 +134,63 @@ source and not the same number read twice. MNC's truncation caps an honest disag
 the factory figure kept. A conflict does **not** drop the product — MNC being wrong about
 a dimension says nothing about whether the layout is on sale.
 
+## Body type: `/vans` does not settle it
+
+The body-style URL segment settles `low-profile` and `overcab` outright. **`vans` does
+not** — it says the vehicle is a panel-van conversion, and FMLV splits those four ways on
+what the roof does. Height decides it, on the same **2300 mm** threshold the NCC side set
+on 16 August 2026 and every other campervan-producing adapter applies:
+
+| Height | Body type |
+|---|---|
+| > 2300 mm | campervan high top |
+| ≤ 2300 mm | campervan |
+
+Every Rimor van is 2659 mm (the Van 238 is 2800 mm), so **all of them are high tops**, and
+none is anywhere near the threshold — the closest clears it by 359 mm.
+
+This was wrong until 5 September 2026: the adapter mapped `vans` straight to plain
+`campervan`, and Rimor was the **only** adapter emitting a campervan without applying the
+rule. Two notes for anyone tempted to re-derive the threshold from FMLV's own data, as I
+briefly was:
+
+* **Height does not separate the two classes in the baseline.** Across 237 campervan rows,
+  `high_top` spans 1900–3120 mm and plain `campervan` spans 2580–3050 mm — the plain class
+  has the *higher* median. That is not evidence the rule is wrong; it is a picture of the
+  errors the rule exists to correct, and reading it as ground truth argues for keeping
+  them.
+* **A missing height yields no body type at all**, rather than a guess. The four campervan
+  types are mutually exclusive columns.
+
+The two elevating-roof types never arise: no Rimor van publishes a pop-top, as standard or
+as an option. If one appears, the elevating question is independent of the height one, and
+`body_type_for` is where both belong — `auto_trail._campervan_body_type` has the full
+four-way table.
+
+## MNC writes its dimensions two ways
+
+Most listings read `Height: 2.65m` — whole centimetres, truncated. **A few read
+`Overall height: 2,659mm`**, which is exact, comma-separated, and agrees with the factory
+to the millimetre. Today that is Horus 12 and Horus 54; the other 36 use metres.
+
+Missing the second form is not harmless. It left Horus 12 — a layout with no factory page
+— looking as though nobody published its dimensions, when MNC publishes them exactly.
+`mnc_dimensions` tries the exact form first and reports which it found, and all three axes
+must come from the same form so that `dimensions_are_exact` cannot be true of one axis and
+false of another.
+
+### Dimensions fall back to MNC
+
+Where the factory has no page for a layout, its dimensions come from MNC rather than being
+left blank. The requester's ruling, 5 September 2026: *"if you can't get the specification
+on the manufacturer's site, plan B would be to use the MNC site for the dimensions — in
+that case we wouldn't have fields where you can't validate them."*
+
+The fallback only ever fills a gap. Where the factory has a figure it always wins, so this
+does not reintroduce MNC's truncation or its two wrong layouts anywhere the factory can
+speak. Where a fallback figure *is* truncated, the run and the provenance snippet say so,
+because that is the one thing a reviewer cannot see from the value itself.
+
 ## Traps on the factory site
 
 **Seats and berths are distinguishable only by Italian icon classes.** The two widgets
@@ -174,18 +231,24 @@ five table fields are built from one helper rather than written out five times.
 
 ## The two products with no factory page
 
-Both keep MNC's price, body type and base vehicle, and nothing else MNC alone cannot be
-trusted on:
+Both keep MNC's price, body type, base vehicle and dimensions:
 
-* **Horus 12** — `/int/en/gamma/horus/modello/12` now 302s to `/`. MNC still sells it as a
-  2027, and publishes no dimensions for it at all.
+* **Horus 12** — `/int/en/gamma/horus/modello/12` now 302s to `/`. MNC sells it as a 2027
+  and publishes its dimensions in the exact millimetre form, `5413 × 2050 × 2659 mm`.
 * **Rimor Van 238** — the factory gives it a standalone `/int/en/special/rimor-van` page
   with no spec table. MNC files it under its **Horus** category, and MNC decides the
-  range, so `manufacturer_range` is Horus and the model is `Van 238`.
+  range, so `manufacturer_range` is Horus and the model is `Van 238`. Its dimensions come
+  from MNC's truncated metres, which the run flags.
 
 For these two, MNC's seats and berths are taken **only when the two figures differ**
 (both publish `3 berth with 4 travel seats`). Two equal figures cannot be told apart from
-the repeat-the-seat-count bug, so they are left empty rather than guessed.
+the repeat-the-seat-count bug, so they are left empty rather than guessed. Masses are
+never taken from MNC, which publishes no MRO at all and no MTPLM for these two.
+
+Worth a second look one day: Horus 12's MNC dimensions are **identical to Horus 54's**,
+and MNC demonstrably copy-pastes between layouts elsewhere. Both are sub-6m Ducato vans
+that plausibly share a shell, and the factory dropped Horus 12 before this could be
+checked against it.
 
 ## What changed in September, and what it cost
 
@@ -223,21 +286,27 @@ the factory against itself.
 
 ## First run
 
-5 September 2026, all five ranges, **34 products and 390 fields with provenance**. Every
-per-range count matches the survey above. Hand-checked against both sources:
+5 September 2026, all five ranges, **34 products and 396 fields with provenance**. Every
+per-range count matches the survey above. Body types come out **7 campervan high top, 17
+low profile, 10 over-cab** — every van a high top, as the height rule requires.
+Hand-checked against both sources:
 
 | | Kilig 66 Plus | Sailer 55 Plus | Van 238 |
 |---|---|---|---|
 | MNC lists it as | Kilig 66 2026 | 55 Plus, demo van only | Van 238 2026-Automatic |
 | Price | £59,995 | £69,995 (pre-discount) | £56,995 |
-| L / W / H (mm) | 7338 / 2340 / 2845 | 7338 / 2340 / 2845 | — (MNC only) |
+| L / W / H (mm) | 7338 / 2340 / 2845 | 7338 / 2340 / 2845 | 5980 / 2050 / 2800 (MNC) |
 | Seats / berths | 4 / 4 | 4 / 4 | 4 / 3 |
 | MTPLM / MRO / payload | 3500 / 3017 / 483 | 3500 / 3051 / 449 | — |
-| Body type | low profile | low profile | campervan |
+| Body type | low profile | low profile | campervan high top |
 
 Note Kilig 66 Plus: MNC calls it "Kilig 66", the factory now calls it "66 Plus", and the
 stored model is the factory's current name. Its 7330 mm on MNC against 7338 mm on the
 factory is truncation, within tolerance, and is what confirms the rename join is right.
+
+Horus 54 is the useful case for the other direction: its MNC page gives exact
+millimetres, so the check runs at **zero tolerance**, and the two sites agree on all three
+axes exactly.
 
 ## What is unverified
 

@@ -106,21 +106,31 @@ SLUG_NOISE: frozenset[str] = frozenset(
 #: stand in when it is the only listing that layout has.
 STOCK_MARKERS: frozenset[str] = frozenset({"demo", "copy", "spec"})
 
-#: The factory body-style URL segment *is* the body type, and stays the best source for
-#: it. Any other segment is not a body-style page and is skipped, so a new one appearing
-#: does not silently become the wrong type.
+#: A campervan taller than this is a high top — the roof line materially above the side
+#: windows. The same threshold as `auto_trail.HIGH_TOP_ABOVE_MM`, set by the NCC side on
+#: 16 August 2026 from the live data, and applied by every other adapter that emits a
+#: campervan. Rimor's vans are all 2659 mm, so every one of them is a high top.
+HIGH_TOP_ABOVE_MM = 2300
+
+#: The body-style segments the factory publishes. `vans` is listed here but **not** in
+#: `BODY_TYPES`, because unlike the other two it does not settle the body type on its own
+#: — see `body_type_for`. Any other segment is not a body-style page and is skipped, so a
+#: new one appearing does not silently become the wrong type.
+BODY_STYLES: frozenset[str] = frozenset({"low-profile", "overcab", "vans"})
+
+#: The two body styles whose URL segment *is* the body type outright.
 BODY_TYPES: dict[str, BodyType] = {
     "low-profile": BodyType.COACH_BUILT_LOW_PROFILE,
     "overcab": BodyType.COACH_BUILT_OVER_CAB_BED,
-    "vans": BodyType.CAMPERVAN,
 }
 
-#: MNC's product categories carry the same distinction, and are the only source of it for
-#: a layout with no factory page. Matched against the `Categories` line, longest-first.
-MNC_BODY_TYPES: tuple[tuple[str, BodyType], ...] = (
-    ("all low profile", BodyType.COACH_BUILT_LOW_PROFILE),
-    ("all camper vans", BodyType.CAMPERVAN),
-    ("all overcab", BodyType.COACH_BUILT_OVER_CAB_BED),
+#: MNC's product categories name the same three styles, and are the only source of them
+#: for a layout with no factory page. Matched against the `Categories` line. They resolve
+#: to a body *style*, not a body type, so both sites go through `body_type_for`.
+MNC_BODY_STYLES: tuple[tuple[str, str], ...] = (
+    ("all low profile", "low-profile"),
+    ("all camper vans", "vans"),
+    ("all overcab", "overcab"),
 )
 
 #: "Bedding solution : Twin beds" -> the FMLV bed type. Ordered longest-first, because
@@ -176,9 +186,14 @@ _MNC_PRICE_ONLY = re.compile(r"£\s*([\d,]+)")
 _MNC_TITLE = re.compile(r'<(h[1-6])[^>]*class="[^"]*product_title[^"]*"[^>]*>(.*?)</\1>', re.S)
 _MNC_CATEGORIES = re.compile(r'<span class="posted_in[^"]*">(.*?)</span>\s*</span>', re.S)
 _MNC_VEHICLE = re.compile(r"Vehicle:\s*(?:</?[^>]+>\s*)*([A-Za-z][A-Za-z\-]*)", re.I)
-_MNC_LENGTH = re.compile(r"Length:\s*([\d.]+)\s*m\b", re.I)
-_MNC_WIDTH = re.compile(r"Width:\s*([\d.]+)\s*m\b", re.I)
-_MNC_HEIGHT = re.compile(r"Height:\s*([\d.]+)\s*m\b", re.I)
+#: MNC writes its dimensions two ways, and which one a page uses matters. Most read
+#: `Height: 2.65m` — whole centimetres, and truncated rather than rounded. A few read
+#: `Overall height: 2,659mm`, which is exact and agrees with the factory to the
+#: millimetre. `mnc_dimensions` tries the exact form first and reports which it found,
+#: because an exact figure is worth publishing for a layout the factory has no page for
+#: and a truncated one is not.
+_MNC_MM = r"(?:overall\s+){0,1}%s:\s*([\d,]+)\s*mm\b"
+_MNC_METRES = r"(?:overall\s+){0,1}%s:\s*([\d.]+)\s*m\b"
 _MNC_BERTHS = re.compile(r"(\d+)\s*berth with\s*(\d+)\s*travel seat", re.I)
 
 #: A page whose title says "Demo" is one specific vehicle. Detected from the *fetched*
@@ -271,9 +286,25 @@ def _pounds(text: str | None) -> int | None:
     return None if not text else int(text.replace(",", ""))
 
 
-def _metres_to_mm(text: str | None) -> int | None:
-    """Whole millimetres from MNC's `7.33` metres. Used for the cross-check only."""
-    return None if not text else round(float(text) * 1000)
+def mnc_dimensions(text: str) -> tuple[int | None, int | None, int | None, bool]:
+    """`(length, width, height, exact)` in millimetres from an MNC product page.
+
+    The exact `2,659mm` form is tried before the truncated `2.65m` one, and all three
+    axes must come from the same form — mixing an exact length with a truncated height
+    would make `dimensions_are_exact` a lie about one of them. In practice a page commits
+    to one style throughout; today Horus 12 and Horus 54 use millimetres and the other 36
+    listings use metres.
+    """
+    for pattern, scale, exact in ((_MNC_MM, 1, True), (_MNC_METRES, 1000, False)):
+        found = []
+        for axis in ("length", "width", "height"):
+            match = re.search(pattern % axis, text, re.I)
+            found.append(
+                None if match is None else round(float(match.group(1).replace(",", "")) * scale)
+            )
+        if any(value is not None for value in found):
+            return found[0], found[1], found[2], exact
+    return None, None, None, False
 
 
 def _plain_text(fragment: str) -> str:
@@ -303,9 +334,13 @@ class MncListing:
     is_demo: bool = False
     body_type: BodyType | None = None
     base_vehicle_manufacturer: str | None = None
+    body_style: str | None = None
     mnc_length_mm: int | None = None
     mnc_width_mm: int | None = None
     mnc_height_mm: int | None = None
+    #: True when MNC published millimetres rather than truncated metres, which makes its
+    #: figures publishable in their own right and not merely a cross-check.
+    dimensions_are_exact: bool = False
     mnc_berths: int | None = None
     mnc_seats: int | None = None
 
@@ -446,14 +481,15 @@ def parse_mnc_listing(html_text: str, slug: str, url: str) -> MncListing | None:
 
     categories_match = _MNC_CATEGORIES.search(html_text)
     categories = _plain_text(categories_match.group(1)).lower() if categories_match else ""
-    body_type = next(
-        (bt for phrase, bt in MNC_BODY_TYPES if phrase in categories),
+    body_style = next(
+        (style for phrase, style in MNC_BODY_STYLES if phrase in categories),
         None,
     )
 
     text = _plain_text(html_text)
     vehicle = _MNC_VEHICLE.search(text)
     berths = _MNC_BERTHS.search(text)
+    length, width, height, exact = mnc_dimensions(text)
 
     return MncListing(
         slug=slug,
@@ -466,11 +502,15 @@ def parse_mnc_listing(html_text: str, slug: str, url: str) -> MncListing | None:
         rrp_pounds=rrp,
         pre_discount_pounds=pre_discount,
         is_demo=is_demo,
-        body_type=body_type,
+        body_style=body_style,
+        # Even a truncated height settles the high-top question: the nearest Rimor van to
+        # the 2300mm threshold clears it by 359mm, far outside the 9mm truncation.
+        body_type=body_type_for(body_style, height),
         base_vehicle_manufacturer=fmlv_base_vehicle(vehicle.group(1)) if vehicle else None,
-        mnc_length_mm=_metres_to_mm(m.group(1)) if (m := _MNC_LENGTH.search(text)) else None,
-        mnc_width_mm=_metres_to_mm(m.group(1)) if (m := _MNC_WIDTH.search(text)) else None,
-        mnc_height_mm=_metres_to_mm(m.group(1)) if (m := _MNC_HEIGHT.search(text)) else None,
+        mnc_length_mm=length,
+        mnc_width_mm=width,
+        mnc_height_mm=height,
+        dimensions_are_exact=exact,
         mnc_berths=int(berths.group(1)) if berths else None,
         mnc_seats=int(berths.group(2)) if berths else None,
     )
@@ -517,7 +557,7 @@ def parse_body_style_links(range_html: str, range_slug: str) -> list[str]:
     """The body-style segments linked from one factory range page, in page order."""
     seen: dict[str, None] = {}
     for slug, body_style in _BODY_STYLE_LINK.findall(range_html):
-        if slug == range_slug and body_style in BODY_TYPES:
+        if slug == range_slug and body_style in BODY_STYLES:
             seen.setdefault(body_style, None)
     return list(seen)
 
@@ -586,7 +626,9 @@ def parse_model_page(html_text: str, url: str) -> RimorModel | None:
         range_label=range_match.group(1),
         model=model,
         url=url,
-        body_type=BODY_TYPES.get(body_style or ""),
+        body_type=body_type_for(
+            body_style, int(height.group(1)) if height else None
+        ),
         body_style=body_style,
         mh_passenger_seats_inc_driver=_leading_int(seats.group(1)) if seats else None,
         seats_text=seats.group(1) if seats else None,
@@ -604,6 +646,37 @@ def parse_model_page(html_text: str, url: str) -> RimorModel | None:
         bedding_solution=solution,
         bed_types=bed_types_for(solution),
     )
+
+
+def body_type_for(body_style: str | None, height_mm: int | None) -> BodyType | None:
+    """The FMLV body type a body style implies, given the vehicle's height.
+
+    `low-profile` and `overcab` settle it outright. `vans` does not: it says the vehicle
+    is a panel-van conversion, but FMLV splits those four ways, and the roof is what
+    separates them. Height decides it, on the same 2300 mm threshold every other adapter
+    uses:
+
+    ==================  ==============================
+    Height              Body type
+    ==================  ==============================
+    > 2300mm            campervan high top
+    <= 2300mm           campervan
+    ==================  ==============================
+
+    **A missing height yields `None`, not a guess.** The four campervan types are mutually
+    exclusive columns, so picking the wrong one is worse than leaving the field for a
+    reviewer — Horus 12 is in exactly that position, published by neither site with a
+    height.
+
+    The two elevating-roof types do not arise: no Rimor van publishes a pop-top, as a
+    standard fitting or an option. Should one appear, this is where it would be handled,
+    and the elevating question is independent of the height one.
+    """
+    if body_style in BODY_TYPES:
+        return BODY_TYPES[body_style]
+    if body_style != "vans" or height_mm is None:
+        return None
+    return BodyType.CAMPERVAN_HIGH_TOP if height_mm > HIGH_TOP_ABOVE_MM else BodyType.CAMPERVAN
 
 
 def bed_types_for(solution: str | None) -> list[BedType]:
@@ -625,11 +698,20 @@ def dimension_conflicts(listing: MncListing, model: RimorModel) -> list[str]:
     """Where MNC and the factory disagree on a dimension by more than truncation allows.
 
     This is the adapter's self-check, and it is a genuine second source rather than the
-    same number read twice: the two sites publish these independently. MNC truncates
-    metres, so it reads up to 9 mm short of the factory's millimetres and no more —
-    anything past `DIMENSION_TOLERANCE_MM` is a real conflict in the data, or a layout
-    matched to the wrong factory page.
+    same number read twice: the two sites publish these independently. What counts as a
+    disagreement depends on how MNC wrote the figure. On a page giving truncated metres
+    it reads up to 9 mm short of the factory's millimetres and no more, so anything past
+    `DIMENSION_TOLERANCE_MM` is real; on a page giving exact millimetres there is nothing
+    to forgive and any difference at all is real.
+
+    A conflict means either a wrong figure on MNC's page or a layout matched to the wrong
+    factory page — and the run says which figure it kept, rather than dropping the
+    product. MNC being wrong about a dimension says nothing about whether the layout is
+    on sale in the UK.
     """
+    # A page that gave exact millimetres has no truncation to forgive, so any difference
+    # at all is a real one. Horus 54 is such a page, and agrees exactly.
+    tolerance = 0 if listing.dimensions_are_exact else DIMENSION_TOLERANCE_MM
     conflicts: list[str] = []
     for axis, mnc_mm, factory_mm in (
         ("length", listing.mnc_length_mm, model.mh_length_mm),
@@ -638,7 +720,7 @@ def dimension_conflicts(listing: MncListing, model: RimorModel) -> list[str]:
     ):
         if mnc_mm is None or factory_mm is None:
             continue
-        if abs(mnc_mm - factory_mm) > DIMENSION_TOLERANCE_MM:
+        if abs(mnc_mm - factory_mm) > tolerance:
             conflicts.append(
                 f"{axis} MNC {mnc_mm} mm vs rimor.it {factory_mm} mm "
                 f"({mnc_mm - factory_mm:+d} mm)"
@@ -680,9 +762,20 @@ def _build_extracted_motorhome(
     body type and base vehicle, and take seats and berths from MNC *only* when the two
     differ: MNC repeats its travel-seat count in the berth position on the coachbuilts,
     so two equal figures cannot be told apart from that bug and are left empty.
+
+    **Dimensions fall back to MNC** where the factory has none, rather than being left
+    blank (the requester's ruling, 5 September 2026: "if you can't get the specification
+    on the manufacturer's site, plan B would be to use the MNC site"). Where the factory
+    has them they always win, so the fallback only ever fills what would otherwise be
+    empty. The run says when a fallback figure is truncated to whole centimetres, since
+    that is the one thing a reviewer cannot see from the value itself.
     """
     range_label = model.range_label if model else listing.range_label
     body_type = (model.body_type if model else None) or listing.body_type
+
+    length = (model.mh_length_mm if model else None) or listing.mnc_length_mm
+    width = (model.mh_width_mm if model else None) or listing.mnc_width_mm
+    height = (model.mh_height_mm if model else None) or listing.mnc_height_mm
 
     seats = model.mh_passenger_seats_inc_driver if model else None
     berths = model.berths if model else None
@@ -711,9 +804,9 @@ def _build_extracted_motorhome(
         mtplm_kilograms=model.mtplm_kilograms if model else None,
         mro_kilograms=model.mro_kilograms if model else None,
         mh_payload_kilograms=model.mh_payload_kilograms if model else None,
-        mh_length_mm=model.mh_length_mm if model else None,
-        mh_width_mm=model.mh_width_mm if model else None,
-        mh_height_mm=model.mh_height_mm if model else None,
+        mh_length_mm=length,
+        mh_width_mm=width,
+        mh_height_mm=height,
     )
 
     mnc_source = listing.url
@@ -741,9 +834,42 @@ def _build_extracted_motorhome(
         record("base_vehicle_manufacturer", f"Vehicle: {listing.base_vehicle_manufacturer}", url=mnc_source)
     if body_type is not None:
         if model is not None and model.body_type is not None:
-            record("body_type", f"listed under /{model.body_style}", url=factory_source or mnc_source)
+            listed_under = f"listed under /{model.body_style}"
+            source = factory_source or mnc_source
         else:
-            record("body_type", "from the MNC product categories", url=mnc_source)
+            listed_under = f"MNC categories give /{listing.body_style}"
+            source = mnc_source
+        if body_type in (BodyType.CAMPERVAN, BodyType.CAMPERVAN_HIGH_TOP):
+            # A van's type is a judgement the height makes, so show the working: the
+            # segment alone would not explain why this is a high top and not a campervan.
+            listed_under += (
+                f", and {height} mm is {'above' if height and height > HIGH_TOP_ABOVE_MM else 'not above'} "
+                f"the {HIGH_TOP_ABOVE_MM} mm high-top threshold"
+            )
+        record("body_type", listed_under, url=source)
+
+    # Dimensions are recorded here rather than in either branch, because each axis may
+    # have come from either site: the factory where it has the layout, MNC where it does
+    # not. The snippet names which, and says so when MNC's figure is a truncated one.
+    for field_name, axis, factory_value in (
+        ("mh_length_mm", "Outside length", model.mh_length_mm if model else None),
+        ("mh_width_mm", "Outside width", model.mh_width_mm if model else None),
+        ("mh_height_mm", "Maximum outside height", model.mh_height_mm if model else None),
+    ):
+        value = getattr(motorhome, field_name)
+        if value is None:
+            continue
+        if factory_value is not None:
+            record(field_name, f"{axis}: {value} mm", url=factory_source or mnc_source)
+        elif listing.dimensions_are_exact:
+            record(field_name, f"{axis}: {value} mm, from MNC", url=mnc_source)
+        else:
+            record(
+                field_name,
+                f"{axis}: {value} mm, from MNC's {value / 1000:.2f} m — truncated to "
+                f"whole centimetres, so the true figure is 0-9 mm higher",
+                url=mnc_source,
+            )
 
     if model is None:
         if mnc_counts_usable:
@@ -766,13 +892,6 @@ def _build_extracted_motorhome(
         # The cell text is kept verbatim: "4 (+1 opt)" says something the integer cannot,
         # namely that the fifth berth needs optional equipment.
         record("berths", f"numero posti letto (berths): {model.berths_text}", url=factory_source)
-    for field_name, axis, value in (
-        ("mh_length_mm", "Outside length", model.mh_length_mm),
-        ("mh_width_mm", "Outside width", model.mh_width_mm),
-        ("mh_height_mm", "Maximum outside height", model.mh_height_mm),
-    ):
-        if value is not None:
-            record(field_name, f"{axis}: {value} mm", url=factory_source)
     if model.bed_types:
         record("bed_types", f"Bedding solution: {model.bedding_solution}", url=factory_source)
     if model.mtplm_kilograms is not None:
@@ -922,6 +1041,13 @@ def collect(
                             f"{model_path}; MNC price and body type only"
                         )
 
+            if model is None and listing.mnc_height_mm is not None:
+                precision = "exact" if listing.dimensions_are_exact else "truncated to cm"
+                on_progress(
+                    f"    {listing.title} — dimensions fall back to MNC "
+                    f"({listing.mnc_length_mm}x{listing.mnc_width_mm}x"
+                    f"{listing.mnc_height_mm} mm, {precision})"
+                )
             if model is not None:
                 if factory_layout != listing.layout:
                     on_progress(

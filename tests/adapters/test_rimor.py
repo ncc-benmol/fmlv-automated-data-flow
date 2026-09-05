@@ -62,6 +62,11 @@ def mnc_van_238() -> str:
 
 
 @pytest.fixture(scope="module")
+def mnc_horus_12() -> str:
+    return _fixture("rimor_mnc_horus_12_product.html")
+
+
+@pytest.fixture(scope="module")
 def factory_kilig_5() -> str:
     return _fixture("rimor_factory_kilig_5_model.html")
 
@@ -302,8 +307,9 @@ def test_price_from_ignores_a_page_with_no_price() -> None:
          BodyType.COACH_BUILT_OVER_CAB_BED),
         ("rimor_mnc_kilig_66_product.html", "rimor-kilig-66-2026",
          BodyType.COACH_BUILT_LOW_PROFILE),
+        # A van, so its height decides which of the four campervan types it is.
         ("rimor_mnc_van_238_product.html", "rimor-van-238-2026-automatic",
-         BodyType.CAMPERVAN),
+         BodyType.CAMPERVAN_HIGH_TOP),
     ],
 )
 def test_parse_mnc_listing_reads_body_type_from_the_categories(
@@ -552,11 +558,15 @@ def test_product_without_a_factory_page_keeps_price_and_body_type(
     assert product.manufacturer_range == "Horus"
     assert product.model == "Van 238"
     assert product.rrp_pounds == 56_995
-    assert product.body_type is BodyType.CAMPERVAN
+    assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
     assert product.base_vehicle_manufacturer == "Ford"
-    # Nothing MNC alone cannot be trusted on.
-    assert product.mh_length_mm is None
+    # Dimensions fall back to MNC where the factory has no page at all.
+    assert (product.mh_length_mm, product.mh_width_mm, product.mh_height_mm) == (
+        5980, 2050, 2800,
+    )
+    # But nothing MNC never publishes is invented.
     assert product.mtplm_kilograms is None
+    assert product.mro_kilograms is None
 
 
 def test_product_without_a_factory_page_takes_counts_only_when_they_differ(
@@ -608,6 +618,141 @@ def test_product_provenance_cites_the_site_each_field_came_from(
     assert "rimor.it" in provenance["mh_length_mm"].source_url
     assert "rimor.it" in provenance["berths"].source_url
     assert "rimor.it" in provenance["mh_payload_kilograms"].source_url
+
+
+# --------------------------------------------------------------------------- #
+# Body type — the height rule
+#
+# `/vans` says a vehicle is a panel-van conversion but not which of FMLV's four
+# campervan types it is. Height settles it, on the 2300mm threshold the NCC side set on
+# 16 August 2026 and every other campervan-producing adapter applies. Rimor was the one
+# adapter that did not, and mapped every van to plain `campervan`.
+# --------------------------------------------------------------------------- #
+
+
+def test_high_top_threshold_matches_the_other_adapters() -> None:
+    """One shared number; a local drift here would silently reclassify a whole range."""
+    from src.adapters import auto_trail
+
+    assert rimor.HIGH_TOP_ABOVE_MM == auto_trail.HIGH_TOP_ABOVE_MM == 2300
+
+
+@pytest.mark.parametrize(
+    ("body_style", "height_mm", "expected"),
+    [
+        ("vans", 2659, BodyType.CAMPERVAN_HIGH_TOP),
+        ("vans", 2800, BodyType.CAMPERVAN_HIGH_TOP),
+        ("vans", 2301, BodyType.CAMPERVAN_HIGH_TOP),
+        ("vans", 2300, BodyType.CAMPERVAN),
+        ("vans", 2050, BodyType.CAMPERVAN),
+        ("low-profile", 2845, BodyType.COACH_BUILT_LOW_PROFILE),
+        ("overcab", 3080, BodyType.COACH_BUILT_OVER_CAB_BED),
+    ],
+)
+def test_body_type_for(body_style: str, height_mm: int, expected: BodyType) -> None:
+    assert rimor.body_type_for(body_style, height_mm) is expected
+
+
+def test_body_type_for_needs_no_height_for_a_coachbuilt() -> None:
+    """Only the van case asks the height question."""
+    assert rimor.body_type_for("low-profile", None) is BodyType.COACH_BUILT_LOW_PROFILE
+
+
+def test_body_type_for_will_not_guess_a_van_without_a_height() -> None:
+    """The four campervan types are exclusive columns; a wrong one is worse than blank."""
+    assert rimor.body_type_for("vans", None) is None
+
+
+def test_body_type_for_ignores_an_unknown_body_style() -> None:
+    assert rimor.body_type_for("hovercraft", 2659) is None
+    assert rimor.body_type_for(None, 2659) is None
+
+
+def test_every_rimor_van_is_a_high_top(factory_horus_38: str) -> None:
+    """Horus 38 is 2659mm — 359mm clear of the threshold, so far from a borderline call."""
+    model = rimor.parse_model_page(factory_horus_38, "/int/en/gamma/horus/modello/38")
+    assert model.mh_height_mm == 2659
+    assert model.body_type is BodyType.CAMPERVAN_HIGH_TOP
+
+
+def test_a_truncated_height_still_settles_the_high_top_question(
+    mnc_van_238: str,
+) -> None:
+    """MNC's 2.80m truncates to 2800mm; the 9mm it could be short by cannot reach 2300."""
+    listing = rimor.parse_mnc_listing(mnc_van_238, "rimor-van-238-2026-automatic", "u")
+    assert listing.dimensions_are_exact is False
+    assert listing.body_type is BodyType.CAMPERVAN_HIGH_TOP
+
+
+# --------------------------------------------------------------------------- #
+# MNC dimensions — two formats, and the fallback
+# --------------------------------------------------------------------------- #
+
+
+def test_mnc_dimensions_reads_the_truncated_metres_form(mnc_kilig_66: str) -> None:
+    listing = rimor.parse_mnc_listing(mnc_kilig_66, "rimor-kilig-66-2026", "u")
+    assert (listing.mnc_length_mm, listing.mnc_width_mm, listing.mnc_height_mm) == (
+        7330, 2340, 2840,
+    )
+    assert listing.dimensions_are_exact is False
+
+
+def test_mnc_dimensions_reads_the_exact_millimetre_form(mnc_horus_12: str) -> None:
+    """A few MNC pages give `Overall height: 2,659mm` — exact, and comma-separated.
+
+    The metres-only pattern silently found nothing on these, which is what left Horus 12
+    with no dimensions at all even though MNC publishes them.
+    """
+    listing = rimor.parse_mnc_listing(mnc_horus_12, "rimor-horus-12-2027", "u")
+    assert (listing.mnc_length_mm, listing.mnc_width_mm, listing.mnc_height_mm) == (
+        5413, 2050, 2659,
+    )
+    assert listing.dimensions_are_exact is True
+
+
+def test_mnc_dimensions_returns_nothing_for_a_page_with_none() -> None:
+    assert rimor.mnc_dimensions("no dimensions here") == (None, None, None, False)
+
+
+def test_dimensions_fall_back_to_mnc_when_the_factory_has_no_page(
+    mnc_horus_12: str,
+) -> None:
+    """The requester's plan B: a figure MNC publishes beats leaving the field empty."""
+    listing = rimor.parse_mnc_listing(mnc_horus_12, "rimor-horus-12-2027", "u")
+    product = rimor._build_extracted_motorhome(listing, None).motorhome
+    assert (product.mh_length_mm, product.mh_width_mm, product.mh_height_mm) == (
+        5413, 2050, 2659,
+    )
+    assert product.body_type is BodyType.CAMPERVAN_HIGH_TOP
+
+
+def test_the_factory_still_wins_where_it_has_the_layout(
+    mnc_kilig_66: str, factory_kilig_66_plus: str
+) -> None:
+    """The fallback only ever fills a gap; it never overrides an exact factory figure."""
+    listing = rimor.parse_mnc_listing(mnc_kilig_66, "rimor-kilig-66-2026", "u")
+    model = rimor.parse_model_page(
+        factory_kilig_66_plus, "/int/en/gamma/kilig/modello/66-plus"
+    )
+    product = rimor._build_extracted_motorhome(listing, model).motorhome
+    assert listing.mnc_length_mm == 7330
+    assert product.mh_length_mm == 7338
+
+
+def test_provenance_flags_a_truncated_fallback_figure(mnc_van_238: str) -> None:
+    """A reviewer cannot see truncation in the value, so the snippet has to say it."""
+    listing = rimor.parse_mnc_listing(mnc_van_238, "rimor-van-238-2026-automatic", "u")
+    snippet = rimor._build_extracted_motorhome(listing, None).provenance["mh_length_mm"].snippet
+    assert "truncated" in snippet
+
+
+def test_provenance_does_not_cry_truncation_over_an_exact_figure(
+    mnc_horus_12: str,
+) -> None:
+    listing = rimor.parse_mnc_listing(mnc_horus_12, "rimor-horus-12-2027", "u")
+    snippet = rimor._build_extracted_motorhome(listing, None).provenance["mh_length_mm"].snippet
+    assert "truncated" not in snippet
+    assert "from MNC" in snippet
 
 
 # --------------------------------------------------------------------------- #
